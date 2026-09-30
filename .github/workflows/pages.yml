@@ -1,0 +1,53 @@
+# Publica el sitio en GitHub Pages en cada push a main: arma dist/ (igual que para Hostinger,
+# ver scripts/build-site.mjs) y lo sube como el sitio publicado. No hay que mover ni subir nada
+# a mano: esto reemplaza a "copiar dist/ a una rama gh-pages" o a mover index.html a la raíz.
+#
+# Activación (una sola vez): Settings → Pages → Source: "GitHub Actions".
+#
+# Esta es una vidriera de PRUEBA/demo, no el sitio de producción real (que va a Hostinger con
+# dominio propio, ver docs/PUESTA-EN-MARCHA.md). Login, catálogo, tienda y panel de
+# productos funcionan acá sin más (Supabase Auth/REST aceptan cualquier origen). Para reproducir
+# videos y crear/borrar clases hay que agregar el dominio de Pages (https://<usuario>.github.io)
+# a ALLOWED_ORIGINS en supabase/.env y volver a correr `npm run sb:secrets` (CORS de las Edge Functions).
+name: Deploy a GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Si se encadenan varios pushes, solo termina de desplegarse el último.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

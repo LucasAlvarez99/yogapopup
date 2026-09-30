@@ -1,0 +1,7 @@
+# Fin de línea LF en todo el repo, también en Windows: evita los avisos "LF will be replaced by CRLF",
+# los diffs falsos y que `npm run fmt:check` falle en CI por saltos de línea de Windows.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.woff binary
+*.woff2 binary

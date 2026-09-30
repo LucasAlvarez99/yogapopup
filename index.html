@@ -5,13 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Yoga Pop Up · Yoga &amp; Conexión</title>
   <meta name="description" content="Cursos, clases en vivo, videos y productos para acompañarte en cada etapa de tu práctica de yoga.">
-  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="assets/favicon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <!-- Tipografías de marca (The Seasons, TT Drugs, Glacial Indifference): @font-face en css/style.css,
+       comentado hasta sumar los archivos con licencia en assets/fonts/. Mientras tanto se usan
+       las alternativas del propio manual (Georgia, Helvetica Neue, Century Gothic). -->
+  <link href="css/vendor/bootstrap.min.css" rel="stylesheet">
+  <link href="css/vendor/bootstrap-icons.min.css" rel="stylesheet">
   <link href="css/style.css" rel="stylesheet">
+  <link href="css/app.css" rel="stylesheet">
 </head>
 <body>
 
@@ -20,7 +23,7 @@
   <nav class="navbar navbar-expand-lg">
     <div class="container-xl">
       <a class="navbar-brand brand" href="#inicio" aria-label="Yoga Pop Up">
-        <span class="brand-mark"><i class="bi bi-flower1"></i></span>
+        <span class="brand-mark"><img src="assets/logo-claro.png" alt="" width="360" height="379"></span>
         <span class="brand-text">Yoga Pop Up</span>
       </a>
 
@@ -28,7 +31,7 @@
         <button class="icon-btn d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#mainMenu" aria-controls="mainMenu" aria-expanded="false" aria-label="Abrir menú">
           <i class="bi bi-list"></i>
         </button>
-        <a class="icon-btn" href="#" aria-label="Mi cuenta"><i class="bi bi-person"></i></a>
+        <a class="icon-btn" href="cuenta.html" aria-label="Mi cuenta" data-account-toggle><i class="bi bi-person"></i></a>
         <button class="icon-btn position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#cartDrawer" aria-controls="cartDrawer" aria-label="Abrir carrito">
           <i class="bi bi-bag"></i>
           <span class="cart-badge" id="cartCount">3</span>
@@ -40,10 +43,11 @@
           <li class="nav-item"><a class="nav-link active" href="#inicio">Inicio</a></li>
           <li class="nav-item"><a class="nav-link" href="#cursos">Cursos</a></li>
           <li class="nav-item"><a class="nav-link" href="#clases">Clases</a></li>
-          <li class="nav-item"><a class="nav-link" href="#tienda">Merchandising</a></li>
+          <li class="nav-item"><a class="nav-link" href="videoteca.html">Videoteca</a></li>
+          <li class="nav-item"><a class="nav-link" href="tienda.html">Merchandising</a></li>
           <li class="nav-item"><a class="nav-link" href="#nosotros">Sobre nosotros</a></li>
         </ul>
-        <form class="search-pill" role="search" onsubmit="return false">
+        <form class="search-pill" role="search">
           <i class="bi bi-search"></i>
           <input type="search" class="form-control" placeholder="Buscar cursos, clases, productos..." aria-label="Buscar">
         </form>
@@ -57,7 +61,7 @@
   <!-- ============ HERO ============ -->
   <section class="hero">
     <div class="hero-photo" aria-hidden="true">
-      <img src="https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1400&q=70" alt="" onerror="this.remove()">
+      <img src="https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1400&q=70" alt="" data-hide-on-error>
     </div>
     <div class="container-xl position-relative">
       <div class="row align-items-center hero-row">
@@ -93,7 +97,7 @@
               <p>Cursos completos para todos los niveles, desde cero hasta avanzados.</p>
               <a href="#cursos" class="btn btn-brand btn-sm">Ver cursos <i class="bi bi-arrow-right"></i></a>
             </div>
-            <div class="cat-img"><img src="https://images.unsplash.com/photo-1599901860904-17e6ed7083a0?auto=format&fit=crop&w=600&q=70" alt="Curso de yoga online" loading="lazy" onerror="this.remove()"></div>
+            <div class="cat-img"><img src="https://images.unsplash.com/photo-1599901860904-17e6ed7083a0?auto=format&fit=crop&w=600&q=70" alt="Curso de yoga online" loading="lazy" data-hide-on-error></div>
           </div>
         </article>
         <article class="col-lg-4 col-md-6 reveal">
@@ -104,7 +108,7 @@
               <p>Conectate en tiempo real con instructores expertos.</p>
               <a href="#clases" class="btn btn-brand btn-sm">Ver clases <i class="bi bi-arrow-right"></i></a>
             </div>
-            <div class="cat-img"><img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=600&q=70" alt="Clase de yoga en vivo" loading="lazy" onerror="this.remove()"></div>
+            <div class="cat-img"><img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=600&q=70" alt="Clase de yoga en vivo" loading="lazy" data-hide-on-error></div>
           </div>
         </article>
         <article class="col-lg-4 col-md-12 reveal">
@@ -113,9 +117,9 @@
               <span class="cat-label">Merchandising</span>
               <h3>Ropa y accesorios para tu práctica</h3>
               <p>Comodidad, diseño y calidad en cada movimiento.</p>
-              <a href="#tienda" class="btn btn-brand btn-sm">Ver productos <i class="bi bi-arrow-right"></i></a>
+              <a href="tienda.html" class="btn btn-brand btn-sm">Ver productos <i class="bi bi-arrow-right"></i></a>
             </div>
-            <div class="cat-img"><img src="https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?auto=format&fit=crop&w=600&q=70" alt="Ropa y mat de yoga" loading="lazy" onerror="this.remove()"></div>
+            <div class="cat-img"><img src="https://images.unsplash.com/photo-1593811167562-9cef47bfc4d7?auto=format&fit=crop&w=600&q=70" alt="Ropa y mat de yoga" loading="lazy" data-hide-on-error></div>
           </div>
         </article>
       </div>
@@ -144,37 +148,37 @@
       <div class="row g-4">
         <article class="col-lg-4 col-md-6 reveal">
           <div class="product-card">
-            <div class="product-media bg-light-green"><span class="tag tag-dark">Más vendido</span><img src="https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?auto=format&fit=crop&w=800&q=70" alt="Yoga desde cero" loading="lazy" onerror="this.remove()"></div>
+            <div class="product-media bg-light-green"><span class="tag tag-dark">Más vendido</span><img src="https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?auto=format&fit=crop&w=800&q=70" alt="Yoga desde cero" loading="lazy" data-hide-on-error></div>
             <div class="product-body">
               <span class="product-cat">Cursos</span>
               <h3>Yoga desde cero</h3>
               <p>Fundamentos, respiración y posturas base para empezar con seguridad.</p>
               <ul class="meta"><li><i class="bi bi-bar-chart"></i> Principiante</li><li><i class="bi bi-clock"></i> 8 semanas</li></ul>
-              <div class="product-foot"><strong class="price">$24.990</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
+              <div class="product-foot"><strong class="price">24,99&nbsp;€</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
             </div>
           </div>
         </article>
         <article class="col-lg-4 col-md-6 reveal">
           <div class="product-card">
-            <div class="product-media bg-mint"><span class="tag tag-mint">Nuevo</span><img src="https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=70" alt="Yoga para flexibilidad" loading="lazy" onerror="this.remove()"></div>
+            <div class="product-media bg-mint"><span class="tag tag-mint">Nuevo</span><img src="https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=70" alt="Yoga para flexibilidad" loading="lazy" data-hide-on-error></div>
             <div class="product-body">
               <span class="product-cat">Cursos</span>
               <h3>Yoga para flexibilidad</h3>
               <p>Secuencias progresivas para ganar movilidad y soltar el cuerpo.</p>
               <ul class="meta"><li><i class="bi bi-bar-chart"></i> Intermedio</li><li><i class="bi bi-clock"></i> 6 semanas</li></ul>
-              <div class="product-foot"><strong class="price">$29.990</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
+              <div class="product-foot"><strong class="price">29,99&nbsp;€</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
             </div>
           </div>
         </article>
         <article class="col-lg-4 col-md-12 reveal">
           <div class="product-card">
-            <div class="product-media bg-light-green"><span class="tag tag-light">Destacado</span><img src="https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=70" alt="Meditación y respiración" loading="lazy" onerror="this.remove()"></div>
+            <div class="product-media bg-light-green"><span class="tag tag-light">Destacado</span><img src="https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=70" alt="Meditación y respiración" loading="lazy" data-hide-on-error></div>
             <div class="product-body">
               <span class="product-cat">Cursos</span>
               <h3>Meditación y respiración</h3>
               <p>Herramientas simples para habitar el cuerpo con presencia y calma.</p>
               <ul class="meta"><li><i class="bi bi-bar-chart"></i> Todos los niveles</li><li><i class="bi bi-clock"></i> 4 semanas</li></ul>
-              <div class="product-foot"><strong class="price">$19.990</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
+              <div class="product-foot"><strong class="price">19,99&nbsp;€</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
             </div>
           </div>
         </article>
@@ -192,7 +196,7 @@
       <div class="row g-4">
         <article class="col-lg-4 col-md-6 reveal">
           <div class="class-card">
-            <div class="class-media"><img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=800&q=70" alt="Hatha Yoga" loading="lazy" onerror="this.remove()"><span class="tag tag-live"><i class="bi bi-broadcast"></i> En vivo</span></div>
+            <div class="class-media"><img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=800&q=70" alt="Hatha Yoga" loading="lazy" data-hide-on-error><span class="tag tag-live"><i class="bi bi-broadcast"></i> En vivo</span></div>
             <div class="class-body">
               <h3>Hatha Yoga</h3>
               <p class="teacher"><i class="bi bi-person-circle"></i> Con Manu</p>
@@ -203,7 +207,7 @@
         </article>
         <article class="col-lg-4 col-md-6 reveal">
           <div class="class-card">
-            <div class="class-media"><img src="https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?auto=format&fit=crop&w=800&q=70" alt="Vinyasa Flow" loading="lazy" onerror="this.remove()"><span class="tag tag-live"><i class="bi bi-camera-video"></i> Virtual</span></div>
+            <div class="class-media"><img src="https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?auto=format&fit=crop&w=800&q=70" alt="Vinyasa Flow" loading="lazy" data-hide-on-error><span class="tag tag-live"><i class="bi bi-camera-video"></i> Virtual</span></div>
             <div class="class-body">
               <h3>Vinyasa Flow</h3>
               <p class="teacher"><i class="bi bi-person-circle"></i> Con Lucía</p>
@@ -214,7 +218,7 @@
         </article>
         <article class="col-lg-4 col-md-12 reveal">
           <div class="class-card">
-            <div class="class-media"><img src="https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=70" alt="Yoga Relax" loading="lazy" onerror="this.remove()"><span class="tag tag-live"><i class="bi bi-broadcast"></i> En vivo</span></div>
+            <div class="class-media"><img src="https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=70" alt="Yoga Relax" loading="lazy" data-hide-on-error><span class="tag tag-live"><i class="bi bi-broadcast"></i> En vivo</span></div>
             <div class="class-body">
               <h3>Yoga Relax</h3>
               <p class="teacher"><i class="bi bi-person-circle"></i> Con Sofía</p>
@@ -232,34 +236,14 @@
     <div class="container-xl">
       <div class="section-head reveal">
         <h2>Tu práctica, cuando quieras</h2>
-        <a href="#" class="link-brand">Ir a la videoteca <i class="bi bi-arrow-right"></i></a>
+        <a href="videoteca.html" class="link-brand">Ir a la videoteca <i class="bi bi-arrow-right"></i></a>
       </div>
-      <div class="row g-4">
-        <article class="col-lg-4 col-md-6 reveal">
-          <a href="#" class="video-card">
-            <img src="https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=70" alt="" loading="lazy" onerror="this.remove()">
-            <span class="play"><i class="bi bi-play-fill"></i></span>
-            <span class="duration">25 min</span>
-            <div class="video-info"><small>Flow</small><h3>Morning Yoga Flow</h3></div>
-          </a>
-        </article>
-        <article class="col-lg-4 col-md-6 reveal">
-          <a href="#" class="video-card">
-            <img src="https://images.unsplash.com/photo-1599901860904-17e6ed7083a0?auto=format&fit=crop&w=800&q=70" alt="" loading="lazy" onerror="this.remove()">
-            <span class="play"><i class="bi bi-play-fill"></i></span>
-            <span class="duration">18 min</span>
-            <div class="video-info"><small>Relajación</small><h3>Yoga para liberar tensión</h3></div>
-          </a>
-        </article>
-        <article class="col-lg-4 col-md-12 reveal">
-          <a href="#" class="video-card">
-            <img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=800&q=70" alt="" loading="lazy" onerror="this.remove()">
-            <span class="play"><i class="bi bi-play-fill"></i></span>
-            <span class="duration">40 min</span>
-            <div class="video-info"><small>Fuerza</small><h3>Full Body Yoga</h3></div>
-          </a>
-        </article>
+      <div class="row g-4" id="homeVideos" aria-live="polite" aria-busy="true">
+        <div class="col-lg-4 col-md-6"><div class="yp-skeleton"></div></div>
+        <div class="col-lg-4 col-md-6 d-none d-md-block"><div class="yp-skeleton"></div></div>
+        <div class="col-lg-4 d-none d-lg-block"><div class="yp-skeleton"></div></div>
       </div>
+      <noscript><p class="text-muted">Activa JavaScript para ver la videoteca.</p></noscript>
     </div>
   </section>
 
@@ -268,25 +252,25 @@
     <div class="container-xl">
       <div class="section-head reveal">
         <h2>Diseñado para acompañar tu práctica</h2>
-        <a href="#" class="link-brand">Ver toda la tienda <i class="bi bi-arrow-right"></i></a>
+        <a href="tienda.html" class="link-brand">Ver toda la tienda <i class="bi bi-arrow-right"></i></a>
       </div>
       <div class="row g-4">
         <!-- 8 productos -->
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-person-standing"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Leggings Bliss</h3><strong class="price">$34.990</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-flower2"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Top deportivo</h3><strong class="price">$32.990</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-tag"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Remera Pop Up</h3><strong class="price">$19.990</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-layers"></i></div><div class="shop-body"><span class="product-cat">Mats</span><h3>Mat de yoga Premium</h3><strong class="price">$18.990</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-droplet"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Botella térmica</h3><strong class="price">$14.990</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-handbag"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Bolso de yoga</h3><strong class="price">$27.990</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-bounding-box-circles"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Bloques y cinta</h3><strong class="price">$12.990</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-cloud-arrow-down"></i></div><div class="shop-body"><span class="product-cat">Digital</span><h3>Guía de bienestar</h3><strong class="price">$6.990</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-person-standing"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Leggings Bliss</h3><strong class="price">34,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-flower2"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Top deportivo</h3><strong class="price">32,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-tag"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Remera Pop Up</h3><strong class="price">19,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-layers"></i></div><div class="shop-body"><span class="product-cat">Mats</span><h3>Mat de yoga Premium</h3><strong class="price">18,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-droplet"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Botella térmica</h3><strong class="price">14,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-handbag"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Bolso de yoga</h3><strong class="price">27,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-bounding-box-circles"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Bloques y cinta</h3><strong class="price">12,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-cloud-arrow-down"></i></div><div class="shop-body"><span class="product-cat">Digital</span><h3>Guía de bienestar</h3><strong class="price">6,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
       </div>
     </div>
   </section>
 
   <!-- ============ TESTIMONIOS ============ -->
   <section class="testimonials" id="nosotros">
-    <div class="testimonials-photo" aria-hidden="true"><img src="https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1600&q=60" alt="" loading="lazy" onerror="this.remove()"></div>
+    <div class="testimonials-photo" aria-hidden="true"><img src="https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1600&q=60" alt="" loading="lazy" data-hide-on-error></div>
     <div class="container-xl position-relative">
       <div class="row align-items-end g-4">
         <div class="col-lg-9">
@@ -312,17 +296,16 @@
   <div class="container-xl">
     <div class="row g-4 align-items-start">
       <div class="col-lg-4">
-        <a class="brand" href="#inicio"><span class="brand-mark"><i class="bi bi-flower1"></i></span><span class="brand-text">Yoga Pop Up</span></a>
+        <a class="brand" href="#inicio"><span class="brand-mark"><img src="assets/logo-claro.png" alt="" width="360" height="379"></span><span class="brand-text">Yoga Pop Up</span></a>
         <p class="footer-note">Yoga &amp; Conexión. Te acompañamos a habitar tu cuerpo con presencia, libertad y disfrute.</p>
       </div>
-      <nav class="col-6 col-lg-3" aria-label="Navegación"><h4>Yoga Pop Up</h4><ul><li><a href="#inicio">Inicio</a></li><li><a href="#cursos">Cursos</a></li><li><a href="#clases">Clases</a></li><li><a href="#tienda">Merchandising</a></li><li><a href="#nosotros">Sobre nosotros</a></li></ul></nav>
-      <nav class="col-6 col-lg-2" aria-label="Ayuda"><h4>Ayuda</h4><ul><li><a href="#">Preguntas frecuentes</a></li><li><a href="#">Medios de pago</a></li><li><a href="#">Envíos</a></li><li><a href="#">Contacto</a></li></ul></nav>
+      <nav class="col-6 col-lg-3" aria-label="Navegación"><h4>Yoga Pop Up</h4><ul><li><a href="#inicio">Inicio</a></li><li><a href="#cursos">Cursos</a></li><li><a href="#clases">Clases</a></li><li><a href="tienda.html">Merchandising</a></li><li><a href="#nosotros">Sobre nosotros</a></li></ul></nav>
+      <nav class="col-6 col-lg-2" aria-label="Ayuda"><h4>Ayuda</h4><ul><li><a href="#">Preguntas frecuentes</a></li><li><a href="#">Medios de pago</a></li><li><a href="#">Envíos</a></li><li><a href="https://wa.me/34600922769" target="_blank" rel="noopener">Contacto</a></li></ul></nav>
       <div class="col-lg-3"><h4>Seguinos</h4>
         <div class="socials">
-          <a href="#" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
-          <a href="#" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
-          <a href="#" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
-          <a href="#" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+          <a href="https://wa.me/34600922769" target="_blank" rel="noopener" aria-label="WhatsApp"><i class="bi bi-whatsapp"></i></a>
+          <a href="https://www.instagram.com/yogapopup.life_/" target="_blank" rel="noopener" aria-label="Instagram (@yogapopup.life_)"><i class="bi bi-instagram"></i></a>
+          <a href="https://www.youtube.com/@yogapopup" target="_blank" rel="noopener" aria-label="YouTube (@yogapopup)"><i class="bi bi-youtube"></i></a>
         </div>
       </div>
     </div>
@@ -338,34 +321,38 @@
   </div>
   <div class="offcanvas-body d-flex flex-column">
     <ul class="cart-list" id="cartList">
-      <li class="cart-item" data-price="32990">
+      <li class="cart-item" data-price="3299">
         <div class="cart-thumb bg-light-green"><i class="bi bi-person-standing"></i></div>
-        <div class="cart-info"><h3>Top de Yoga Bliss</h3><small>Talle M · Verde</small><strong>$ 32.990</strong></div>
+        <div class="cart-info"><h3>Top de Yoga Bliss</h3><small>Talle M · Verde</small><strong>32,99&nbsp;€</strong></div>
         <button class="cart-remove" type="button" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
         <div class="qty"><button type="button" data-qty="-1" aria-label="Menos"><i class="bi bi-dash"></i></button><span>1</span><button type="button" data-qty="1" aria-label="Más"><i class="bi bi-plus"></i></button></div>
       </li>
-      <li class="cart-item" data-price="24990">
+      <li class="cart-item" data-price="2499">
         <div class="cart-thumb bg-mint"><i class="bi bi-laptop"></i></div>
-        <div class="cart-info"><h3>Curso | Yoga desde cero</h3><small>Acceso inmediato</small><strong>$ 24.990</strong></div>
+        <div class="cart-info"><h3>Curso | Yoga desde cero</h3><small>Acceso inmediato</small><strong>24,99&nbsp;€</strong></div>
         <button class="cart-remove" type="button" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
         <div class="qty"><button type="button" data-qty="-1" aria-label="Menos"><i class="bi bi-dash"></i></button><span>1</span><button type="button" data-qty="1" aria-label="Más"><i class="bi bi-plus"></i></button></div>
       </li>
-      <li class="cart-item" data-price="18990">
+      <li class="cart-item" data-price="1899">
         <div class="cart-thumb bg-light-green"><i class="bi bi-layers"></i></div>
-        <div class="cart-info"><h3>Mat de yoga Premium</h3><small>6 mm · Verde</small><strong>$ 18.990</strong></div>
+        <div class="cart-info"><h3>Mat de yoga Premium</h3><small>6 mm · Verde</small><strong>18,99&nbsp;€</strong></div>
         <button class="cart-remove" type="button" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
         <div class="qty"><button type="button" data-qty="-1" aria-label="Menos"><i class="bi bi-dash"></i></button><span>1</span><button type="button" data-qty="1" aria-label="Más"><i class="bi bi-plus"></i></button></div>
       </li>
     </ul>
     <div class="cart-footer mt-auto">
-      <div class="subtotal"><span>Subtotal</span><strong id="cartSubtotal">$ 76.970</strong></div>
+      <div class="subtotal"><span>Subtotal</span><strong id="cartSubtotal">76,97&nbsp;€</strong></div>
       <button class="btn btn-brand w-100 mb-2" type="button">Finalizar compra <i class="bi bi-arrow-right"></i></button>
       <button class="btn btn-soft w-100" type="button">Ver carrito</button>
     </div>
   </div>
 </aside>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/vendor/bootstrap.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/vendor/supabase.js"></script>
 <script src="js/script.js"></script>
+<script type="module" src="js/pages/home.js"></script>
 </body>
 </html>
+

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel de negocio · Yoga Pop Up</title>
+  <meta name="description" content="Gestión de clases y productos: catálogo, publicar y ocultar.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="assets/favicon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <!-- Tipografías de marca (The Seasons, TT Drugs, Glacial Indifference): @font-face en css/style.css,
+       comentado hasta sumar los archivos con licencia en assets/fonts/. Mientras tanto se usan
+       las alternativas del propio manual (Georgia, Helvetica Neue, Century Gothic). -->
+  <link href="css/vendor/bootstrap.min.css" rel="stylesheet">
+  <link href="css/vendor/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+  <link href="css/app.css" rel="stylesheet">
+</head>
+<body>
+<header id="siteHeader"></header>
+<main id="main">
+  <section class="page-hero">
+    <div class="container-xl">
+      <h1>Panel de negocio</h1>
+      <p>Clases y productos: catálogo completo, publicar y ocultar.</p>
+    </div>
+  </section>
+  <section class="section pt-0">
+    <div class="container-xl">
+      <div id="panel"></div>
+      <noscript><p class="text-muted">Activa JavaScript para ver el panel.</p></noscript>
+    </div>
+  </section>
+</main>
+
+<footer id="siteFooter"></footer>
+<script src="js/vendor/bootstrap.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/vendor/supabase.js"></script>
+<script type="module" src="js/pages/panel.js"></script>
+</body>
+</html>

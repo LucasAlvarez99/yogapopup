@@ -1,0 +1,18 @@
+# YogaPop Up · Hostinger (Apache / LiteSpeed)
+# Segunda barrera: aunque por error se suba de más, estos archivos no se sirven.
+# La barrera principal es publicar SOLO la carpeta dist/ (npm run build).
+
+Options -Indexes
+
+# Archivos ocultos (.env, .git, .gitignore, .env.example, ...)
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# Configuración, código de backend y documentación interna
+<FilesMatch "(^package(-lock)?\.json$|\.(sql|toml|md|mjs|ts|example)$)">
+  Require all denied
+</FilesMatch>
+
+# Carpetas que no forman parte del sitio
+RedirectMatch 404 ^/(supabase|scripts|node_modules|dist)(/|$)

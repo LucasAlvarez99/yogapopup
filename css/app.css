@@ -1,0 +1,194 @@
+/* =============================================================================
+   YogaPop Up · estilos de la funcionalidad de cuenta y videos.
+   Solo usa las variables de style.css (colores, radios, sombras): no redefine el diseño.
+   ============================================================================= */
+
+/* ===== Cuenta ===== */
+.icon-btn { position: relative; }
+.icon-btn.has-session::after {
+  content: ""; position: absolute; top: 8px; right: 8px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--color-primary); border: 2px solid #fff;
+}
+.yp-account-menu {
+  position: fixed; z-index: 1080; min-width: 230px; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-hover); padding: .4rem; display: grid; gap: .1rem;
+}
+.yp-account-who { padding: .6rem .8rem .7rem; border-bottom: 1px solid var(--color-border); margin-bottom: .3rem; display: grid; }
+.yp-account-who small { color: var(--color-text-muted); overflow-wrap: anywhere; }
+.yp-account-item {
+  display: flex; align-items: center; gap: .6rem; padding: .6rem .8rem; border: 0; background: none; width: 100%;
+  border-radius: .6rem; color: var(--color-text); font-size: .92rem; text-align: left; cursor: pointer;
+}
+.yp-account-item:hover, .yp-account-item:focus-visible { background: var(--color-light); color: var(--color-primary-dark); }
+
+/* ===== Modal de acceso ===== */
+.yp-auth .modal-content { border: 0; border-radius: var(--radius-md); box-shadow: var(--shadow-hover); }
+.yp-cf-thumb-preview { display: block; margin-top: .5rem; border-radius: var(--radius-sm, .5rem); object-fit: cover; aspect-ratio: 16/9; }
+.yp-auth .modal-header { border: 0; gap: .6rem; padding: 1.4rem 1.6rem .4rem; align-items: center; }
+.yp-auth .modal-title { font-size: 1.35rem; font-weight: 700; margin-right: auto; }
+.yp-auth .modal-body { padding: .8rem 1.6rem 1.8rem; }
+.yp-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; background: var(--color-light); padding: .3rem; border-radius: 999px; margin-bottom: 1.2rem; }
+.yp-tab { border: 0; background: transparent; padding: .55rem; border-radius: 999px; font-weight: 600; font-size: .9rem; color: var(--color-text); }
+.yp-tab.active { background: var(--color-surface); color: var(--color-primary); box-shadow: var(--shadow-soft); }
+.yp-auth .form-control { border-radius: .8rem; padding: .7rem 1rem; border-color: var(--color-border); }
+.yp-auth .form-control:focus { border-color: var(--color-primary); box-shadow: 0 0 0 .2rem rgba(182, 203, 193, .7); }
+.yp-link { background: none; border: 0; padding: 0; color: var(--color-primary); font-weight: 600; font-size: .88rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.yp-link:hover { color: var(--color-primary-dark); }
+.yp-auth-note { color: var(--color-text-muted); font-size: .92rem; }
+.yp-auth-ok { font-size: 2.6rem; color: var(--color-primary); }
+
+/* ===== Avisos ===== */
+.yp-toasts { position: fixed; z-index: 1100; right: 1rem; bottom: 1rem; display: grid; gap: .6rem; width: min(360px, calc(100vw - 2rem)); }
+.yp-toast {
+  display: flex; align-items: flex-start; gap: .7rem; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary); border-radius: .8rem; padding: .8rem .9rem; box-shadow: var(--shadow-hover); font-size: .92rem;
+}
+.yp-toast span { flex: 1; }
+.yp-toast-error { border-left-color: var(--terracota); }
+.yp-toast-error > .bi:first-child { color: var(--terracota); }
+.yp-toast-success > .bi:first-child { color: var(--color-primary); }
+.yp-toast-x { background: none; border: 0; color: var(--color-text-muted); padding: 0; }
+
+/* ===== Tarjetas de clase (extras sobre .video-card) ===== */
+.video-card-ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 3rem; color: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-mint), var(--color-light)); }
+.video-lock { position: absolute; z-index: 2; top: 14px; right: 14px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(255,255,255,.92); color: var(--color-primary); font-size: .85rem; }
+.video-progress { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,.35); }
+.video-progress > span { display: block; height: 100%; background: var(--color-mint); }
+
+/* ===== Páginas de videoteca y clase ===== */
+.page-hero { padding: 3.2rem 0 1.2rem; }
+.page-hero h1 { font-size: clamp(1.8rem, 3.4vw, 2.6rem); font-weight: 700; margin: 0 0 .4rem; }
+.page-hero p { color: var(--color-text-muted); max-width: 60ch; margin: 0; }
+.yp-filters { display: flex; flex-wrap: wrap; gap: .7rem; align-items: center; margin: 1.6rem 0 2rem; }
+.yp-filters .form-control, .yp-filters .form-select { border-radius: 999px; border: 1px solid var(--color-border); font-size: .9rem; padding: .55rem 1rem; max-width: 260px; }
+.yp-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.yp-chip { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); border-radius: 999px; padding: .4rem .95rem; font-size: .85rem; font-weight: 600; }
+.yp-chip[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.yp-block-title { font-size: 1.25rem; font-weight: 700; margin: 0 0 1rem; }
+
+.yp-state { text-align: center; padding: 3.5rem 1rem; color: var(--color-text-muted); }
+.yp-state .bi { font-size: 2.4rem; color: var(--color-primary); display: block; margin-bottom: .6rem; }
+.yp-state h2 { font-size: 1.2rem; color: var(--color-text); }
+.yp-state .btn { margin-top: .8rem; }
+.yp-skeleton { aspect-ratio: 16 / 10; border-radius: var(--radius-md); background: linear-gradient(90deg, var(--color-light), #fff, var(--color-light)); background-size: 200% 100%; animation: yp-shimmer 1.4s linear infinite; }
+@keyframes yp-shimmer { to { background-position: -200% 0; } }
+
+.clase-layout { display: grid; gap: 2rem; grid-template-columns: minmax(0, 1fr); padding: 1.6rem 0 4rem; }
+@media (min-width: 992px) { .clase-layout { grid-template-columns: minmax(0, 1fr) 340px; } }
+.clase-meta { display: flex; flex-wrap: wrap; gap: .5rem; margin: .8rem 0 1rem; }
+.clase-title { font-size: clamp(1.5rem, 2.8vw, 2.1rem); font-weight: 700; margin: 0; }
+.clase-desc { color: var(--color-text-muted); white-space: pre-line; }
+.clase-stage { aspect-ratio: 16 / 9; border-radius: var(--radius-md); overflow: hidden; background: var(--color-deep); box-shadow: var(--shadow-soft); }
+.clase-gate { height: 100%; display: grid; place-content: center; text-align: center; gap: .6rem; padding: 1.5rem; color: #fff; }
+.clase-gate .bi { font-size: 2.4rem; color: var(--color-mint); }
+.clase-gate p { margin: 0; color: rgba(255,255,255,.85); max-width: 42ch; }
+.clase-gate .btn { justify-self: center; }
+/* .btn-brand (fondo tinta) se funde con el escenario oscuro (también tinta): dentro del gate se
+   invierte a salvia sólido para que el botón se distinga como tal, sea cual sea el mensaje. */
+.clase-gate .btn-brand { background: var(--salvia); color: var(--tinta); border-color: var(--salvia); }
+.clase-gate .btn-brand:hover { background: var(--blanco-calido); border-color: var(--blanco-calido); color: var(--tinta); }
+.clase-side { display: grid; gap: 1rem; align-content: start; }
+
+/* ===== Reproductor ===== */
+.yp-player { position: relative; width: 100%; height: 100%; background: #000; color: #fff; overflow: hidden; user-select: none; outline: none; }
+.yp-player:focus-visible { box-shadow: inset 0 0 0 3px var(--color-mint); }
+.yp-video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+.yp-player.yp-fullscreen { border-radius: 0; }
+
+.yp-bigplay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 78px; height: 78px; border-radius: 50%; border: 0;
+  background: rgba(255,255,255,.92); color: var(--color-primary); font-size: 2.4rem; display: grid; place-items: center; transition: transform .3s var(--ease), background .3s var(--ease); }
+.yp-bigplay:hover { transform: translate(-50%, -50%) scale(1.08); background: var(--color-light); }
+.yp-player[data-state="playing"] .yp-bigplay, .yp-player[data-state="loading"] .yp-bigplay, .yp-player[data-state="error"] .yp-bigplay { display: none; }
+
+.yp-spinner { position: absolute; inset: 0; display: none; place-items: center; pointer-events: none; }
+.yp-player[data-state="loading"] .yp-spinner, .yp-player.yp-buffering .yp-spinner { display: grid; }
+.yp-spinner .spinner-border { color: var(--color-mint); width: 3rem; height: 3rem; }
+
+.yp-resume { position: absolute; z-index: 2; /* sobre .yp-controls, que va después en el DOM y si no se come el clic */ left: 50%; bottom: 84px; transform: translateX(-50%); display: flex; align-items: center; gap: .6rem; white-space: nowrap;
+  background: rgba(74,64,54,.88); border-radius: 999px; padding: .5rem 1rem; font-size: .88rem; backdrop-filter: blur(6px); }
+.yp-resume[hidden], .yp-error[hidden], .yp-menu[hidden] { display: none; }
+.yp-resume .yp-link { color: var(--color-mint); }
+
+.yp-error { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: .6rem; text-align: center; padding: 1.5rem; background: rgba(74,64,54,.85); }
+.yp-error-ico { font-size: 2.2rem; color: var(--color-mint); }
+.yp-error-msg { margin: 0; max-width: 40ch; }
+
+.yp-controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 2.2rem .9rem .6rem; background: linear-gradient(transparent, rgba(74,64,54,.78)); transition: opacity .3s var(--ease); }
+.yp-player.yp-idle .yp-controls { opacity: 0; pointer-events: none; }
+.yp-player.yp-idle { cursor: none; }
+.yp-player[data-state="loading"] .yp-controls, .yp-player[data-state="error"] .yp-controls { opacity: .35; pointer-events: none; }
+
+.yp-seekwrap { position: relative; height: 18px; display: flex; align-items: center; }
+.yp-track { position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px; background: rgba(255,255,255,.28); overflow: hidden; pointer-events: none; }
+.yp-buffered, .yp-played { position: absolute; left: 0; top: 0; bottom: 0; width: 0; }
+.yp-buffered { background: rgba(255,255,255,.35); }
+.yp-played { background: var(--color-mint); }
+.yp-seek, .yp-volume { -webkit-appearance: none; appearance: none; background: transparent; margin: 0; cursor: pointer; }
+.yp-seek { position: relative; width: 100%; height: 18px; }
+.yp-seek::-webkit-slider-runnable-track, .yp-volume::-webkit-slider-runnable-track { background: transparent; height: 18px; }
+.yp-seek::-moz-range-track, .yp-volume::-moz-range-track { background: transparent; }
+.yp-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(182,203,193,.5); }
+.yp-seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
+.yp-seek:disabled { cursor: default; opacity: .5; }
+
+.yp-bar { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.yp-left, .yp-right { display: flex; align-items: center; gap: .2rem; }
+.yp-btn { background: none; border: 0; color: #fff; min-width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; gap: .3rem; font-size: 1.35rem; }
+.yp-btn:hover { background: rgba(255,255,255,.16); }
+.yp-btn:focus-visible { outline: 3px solid var(--color-mint); outline-offset: 0; }
+.yp-text-btn { font-size: .85rem; font-weight: 600; border-radius: 999px; padding: 0 .7rem; }
+.yp-qlabel { font-size: .8rem; }
+.yp-vol { display: flex; align-items: center; }
+.yp-volume { width: 0; opacity: 0; transition: width .25s var(--ease), opacity .25s var(--ease); height: 18px; }
+.yp-vol:hover .yp-volume, .yp-volume:focus-visible { width: 76px; opacity: 1; margin-right: .5rem; }
+.yp-volume::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+.yp-volume::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: #fff; }
+@media (pointer: coarse) { .yp-vol .yp-volume { display: none; } }
+.yp-time { font-size: .85rem; font-variant-numeric: tabular-nums; margin-left: .4rem; white-space: nowrap; }
+
+.yp-menuwrap { position: relative; }
+.yp-menu { position: absolute; right: 0; bottom: 48px; min-width: 130px; background: rgba(74,64,54,.96); border-radius: .8rem; padding: .3rem; display: grid; }
+.yp-menu-item { background: none; border: 0; color: #fff; text-align: left; padding: .5rem .8rem; border-radius: .5rem; font-size: .85rem; }
+.yp-menu-item:hover { background: rgba(255,255,255,.14); }
+.yp-menu-item[aria-checked="true"] { color: var(--color-mint); font-weight: 700; }
+.yp-menu-item[aria-checked="true"]::before { content: "✓ "; }
+
+@media (max-width: 575px) {
+  .yp-back, .yp-fwd { display: none; }
+  .yp-bigplay { width: 64px; height: 64px; font-size: 2rem; }
+  .yp-resume { bottom: 76px; font-size: .8rem; }
+}
+@media (prefers-reduced-motion: reduce) { .yp-skeleton { animation: none; } .yp-controls, .yp-bigplay { transition: none; } }
+
+/* ===== Cuenta ===== */
+.yp-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1.6rem; box-shadow: var(--shadow-soft); height: 100%; }
+.yp-card .form-control { border-radius: .8rem; padding: .7rem 1rem; border-color: var(--color-border); }
+.progress-bar.bg-brand { background-color: var(--color-primary); }
+
+/* ===== Panel: tabla de clases ===== */
+.table-scroll-hint { display: flex; align-items: center; gap: .4rem; color: var(--color-text-muted); font-size: .82rem; margin: -.4rem 0 .6rem; }
+@media (min-width: 992px) { .table-scroll-hint { display: none; } }
+
+/* ===== Tienda (Fase 13) ===== */
+.shop-link { display: block; color: inherit; text-decoration: none; }
+.shop-body h3 a { color: inherit; text-decoration: none; }
+.shop-body h3 a:hover { color: var(--color-primary); }
+.shop-media { position: relative; }
+.shop-media img { width: 100%; height: 100%; object-fit: cover; }
+.shop-media-lg { border-radius: var(--radius-md); font-size: 6rem; }
+.shop-flag { position: absolute; top: .7rem; left: .7rem; }
+.shop-card.is-soldout .shop-media img, .shop-card.is-soldout .shop-media i { opacity: .45; }
+.shop-stock { color: var(--color-text-muted); font-size: .78rem; }
+.producto-title { font-size: clamp(1.7rem, 3vw, 2.4rem); font-weight: 700; margin: .4rem 0; }
+.producto-price { font-size: 1.6rem; font-weight: 700; margin: 0 0 .8rem; }
+.producto-desc { color: var(--color-text-muted); white-space: pre-line; max-width: 60ch; }
+
+/* Panel de negocio (Fases 8-14): pestañas e interruptores con la paleta de la marca (sin el azul por defecto de Bootstrap) */
+.nav-tabs { border-bottom-color: var(--color-border); }
+.nav-tabs .nav-link { color: var(--color-text); border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; font-weight: 600; }
+.nav-tabs .nav-link:hover { color: var(--color-primary); border-bottom-color: var(--color-border); }
+.nav-tabs .nav-link.active { color: var(--color-primary); background: none; border-bottom-color: var(--color-primary); }
+.form-check-input:checked { background-color: var(--color-primary); border-color: var(--color-primary); }
+.form-check-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 .2rem rgba(74, 64, 54, .18); }

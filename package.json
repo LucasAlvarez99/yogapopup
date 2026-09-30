@@ -1,0 +1,45 @@
+{
+  "name": "yogapopup",
+  "version": "0.3.0",
+  "private": true,
+  "description": "YogaPop Up: sitio estático + videos en Cloudflare R2 + Supabase (auth, clases, progreso)",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "serve . -l 3000 -c serve.json",
+    "vendor": "node scripts/vendor.mjs",
+    "build": "node scripts/build-site.mjs",
+    "preview": "npm run build && serve dist -l 3001 -c ../serve.json",
+    "test": "deno test --allow-read --config supabase/functions/deno.json --lock=deno.lock --frozen supabase/functions",
+    "lint": "deno lint --config supabase/functions/deno.json supabase/functions tests/web",
+    "fmt": "deno fmt --config supabase/functions/deno.json supabase/functions tests/web",
+    "fmt:check": "deno fmt --config supabase/functions/deno.json --check supabase/functions tests/web",
+    "typecheck": "deno check --config supabase/functions/deno.json --lock=deno.lock --frozen \"supabase/functions/*/index.ts\" \"supabase/functions/_tests/*.ts\"",
+    "verify": "npm run fmt:check && npm run lint && npm run typecheck && npm run test && npm run test:web",
+    "sb": "node scripts/supabase.mjs",
+    "sb:login": "supabase login",
+    "sb:link": "node scripts/supabase.mjs link",
+    "sb:db-push": "node scripts/supabase.mjs db-push",
+    "sb:secrets": "node scripts/supabase.mjs secrets",
+    "sb:deploy": "node scripts/supabase.mjs deploy",
+    "deno:lock": "deno cache --config supabase/functions/deno.json --lock=deno.lock \"supabase/functions/*/index.ts\" \"supabase/functions/_tests/*.ts\"",
+    "test:e2e": "node tests/e2e/run.mjs",
+    "test:web": "deno test --allow-read --config supabase/functions/deno.json tests/web",
+    "test:db": "bash supabase/tests/run.sh",
+    "doctor": "node scripts/doctor.mjs",
+    "doctor:online": "node scripts/doctor.mjs --online",
+    "test:integration": "node tests/integration/real-stack.integration.mjs"
+  },
+  "devDependencies": {
+    "deno": "2.9.6",
+    "puppeteer-core": "25.11.0",
+    "serve": "14.2.6",
+    "supabase": "2.117.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
+    "bootstrap": "5.3.3",
+    "bootstrap-icons": "1.11.3"
+  }
+}

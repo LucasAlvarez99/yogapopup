@@ -1,0 +1,12 @@
+{
+  "bootstrap": {
+    "version": "5.3.3",
+    "license": "MIT",
+    "file": "bootstrap.bundle.min.js"
+  },
+  "@supabase/supabase-js": {
+    "version": "2.116.0",
+    "license": "MIT",
+    "file": "supabase.js"
+  }
+}

@@ -1,0 +1,18 @@
+# Configuración de Supabase para YogaPop Up.
+# Si `supabase init` ya generó un config.toml, copiá solo las secciones [functions.*].
+project_id = "yogapopup"
+
+# Todas las funciones validan la sesión DENTRO del código (Supabase Auth getUser +
+# is_admin() / can_access_class()), y el health no lleva JWT de Supabase. Por eso se
+# desactiva la verificación de JWT del gateway, que además no es compatible con las
+# nuevas claves publicables.
+[functions.admin-create-upload]
+verify_jwt = false
+[functions.admin-sync-video]
+verify_jwt = false
+[functions.admin-delete-class]
+verify_jwt = false
+[functions.playback]
+verify_jwt = false
+[functions.health]
+verify_jwt = false
