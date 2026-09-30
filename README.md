@@ -4,13 +4,13 @@ Sitio de yoga (cursos, clases en vivo, tienda y **videoteca**) al que se le suma
 videos: los videos viven en **Cloudflare R2**, los usuarios, clases, permisos y progreso en **Supabase**, y la
 web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos en el hosting).
 
-> ## Estado actual (30/09/2026) · Fases 0-8 y 12-14 cumplidas · Fases 9-11 con código y pruebas de backend, sin E2E
+> ## Estado actual (30/09/2026) · Fases 0-8 y 12-15 cumplidas · Fases 9-11 con código y pruebas de backend, sin E2E
 >
 > **Poner el sitio a andar con cuentas reales:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) ·
 > Reglas del proyecto: [`claude.md`](claude.md) · Encargo original: [`docs/ENCARGO-ORIGINAL.md`](docs/ENCARGO-ORIGINAL.md) ·
 > Hoja de ruta hasta la entrega: [`Fases`](#fases) más abajo (Fase 0 = hoy, Fase 39 = día de entrega).
 >
-> **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 50 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
+> **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 82 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
 > verificadas rompiendo la migración a propósito) · **32 pruebas E2E** en Chromium real, todas en verde (29/09/2026, incluidas las 2 de la
 > tienda de la Fase 13 y 4 del panel: acceso por rol, lista de clases y CRUD completo de productos con imagen). Del panel de
@@ -81,7 +81,7 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 12 | Tienda — modelo de datos de productos | ✅ |
 | 13 | Tienda — página pública | ✅ |
 | 14 | Tienda — panel administrativo de productos | ✅ |
-| 15 | Carrito — estado y persistencia | ⬜ |
+| 15 | Carrito — estado y persistencia | ✅ |
 | 16 | Carrito — interfaz | ⬜ |
 | 17 | Pagos — modelo de datos | ⬜ |
 | 18 | Checkout — compra puntual con PayPal | ⬜ |
@@ -290,7 +290,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 > Hoja de ruta puesta al día el 27/09/2026. La **Fase 0** es una foto de "hasta acá se llegó" (no queda
 > nada pendiente adentro, salvo lo que depende de cuentas del cliente). A partir de ahí las fases son
 > chicas a propósito (una tarde de trabajo cada una, más o menos) para poder cerrar y marcar "cumplida"
-> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-8 y 12-14
+> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-8 y 12-15
 > están cumplidas y probadas (las 9-11 tienen código y pruebas de backend pero no E2E de sus acciones). Las Fases 12-31 son tienda, pagos (**todo con PayPal**, tanto compras
 > puntuales como suscripciones — se decidió no sumar un segundo proveedor), perfil de usuario, comentarios
 > y la agenda de clases en vivo. De ahí en más son cuentas reales, escalado y entrega. La última
@@ -525,10 +525,31 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 
 ### Fase 15 · Carrito — estado y persistencia
 
-- [ ] Estado del carrito en el navegador (`localStorage`; no hace falta sesión para armarlo)
-- [ ] Validar stock/disponibilidad antes de ir a pagar
+- [x] Estado del carrito en el navegador (`localStorage`; no hace falta sesión para armarlo) — `js/lib/cart.js`,
+      lógica pura que recibe el almacenamiento por parámetro. Guarda **solo `{id, qty}`** por línea, nunca precios ni
+      títulos: lo guardado en el navegador no es de fiar, así que precio y stock se leen siempre de la base. Lo que
+      haya en `localStorage` se lee como dato no confiable (`parseCart`): JSON roto, versión desconocida, ids o
+      cantidades inválidas, duplicados y campos extra (un `price_cents` inyectado) se descartan sin lanzar. Topes:
+      10 unidades por producto (o el stock, si es menor) y 30 productos distintos. Si `localStorage` no está
+      disponible (modo privado, cookies bloqueadas) o la cuota se llena, el carrito sigue en memoria y
+      `store.persistent` pasa a `false` para que la interfaz pueda avisarlo. Se entera de cambios hechos desde
+      otra pestaña (evento `storage`)
+- [x] Validar stock/disponibilidad antes de ir a pagar — `validateCart(cart, productosActivos)` compara contra los
+      productos que devuelve la base (`listActiveProducts()`): cada línea queda `ok`, `reduced` (pedías más de lo
+      que hay), `soldout` o `unavailable` (oculto/borrado), calcula el subtotal en céntimos enteros y devuelve un
+      `fixedCart` ya corregido. Un precio ausente o inválido en la base cuenta como no disponible, **nunca como
+      gratis**. Es una ayuda para la interfaz: la autoridad es el servidor, que en la Fase 18 vuelve a validar
+      precio y stock antes de crear la orden
+- [x] 32 pruebas unitarias (`tests/web/cart.test.js`) — encontraron un bug real mientras se escribían: un precio
+      `null` en la base se contaba como 0 (`Number(null) === 0`), o sea "gratis". Verificadas rompiendo el código a
+      propósito en cuatro puntos (conservar campos inyectados, ignorar el stock, no persistir, `Number(null)`): en
+      los cuatro la prueba falla, y con el código original pasan
+- [x] Sin pantalla todavía (llega en la Fase 16): la prueba en un navegador real de que el carrito sobrevive a
+      recargar la página se hace en los E2E de la Fase 16, que es la primera que lo usa. Aquí está cubierto con un
+      almacenamiento falso de la misma interfaz que `localStorage` y con `browserStorage()` probado ante los
+      fallos típicos (acceso denegado, cuota llena, sin `localStorage`)
 
-- [ ] **FASE 15 CUMPLIDA**
+- [x] **FASE 15 CUMPLIDA**
 
 ### Fase 16 · Carrito — interfaz
 
