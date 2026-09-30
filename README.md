@@ -4,7 +4,7 @@ Sitio de yoga (cursos, clases en vivo, tienda y **videoteca**) al que se le suma
 videos: los videos viven en **Cloudflare R2**, los usuarios, clases, permisos y progreso en **Supabase**, y la
 web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos en el hosting).
 
-> ## Estado actual (29/09/2026) · Fases 0-8 y 12-13 cumplidas · Fases 9-11 con código y pruebas de backend, sin E2E · Fase 14 con código y pruebas, falta validarla contra Supabase real
+> ## Estado actual (30/09/2026) · Fases 0-8 y 12-14 cumplidas · Fases 9-11 con código y pruebas de backend, sin E2E
 >
 > **Poner el sitio a andar con cuentas reales:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) ·
 > Reglas del proyecto: [`claude.md`](claude.md) · Encargo original: [`docs/ENCARGO-ORIGINAL.md`](docs/ENCARGO-ORIGINAL.md) ·
@@ -29,8 +29,8 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 >
 > **Aún no existe:** panel técnico interno (solo desarrolladores), reconciliación programada, carrito, pagos,
 > y pruebas E2E de crear/publicar/borrar clases (Fases 9-11: código completo, ver la nota en esa sección).
-> La tienda pública (Fases 12-13) y el panel de productos (Fase 14) están construidos y probados en navegador contra el
-> backend simulado; falta validarlos contra tu Supabase real.
+> La tienda pública (Fases 12-13) y el panel de productos (Fase 14) están construidos, probados en navegador contra el
+> backend simulado y validados a mano contra el Supabase real (30/09/2026).
 >
 > ```bash
 > nvm use && npm ci                              # instalación reproducible
@@ -80,7 +80,7 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 11 | Panel administrativo — publicar y borrar | 🟡 |
 | 12 | Tienda — modelo de datos de productos | ✅ |
 | 13 | Tienda — página pública | ✅ |
-| 14 | Tienda — panel administrativo de productos | 🟡 |
+| 14 | Tienda — panel administrativo de productos | ✅ |
 | 15 | Carrito — estado y persistencia | ⬜ |
 | 16 | Carrito — interfaz | ⬜ |
 | 17 | Pagos — modelo de datos | ⬜ |
@@ -290,8 +290,8 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 > Hoja de ruta puesta al día el 27/09/2026. La **Fase 0** es una foto de "hasta acá se llegó" (no queda
 > nada pendiente adentro, salvo lo que depende de cuentas del cliente). A partir de ahí las fases son
 > chicas a propósito (una tarde de trabajo cada una, más o menos) para poder cerrar y marcar "cumplida"
-> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-8 y 12-13
-> están cumplidas y probadas (las 9-11 tienen código y pruebas de backend pero no E2E de sus acciones; la 14 tiene código y pruebas, falta validarla contra tu Supabase real). Las Fases 12-31 son tienda, pagos (**todo con PayPal**, tanto compras
+> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-8 y 12-14
+> están cumplidas y probadas (las 9-11 tienen código y pruebas de backend pero no E2E de sus acciones). Las Fases 12-31 son tienda, pagos (**todo con PayPal**, tanto compras
 > puntuales como suscripciones — se decidió no sumar un segundo proveedor), perfil de usuario, comentarios
 > y la agenda de clases en vivo. De ahí en más son cuentas reales, escalado y entrega. La última
 > (**Fase 39**) es el día de entrega.
@@ -517,11 +517,11 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       incluidos); precio inválido → mensaje y nada se escribe; crear con imagen (12,5 € → 1250 céntimos, nace oculto,
       imagen en `product-images/<id>/…`); oculto no aparece en la tienda, publicado sí; editar (precio rellenado en euros);
       borrar (borra también la imagen); un usuario común recibe 403 al escribir productos o subir imágenes
-- [ ] **Pendiente para cerrarla:** aplicar la migración `20260929120000` a tu Supabase real (`npm run sb:db-push`) y
-      hacer una vez el recorrido a mano (crear un producto con imagen, ocultarlo, borrarlo) — el backend simulado
-      reproduce las reglas, pero no es tu proyecto
+- [x] **Validada contra el Supabase real (30/09/2026):** migraciones aplicadas con `npm run sb:db-push` y recorrido
+      a mano hecho con la cuenta `developer` (crear un producto con imagen, ocultarlo, publicarlo, editarlo y
+      borrarlo): todo se guarda en la base y se puede modificar sin errores
 
-- [ ] **FASE 14 CUMPLIDA** (queda sin marcar hasta cubrir el punto anterior)
+- [x] **FASE 14 CUMPLIDA**
 
 ### Fase 15 · Carrito — estado y persistencia
 
