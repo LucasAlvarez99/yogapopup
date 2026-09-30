@@ -5,10 +5,8 @@ import { messageFor } from '../lib/errors.js';
 /**
  * Reproductor de YogaPop Up sobre <video>, con controles propios y el estilo de la web.
  *
- *  - Los videos se sirven directo desde Cloudflare R2: progresivos (sin adaptación de
- *    calidad), con soporte de Range requests nativo del navegador para buscar/adelantar.
- *    Si algún día una fuente sí es HLS (.m3u8), se sigue reproduciendo con hls.js o el
- *    HLS nativo de Safari, con selector de calidad.
+ *  - Los videos se sirven directo desde Cloudflare R2: progresivos (mp4, sin adaptación de
+ *    calidad ni HLS), con soporte de Range requests nativo del navegador para buscar/adelantar.
  *  - Retoma desde `resumeAt` (con opción "Empezar de cero").
  *  - Velocidad, volumen, pantalla completa, teclado.
  *  - La URL firmada vence: se renueva sola antes de que ocurra (y si el servidor responde 401/403).
@@ -21,11 +19,6 @@ const SPEEDS = [0.75, 1, 1.25, 1.5];
 const SEEK_STEP = 10;
 const IDLE_MS = 2800;
 const SEEK_RANGE = 1000;
-
-/** R2 sirve archivos progresivos (mp4); esto es por si alguna vez una fuente sí es HLS. */
-function isHlsUrl(url) {
-  return /\.m3u8(\?|#|$)/i.test(url);
-}
 
 const store = {
   get(key, fallback) {
@@ -40,10 +33,10 @@ const store = {
 };
 
 export class VideoPlayer {
-  #o; #root; #video; #hls = null; #ui = {};
+  #o; #root; #video; #ui = {};
   #idleTimer = null; #refreshTimer = null; #refreshing = null;
   #expiresAt = 0; #scrubbing = false; #started = false; #destroyed = false;
-  #errors = { network: 0, media: 0, auth: 0, since: 0 };
+  #errors = { auth: 0, since: 0 };
   #bound = [];
 
   /**
@@ -59,10 +52,9 @@ export class VideoPlayer {
    * @param {() => void} [options.onPause]
    * @param {() => void} [options.onSeek]
    * @param {() => void} [options.onEnded]
-   * @param {object} [options.Hls]           inyectable (por defecto window.Hls)
    */
   constructor(container, options) {
-    this.#o = { resumeAt: 0, Hls: window.Hls, ...options };
+    this.#o = { resumeAt: 0, ...options };
     this.#build(container);
     this.#bindMedia();
     this.#bindUi();
@@ -91,8 +83,6 @@ export class VideoPlayer {
     clearTimeout(this.#idleTimer);
     clearTimeout(this.#refreshTimer);
     for (const [target, type, fn, opts] of this.#bound) target.removeEventListener(type, fn, opts);
-    this.#hls?.destroy();
-    this.#hls = null;
     this.#video.removeAttribute('src');
     this.#video.load();
     this.#root.remove();
@@ -136,16 +126,12 @@ export class VideoPlayer {
 
     ui.speedBtn = el('button', { type: 'button', class: 'yp-btn yp-text-btn', 'aria-label': 'Velocidad', 'aria-haspopup': 'true', 'aria-expanded': 'false' }, '1×');
     ui.speedMenu = el('div', { class: 'yp-menu', role: 'menu', hidden: true });
-    ui.qualityBtn = el('button', { type: 'button', class: 'yp-btn yp-text-btn', 'aria-label': 'Calidad', 'aria-haspopup': 'true', 'aria-expanded': 'false', hidden: true },
-      icon('gear-fill'), ui.qualityLabel = el('span', { class: 'yp-qlabel' }, 'Auto'));
-    ui.qualityMenu = el('div', { class: 'yp-menu yp-menu-quality', role: 'menu', hidden: true });
     ui.full = btn('yp-full', 'Pantalla completa', 'fullscreen', () => this.#toggleFullscreen());
 
     const bar = el('div', { class: 'yp-bar' },
       el('div', { class: 'yp-left' }, ui.play, back, fwd, el('div', { class: 'yp-vol' }, ui.mute, ui.volume), time),
       el('div', { class: 'yp-right' },
         el('div', { class: 'yp-menuwrap' }, ui.speedBtn, ui.speedMenu),
-        el('div', { class: 'yp-menuwrap' }, ui.qualityBtn, ui.qualityMenu),
         ui.full));
 
     this.#root = el('div', { class: 'yp-player', tabindex: 0, 'data-state': 'loading', role: 'group', 'aria-label': `Reproductor: ${this.#o.title || 'clase'}` },
@@ -195,7 +181,7 @@ export class VideoPlayer {
     this.#on(v, 'seeked', () => this.#o.onSeek?.());
     this.#on(v, 'ended', () => { this.#setState('ended'); this.#showControls(); this.#o.onEnded?.(); });
     this.#on(v, 'volumechange', () => this.#syncVolumeIcon());
-    this.#on(v, 'error', () => { if (!this.#hls) this.#handleVideoError(); });
+    this.#on(v, 'error', () => this.#handleVideoError());
   }
 
   #bindUi() {
@@ -230,8 +216,7 @@ export class VideoPlayer {
       store.set('muted', this.#video.muted);
     });
 
-    this.#on(ui.speedBtn, 'click', (e) => { e.stopPropagation(); this.#toggleMenu('speed'); });
-    this.#on(ui.qualityBtn, 'click', (e) => { e.stopPropagation(); this.#toggleMenu('quality'); });
+    this.#on(ui.speedBtn, 'click', (e) => { e.stopPropagation(); this.#toggleMenu(); });
     this.#on(document, 'click', () => this.#closeMenus());
     this.#on(document, 'fullscreenchange', () => this.#syncFullscreen());
     this.#on(document, 'webkitfullscreenchange', () => this.#syncFullscreen());
@@ -268,55 +253,18 @@ export class VideoPlayer {
 
   // ------------------------------------------------------------------ fuente del video
   #attach(url, startAt) {
-    const Hls = this.#o.Hls;
+    // R2: archivo progresivo (mp4). El navegador reproduce con Range requests.
     const v = this.#video;
-    if (isHlsUrl(url) && Hls && Hls.isSupported()) {
-      this.#hls?.destroy();
-      const hls = new Hls({
-        startPosition: startAt > 0 ? startAt : -1,
-        capLevelToPlayerSize: true, // no descarga más resolución de la que el reproductor puede mostrar (ahorra tráfico)
-        maxBufferLength: 40,
-      });
-      this.#hls = hls;
-      hls.on(Hls.Events.MANIFEST_PARSED, () => this.#buildQuality(hls));
-      hls.on(Hls.Events.LEVEL_SWITCHED, () => this.#syncQualityLabel());
-      hls.on(Hls.Events.ERROR, (_e, data) => this.#onHlsError(data));
-      hls.attachMedia(v);
-      hls.loadSource(url);
-    } else if (isHlsUrl(url) && v.canPlayType('application/vnd.apple.mpegurl')) {
-      v.src = url; // HLS nativo (Safari en iPhone): sin selector de calidad
-      if (startAt > 0) v.addEventListener('loadedmetadata', () => { v.currentTime = startAt; }, { once: true });
-    } else {
-      // R2: archivo progresivo (mp4). El navegador reproduce con Range requests, sin hls.js.
-      v.src = url;
-      if (startAt > 0) v.addEventListener('loadedmetadata', () => { v.currentTime = startAt; }, { once: true });
-    }
+    v.src = url;
+    if (startAt > 0) v.addEventListener('loadedmetadata', () => { v.currentTime = startAt; }, { once: true });
   }
 
-  /** Video progresivo (sin hls.js): reintenta renovando la URL firmada antes de rendirse. */
+  /** Si el video falla, reintenta renovando la URL firmada (2 veces por minuto) antes de rendirse. */
   #handleVideoError() {
     if (this.#destroyed) return;
     const now = Date.now();
-    if (now - this.#errors.since > 60_000) this.#errors = { network: 0, media: 0, auth: 0, since: now };
+    if (now - this.#errors.since > 60_000) this.#errors = { auth: 0, since: now };
     if (++this.#errors.auth <= 2) return void this.#refreshSource();
-    this.#showError('No pudimos reproducir el video. Revisá tu conexión e intentá de nuevo.');
-  }
-
-  #onHlsError(data) {
-    if (!data.fatal || this.#destroyed) return;
-    const Hls = this.#o.Hls;
-    const now = Date.now();
-    if (now - this.#errors.since > 60_000) this.#errors = { network: 0, media: 0, auth: 0, since: now };
-    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-      const code = data.response?.code;
-      if ([401, 403, 410].includes(code)) { // la URL firmada venció o fue rechazada
-        if (++this.#errors.auth <= 2) return void this.#refreshSource();
-      } else if (++this.#errors.network <= 3) {
-        return void this.#hls.startLoad();
-      }
-    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && ++this.#errors.media <= 2) {
-      return void this.#hls.recoverMediaError();
-    }
     this.#showError('No pudimos reproducir el video. Revisá tu conexión e intentá de nuevo.');
   }
 
@@ -330,13 +278,8 @@ export class VideoPlayer {
         const wasPlaying = this.playing;
         this.#expiresAt = src.expiresAt;
         this.#scheduleRefresh();
-        if (this.#hls) {
-          this.#hls.config.startPosition = t; // vuelve a cargar desde la posición actual, no desde el principio
-          this.#hls.loadSource(src.url);
-        } else {
-          this.#video.src = src.url;
-          this.#video.currentTime = t;
-        }
+        this.#video.src = src.url;
+        this.#video.currentTime = t;
         if (wasPlaying) this.play();
         this.#hideError();
       } catch (err) {
@@ -359,38 +302,11 @@ export class VideoPlayer {
   #retry() {
     this.#hideError();
     this.#setState('loading');
-    this.#errors = { network: 0, media: 0, auth: 0, since: 0 };
+    this.#errors = { auth: 0, since: 0 };
     this.#refreshSource();
   }
 
-  // ------------------------------------------------------------------ calidad y velocidad
-  #buildQuality(hls) {
-    const ui = this.#ui;
-    const levels = hls.levels.map((l, index) => ({ index, height: l.height })).filter((l) => l.height)
-      .sort((a, b) => b.height - a.height);
-    if (levels.length < 2) { ui.qualityBtn.hidden = true; return; }
-    ui.qualityMenu.replaceChildren(
-      this.#menuItem('Automática', true, () => this.#setQuality(-1), -1),
-      ...levels.map((l) => this.#menuItem(`${l.height}p`, false, () => this.#setQuality(l.index), l.index)),
-    );
-    ui.qualityBtn.hidden = false;
-  }
-
-  #setQuality(index) {
-    if (!this.#hls) return;
-    this.#hls.currentLevel = index; // -1 = automática
-    for (const item of this.#ui.qualityMenu.children) item.setAttribute('aria-checked', String(item.dataset.value === String(index)));
-    this.#syncQualityLabel();
-    this.#closeMenus();
-  }
-
-  #syncQualityLabel() {
-    const hls = this.#hls;
-    if (!hls) return;
-    const cur = hls.levels[hls.currentLevel];
-    this.#ui.qualityLabel.textContent = hls.autoLevelEnabled ? (cur?.height ? `Auto · ${cur.height}p` : 'Auto') : `${cur?.height ?? ''}p`;
-  }
-
+  // ------------------------------------------------------------------ velocidad
   #setRate(rate, persist = true) {
     this.#video.playbackRate = rate;
     this.#ui.speedBtn.textContent = `${rate}×`;
@@ -398,20 +314,17 @@ export class VideoPlayer {
     if (persist) store.set('rate', rate);
   }
 
-  #toggleMenu(which) {
-    const menu = which === 'speed' ? this.#ui.speedMenu : this.#ui.qualityMenu;
-    const btn = which === 'speed' ? this.#ui.speedBtn : this.#ui.qualityBtn;
-    const open = menu.hidden;
+  #toggleMenu() {
+    const { speedMenu, speedBtn } = this.#ui;
+    const open = speedMenu.hidden;
     this.#closeMenus();
-    menu.hidden = !open;
-    btn.setAttribute('aria-expanded', String(open));
+    speedMenu.hidden = !open;
+    speedBtn.setAttribute('aria-expanded', String(open));
   }
 
   #closeMenus() {
-    for (const [m, b] of [[this.#ui.speedMenu, this.#ui.speedBtn], [this.#ui.qualityMenu, this.#ui.qualityBtn]]) {
-      m.hidden = true;
-      b.setAttribute('aria-expanded', 'false');
-    }
+    this.#ui.speedMenu.hidden = true;
+    this.#ui.speedBtn.setAttribute('aria-expanded', 'false');
   }
 
   // ------------------------------------------------------------------ acciones y estado visual

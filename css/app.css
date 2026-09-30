@@ -139,7 +139,6 @@
 .yp-btn:hover { background: rgba(255,255,255,.16); }
 .yp-btn:focus-visible { outline: 3px solid var(--color-mint); outline-offset: 0; }
 .yp-text-btn { font-size: .85rem; font-weight: 600; border-radius: 999px; padding: 0 .7rem; }
-.yp-qlabel { font-size: .8rem; }
 .yp-vol { display: flex; align-items: center; }
 .yp-volume { width: 0; opacity: 0; transition: width .25s var(--ease), opacity .25s var(--ease); height: 18px; }
 .yp-vol:hover .yp-volume, .yp-volume:focus-visible { width: 76px; opacity: 1; margin-right: .5rem; }

@@ -104,7 +104,7 @@ export async function callFunction(name, body = {}) {
   return json;
 }
 
-/** URL HLS firmada + punto de reanudación. Falla con no_access / video_not_ready / class_not_found. */
+/** URL firmada de R2 (mp4 progresivo) + punto de reanudación. Falla con no_access / video_not_ready / class_not_found. */
 export const getPlayback = (classId) => callFunction('playback', { class_id: classId });
 
 // ---------------------------------------------------------------- administración
@@ -209,7 +209,7 @@ export async function deleteProductImageByUrl(url) {
 // ---------------------------------------------------------------- subida del video (PUT directo a R2)
 /**
  * Sube el archivo directo a R2 con la URL prefirmada que dio admin-create-upload
- * (el archivo no pasa por el backend). A diferencia de Bunny (TUS), es un PUT simple:
+ * (el archivo no pasa por el backend). Es un PUT simple (no reanudable):
  * si la subida se corta, hay que volver a pedir credenciales y subir el archivo entero de nuevo.
  * @returns {{ promise: Promise<void>, abort: () => void }}
  */

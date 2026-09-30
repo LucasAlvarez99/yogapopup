@@ -19,4 +19,19 @@ done
 "${PSQL[@]}" -f tests/roles_and_audit.test.sql
 "${PSQL[@]}" -f tests/classes_publish_audit.test.sql
 "${PSQL[@]}" -f tests/products.test.sql
+
+# Limpieza de clases con GUID de Bunny (migración 20260930120000): necesita datos "de antes" sembrados
+# ANTES de aplicarla, y otras pruebas cuentan filas de classes, así que va en una base temporal aparte.
+DB2="yp_legacy_$$"
+createdb "$DB2"
+trap 'dropdb --if-exists "$DB" >/dev/null 2>&1 || true; dropdb --if-exists "$DB2" >/dev/null 2>&1 || true' EXIT
+PSQL2=(psql -X -q -v ON_ERROR_STOP=1 -d "$DB2")
+"${PSQL2[@]}" -f tests/shim.sql
+for f in migrations/*.sql; do
+  if [[ "$f" == *roles_and_audit* ]]; then "${PSQL2[@]}" -f tests/legacy_admin.sql; fi
+  if [[ "$f" == *reset_legacy_bunny_videos* ]]; then "${PSQL2[@]}" -f tests/legacy_bunny.sql; fi
+  "${PSQL2[@]}" -f "$f"
+  if [[ "$f" == *reset_legacy_bunny_videos* ]]; then break; fi
+done
+"${PSQL2[@]}" -f tests/legacy_bunny.test.sql
 echo "OK · pruebas de base de datos"

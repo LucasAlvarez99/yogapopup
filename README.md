@@ -4,7 +4,7 @@ Sitio de yoga (cursos, clases en vivo, tienda y **videoteca**) al que se le suma
 videos: los videos viven en **Cloudflare R2**, los usuarios, clases, permisos y progreso en **Supabase**, y la
 web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos en el hosting).
 
-> ## Estado actual (29/09/2026) · Fases 0-13 cumplidas · Fase 14 con código y pruebas, falta validarla en navegador
+> ## Estado actual (29/09/2026) · Fases 0-8 y 12-13 cumplidas · Fases 9-11 con código y pruebas de backend, sin E2E · Fase 14 con código y pruebas, falta validarla contra Supabase real
 >
 > **Poner el sitio a andar con cuentas reales:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) ·
 > Reglas del proyecto: [`claude.md`](claude.md) · Encargo original: [`docs/ENCARGO-ORIGINAL.md`](docs/ENCARGO-ORIGINAL.md) ·
@@ -14,7 +14,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
 > verificadas rompiendo la migración a propósito) · **32 pruebas E2E** en Chromium real, todas en verde (29/09/2026, incluidas las 2 de la
 > tienda de la Fase 13 y 4 del panel: acceso por rol, lista de clases y CRUD completo de productos con imagen). Del panel de
-> clases solo está probada la lista; crear/publicar/borrar clases sigue sin E2E, ver Fase 8-11 más abajo.
+> clases solo está probada la lista; crear/publicar/borrar clases sigue sin E2E, ver Fases 9-11 más abajo.
 >
 > **Roles hechos:** `user` / `owner` / `developer` (el desarrollador es superconjunto del propietario), historial de
 > auditoría que nadie puede editar ni borrar, cambios de rol solo por desarrolladores y protección del último desarrollador.
@@ -28,7 +28,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > (WhatsApp, Instagram, YouTube) en los pies de página.
 >
 > **Aún no existe:** panel técnico interno (solo desarrolladores), reconciliación programada, carrito, pagos,
-> y pruebas E2E de crear/publicar/borrar clases (Fases 8-11: código completo, ver la nota en esa sección).
+> y pruebas E2E de crear/publicar/borrar clases (Fases 9-11: código completo, ver la nota en esa sección).
 > La tienda pública (Fases 12-13) y el panel de productos (Fase 14) están construidos y probados en navegador contra el
 > backend simulado; falta validarlos contra tu Supabase real.
 >
@@ -47,11 +47,11 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 `.github/workflows/pages.yml` arma `dist/` (lo mismo que se sube a Hostinger, ver `scripts/build-site.mjs`)
 y lo publica solo en cada push a `main`. No hace falta copiar nada a mano: lo que ves en `npm run dev` es lo que
 queda publicado (las páginas viven en la raíz del repo, con rutas relativas que también funcionan bajo
-`/sin_el_ok_para_migrar_despues/`).
+`/yogapopup/`).
 
 1. Activarlo una sola vez: **Settings → Pages → Source: "GitHub Actions"**.
 2. Después de cada push a `main`, la Action deja la URL en la pestaña **Actions** (o en Settings → Pages):
-   `https://lucasalvarez99.github.io/sin_el_ok_para_migrar_despues/`.
+   `https://lucasalvarez99.github.io/yogapopup/`.
 
 Es una vidriera de **prueba**, no el sitio de producción (ese va a Hostinger con dominio propio, ver
 [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md)). Ahí ya funcionan sin tocar nada el login, el catálogo, la tienda y el
@@ -75,9 +75,9 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 6 | Autenticación — páginas protegidas | ✅ |
 | 7 | Autenticación — conectar la home | ✅ |
 | 8 | Panel administrativo — listado | ✅ |
-| 9 | Panel administrativo — alta y edición | ✅ |
-| 10 | Panel administrativo — subida de video | ✅ |
-| 11 | Panel administrativo — publicar y borrar | ✅ |
+| 9 | Panel administrativo — alta y edición | 🟡 |
+| 10 | Panel administrativo — subida de video | 🟡 |
+| 11 | Panel administrativo — publicar y borrar | 🟡 |
 | 12 | Tienda — modelo de datos de productos | ✅ |
 | 13 | Tienda — página pública | ✅ |
 | 14 | Tienda — panel administrativo de productos | 🟡 |
@@ -272,7 +272,7 @@ Ninguna credencial real está en este repositorio: todos los archivos vienen con
 Cloudflare R2: primeros 10 GB de almacenamiento gratis por mes, sin cargo por egreso (salida de datos) nunca,
 1 millón de operaciones Class A y 10 millones Class B gratis por mes. Pasado eso: ~0,015 USD/GB/mes de storage,
 sin costo de tráfico.
-Supuesto: 40 clases de ~45 min ≈ 80 GB (**a validar en la Fase 8**); al no cobrar egreso, el costo de R2 casi no
+Supuesto: 40 clases de ~45 min ≈ 80 GB (**a validar en la Fase 34**); al no cobrar egreso, el costo de R2 casi no
 depende de cuánto se reproduzcan las clases (a diferencia de un proveedor con CDN por tráfico).
 
 | Almacenamiento | R2 aprox./mes |
@@ -290,8 +290,8 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 > Hoja de ruta puesta al día el 27/09/2026. La **Fase 0** es una foto de "hasta acá se llegó" (no queda
 > nada pendiente adentro, salvo lo que depende de cuentas del cliente). A partir de ahí las fases son
 > chicas a propósito (una tarde de trabajo cada una, más o menos) para poder cerrar y marcar "cumplida"
-> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-13
-> ya están cumplidas y probadas (la 14 tiene código y pruebas, falta validarla en navegador). Las Fases 12-31 son tienda, pagos (**todo con PayPal**, tanto compras
+> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-8 y 12-13
+> están cumplidas y probadas (las 9-11 tienen código y pruebas de backend pero no E2E de sus acciones; la 14 tiene código y pruebas, falta validarla contra tu Supabase real). Las Fases 12-31 son tienda, pagos (**todo con PayPal**, tanto compras
 > puntuales como suscripciones — se decidió no sumar un segundo proveedor), perfil de usuario, comentarios
 > y la agenda de clases en vivo. De ahí en más son cuentas reales, escalado y entrega. La última
 > (**Fase 39**) es el día de entrega.
@@ -306,6 +306,10 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       prefirmado directo desde el navegador, confirmación sin webhooks (`admin-sync-video` hace HEAD
       directo al bucket), borrado seguro (si R2 falla no se borra la clase), URLs de reproducción firmadas
       con vencimiento
+- [x] Migración de Bunny a R2 (`20260924120000`) + limpieza de datos (`20260930120000`): si la base ya tenía clases
+      con un video de Bunny, quedan despublicadas y en `pending` (con sus metadatos) para volver a subir el video
+      desde el panel; las que ya tienen key de R2 no se tocan. Probada en `supabase/tests/legacy_bunny.test.sql`
+      (base temporal aparte, verificada rompiendo la migración a propósito)
 - [x] `playback` entrega la URL firmada + punto donde retomar; nunca revela si una clase existe a quien
       no tiene acceso
 - [x] 47 pruebas automáticas (firmas, permisos, flujos y casos de error, sin red) + tipos y lint limpios:
@@ -315,7 +319,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 
 - [x] **FASE 0 CUMPLIDA** — el código del backend está completo y probado con simulaciones. Lo único que
       falta para darla por *cerrada en producción* son las cuentas reales del cliente, listadas abajo en
-      **Tareas externas pendientes**; se valida con el primer video real en la Fase 13.
+      **Tareas externas pendientes**; se valida con el primer video real en la Fase 33.
 
 ### Fase 1 · Reproductor — estructura y controles básicos
 
@@ -379,7 +383,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       enlace a Videoteca y a Panel de negocio (si es admin), y cerrar sesión
 - [x] Recuperar y cambiar contraseña: pantalla "Olvidaste tu contraseña", el enlace del correo abre
       directo el formulario de contraseña nueva (`PASSWORD_RECOVERY`), y cambiarla ya con sesión iniciada
-      desde `cuenta.html`. El envío real del correo depende del SMTP propio (Fase 17); el flujo ya está
+      desde `cuenta.html`. El envío real del correo depende del SMTP propio (Fase 37); el flujo ya está
       completo del lado de la web.
 
 - [x] **FASE 5 CUMPLIDA** — ídem Fases 1-4: ya estaba construido de una sesión anterior; se revisó entero
@@ -425,7 +429,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       cambia título/descripción/categoría/nivel/acceso/orden y puede reemplazar la miniatura (borra la
       vieja recién después de confirmar que la nueva se guardó)
 
-- [x] **FASE 9 CUMPLIDA** — el alta ya estaba hecha; el hueco real era editar una clase ya creada (el
+- [ ] **FASE 9 CUMPLIDA** (queda sin marcar hasta tener E2E de crear/editar, ver la nota de las Fases 8-11) — el alta ya estaba hecha; el hueco real era editar una clase ya creada (el
       propio código lo admitía: "pendiente para más adelante"), que era justo lo que faltaba de esta fase.
 
 ### Fase 10 · Panel administrativo — subida de video
@@ -434,7 +438,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 - [x] Confirmación automática al terminar (`admin-sync-video` + duración calculada en el navegador)
 - [x] Reintentar una subida que quedó pendiente o con error (mismo formulario, modo `retry`)
 
-- [x] **FASE 10 CUMPLIDA** — ya estaba hecho de una sesión anterior.
+- [ ] **FASE 10 CUMPLIDA** (queda sin marcar hasta tener E2E de la subida) — ya estaba hecho de una sesión anterior.
 
 ### Fase 11 · Panel administrativo — publicar y borrar
 
@@ -442,9 +446,9 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 - [x] Eliminar clase (`admin-delete-class` borra el objeto en R2 primero; si falla, no borra nada)
 - [x] Confirmación (`confirm()`) antes de eliminar
 
-- [x] **FASE 11 CUMPLIDA** — ya estaba hecho de una sesión anterior.
+- [ ] **FASE 11 CUMPLIDA** (queda sin marcar hasta tener E2E de publicar/borrar) — ya estaba hecho de una sesión anterior.
 
-> **Pendiente real de este bloque (8-11):** a diferencia de todas las fases anteriores, el panel **no
+> **Pendiente real de este bloque (9-11; la Fase 8 sí tiene E2E de la lista y del acceso por rol):** a diferencia de todas las fases anteriores, el panel **no
 > tiene pruebas E2E de sus acciones** (solo la lista de clases y el acceso por rol; la pestaña de productos de la Fase 14 sí
 > las tiene) — el backend simulado de `tests/e2e/fake-backend.mjs` todavía no implementa
 > `admin-create-upload` / `admin-sync-video` / `admin-delete-class` ni el CRUD completo de `classes` con
@@ -640,7 +644,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 
 - [ ] Tarea programada (Supabase cron) que revisa `live_bookings` del día y avisa por correo a cada
       alumno anotado esa jornada (no hay app propia con notificaciones push)
-- [ ] Depende del SMTP propio (misma cuenta que la recuperación de contraseña, ver Fase 36)
+- [ ] Depende del SMTP propio (misma cuenta que la recuperación de contraseña, ver Fase 37)
 
 - [ ] **FASE 31 CUMPLIDA**
 
@@ -728,7 +732,7 @@ usa:
 
 **Corregidos**
 
-- La migración de la Fase 2 había desaparecido del repositorio (un commit la borró por cómo se empaquetó una entrega
+- La migración inicial (hoy Fase 0) había desaparecido del repositorio (un commit la borró por cómo se empaquetó una entrega
   anterior). Restaurada; este proyecto completo la incluye.
 - Un servidor estático sirve `/.env` por defecto: si se subiera la carpeta entera a Hostinger quedaría descargable.
   Ahora se publica solo `dist/` y el `.htaccess` bloquea archivos sensibles (probado en Apache).
