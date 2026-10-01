@@ -156,6 +156,223 @@ await test('producto: ficha con precio en euros, "también te puede gustar", y 4
   await waitFor(page, () => document.body.textContent.includes('Producto no encontrado'));
 });
 
+// ============================================================ carrito (Fase 16)
+const cartBadge = (page) => page.$eval('[data-cart-count]', (b) => (b.hidden ? '' : b.textContent.trim()));
+const norm = (t) => t.replace(/\s/g, ' ');
+/** Toca "Agregar al carrito" en la tarjeta de ese producto (dentro de `scope`). */
+const addFromCard = (page, scope, title) => page.evaluate((sc, t) => {
+  const card = [...document.querySelectorAll(`${sc} .shop-card`)].find((c) => c.querySelector('h3')?.textContent.trim() === t);
+  card.querySelector('button').click();
+}, scope, title);
+const openCart = async (page) => {
+  await page.click('[data-cart-toggle]');
+  await page.waitForSelector('#cartDrawer.show:not(.showing)'); // espera a que termine la animación
+};
+const cartRows = (page) => count(page, '#cartList .cart-item');
+const rowSel = (id) => `#cartList li[data-product-id="${id}"]`;
+const storedCart = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('yp.cart')));
+const toastHas = (page, part) => waitFor(page, (t) => [...document.querySelectorAll('.yp-toast')].some((n) => n.textContent.includes(t)), part, 5000);
+
+await test('carrito: agregar desde la tienda respeta el stock y sobrevive a recargar y a cambiar de página, sin iniciar sesión', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  assert.equal(await cartBadge(page), '', 'sin productos no hay globito');
+
+  await addFromCard(page, '#shopGrid', 'Mat de yoga Premium');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '1');
+  await toastHas(page, 'se agregó al carrito');
+
+  // la botella tiene stock 3: la cuarta vez avisa y no suma
+  for (let i = 0; i < 4; i++) await addFromCard(page, '#shopGrid', 'Botella térmica');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '4'); // 1 mat + 3 botellas
+  await toastHas(page, 'máximo disponible');
+  assert.equal(await cartBadge(page), '4');
+
+  // el agotado no se puede agregar
+  assert.equal(await page.$eval('#shopGrid .shop-card.is-soldout button', (b) => b.disabled), true);
+
+  // lo guardado son solo ids y cantidades (nunca precios ni títulos)
+  const saved = await storedCart(page);
+  assert.equal(saved.v, 1);
+  assert.deepEqual(saved.items.map((i) => Object.keys(i).sort()), [['id', 'qty'], ['id', 'qty']]);
+
+  await page.reload();
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  assert.equal(await cartBadge(page), '4', 'sobrevive a recargar');
+  await page.goto(`${S}/producto.html?id=${PRODUCT_IDS.mat}`);
+  await waitFor(page, () => !!document.querySelector('.producto-title'));
+  assert.equal(await cartBadge(page), '4', 'sobrevive a cambiar de página');
+
+  // desde la ficha también se agrega
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Agregar al carrito')).click());
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '5');
+});
+
+await test('carrito: el cajón muestra precios reales, cambia cantidades con tope de stock, quita y vacía', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  await addFromCard(page, '#shopGrid', 'Mat de yoga Premium');
+  await addFromCard(page, '#shopGrid', 'Botella térmica');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '2');
+
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 2);
+  assert.equal(norm(await text(page, '#cartSubtotal')), '33,98 €'); // 18,99 + 14,99
+  assert.equal(await text(page, '#cartTitleCount'), '2');
+  assert.equal(await page.$eval('.cart-footer .btn-brand', (b) => b.disabled), true, 'el pago llega en otra fase');
+  const mat = rowSel(PRODUCT_IDS.mat);
+  const bottle = rowSel(PRODUCT_IDS.bottle);
+
+  // subir cantidad: el total de la línea y el subtotal siguen a la base
+  await page.click(`${mat} [aria-label="Una unidad más"]`);
+  await waitFor(page, () => document.querySelector('#cartSubtotal').textContent.replace(/\s/g, ' ') === '52,97 €');
+  assert.equal(await text(page, `${mat} .qty span`), '2');
+  assert.equal(norm(await text(page, `${mat} .cart-info strong`)), '37,98 €');
+  assert.equal(await cartBadge(page), '3');
+
+  // la botella tiene stock 3: el "+" se bloquea al llegar
+  await page.click(`${bottle} [aria-label="Una unidad más"]`);
+  await waitFor(page, (sel) => document.querySelector(`${sel} .qty span`).textContent === '2', bottle);
+  await page.click(`${bottle} [aria-label="Una unidad más"]`);
+  await waitFor(page, (sel) => document.querySelector(`${sel} .qty span`).textContent === '3', bottle);
+  assert.equal(await page.$eval(`${bottle} [aria-label="Una unidad más"]`, (b) => b.disabled), true);
+
+  // con 1 unidad el "−" queda bloqueado (para sacar un producto está la X)
+  await page.click(`${mat} [aria-label="Una unidad menos"]`);
+  await waitFor(page, (sel) => document.querySelector(`${sel} .qty span`).textContent === '1', mat);
+  assert.equal(await page.$eval(`${mat} [aria-label="Una unidad menos"]`, (b) => b.disabled), true);
+
+  // quitar
+  await page.click(`${mat} .cart-remove`);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  assert.equal(norm(await text(page, '#cartSubtotal')), '44,97 €'); // 3 × 14,99
+
+  // vaciar
+  await page.evaluate(() => [...document.querySelectorAll('.cart-footer .btn-soft')].find((b) => b.textContent.includes('Vaciar')).click());
+  await waitFor(page, () => document.querySelector('.cart-empty')?.textContent.includes('Tu carrito está vacío'));
+  assert.equal(await cartBadge(page), '');
+  assert.equal(await page.evaluate(() => localStorage.getItem('yp.cart')), null, 'vaciado: no queda basura guardada');
+});
+
+await test('carrito: un precio manipulado en localStorage no se cobra (el cajón usa el de la base) y lo corrupto no rompe nada', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  await page.evaluate((id) => localStorage.setItem('yp.cart', JSON.stringify({ v: 1, items: [{ id, qty: 2, price_cents: 1, title: 'gratis' }] })), PRODUCT_IDS.mat);
+  await page.reload();
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '2');
+
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  assert.equal(norm(await text(page, '#cartSubtotal')), '37,98 €', '2 × 18,99 de la base, no 0,02');
+  assert.ok(!(await page.$eval('#cartDrawer', (d) => d.textContent)).includes('gratis'));
+
+  // al volver a guardar, el precio inyectado se descarta
+  await page.click(`${rowSel(PRODUCT_IDS.mat)} [aria-label="Una unidad más"]`);
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '3');
+  assert.deepEqual((await storedCart(page)).items, [{ id: PRODUCT_IDS.mat, qty: 3 }]);
+
+  // contenido corrupto: la página carga normal y el carrito empieza vacío
+  await page.evaluate(() => localStorage.setItem('yp.cart', '{{{ corrupto'));
+  await page.reload();
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  assert.equal(await cartBadge(page), '');
+});
+
+await test('carrito: si el stock baja o un producto se oculta, el cajón lo avisa, no deja pagar y permite corregirlo', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  for (let i = 0; i < 2; i++) await addFromCard(page, '#shopGrid', 'Mat de yoga Premium');
+  for (let i = 0; i < 3; i++) await addFromCard(page, '#shopGrid', 'Botella térmica');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '5');
+
+  // mientras el carrito espera en el navegador, la tienda cambia
+  await be.patchProduct(PRODUCT_IDS.bottle, { stock: 1 });
+  await be.patchProduct(PRODUCT_IDS.mat, { is_active: false });
+
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 2);
+  assert.equal(await text(page, `${rowSel(PRODUCT_IDS.mat)} .cart-issue`), 'Ya no está disponible');
+  assert.equal(await count(page, `${rowSel(PRODUCT_IDS.mat)} .qty`), 0, 'lo que ya no existe solo se puede quitar');
+  assert.equal(await text(page, `${rowSel(PRODUCT_IDS.bottle)} .cart-issue`), 'Solo queda 1 unidad');
+  assert.equal(norm(await text(page, '#cartSubtotal')), '14,99 €', 'solo cuenta lo que realmente se puede comprar');
+  assert.ok(await page.$('.cart-alert'), 'hay un aviso general');
+  assert.equal(await page.$eval('.cart-footer .btn-brand[disabled]', () => true), true);
+
+  await page.evaluate(() => [...document.querySelectorAll('.cart-alert button')].find((b) => b.textContent.includes('Actualizar')).click());
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1 && !document.querySelector('.cart-alert'));
+  assert.equal(await text(page, `${rowSel(PRODUCT_IDS.bottle)} .qty span`), '1');
+  assert.equal(await cartBadge(page), '1');
+  assert.deepEqual((await storedCart(page)).items, [{ id: PRODUCT_IDS.bottle, qty: 1 }]);
+});
+
+await test('carrito: cada vez que se abre el cajón se vuelven a leer precio y stock (no se muestran datos viejos)', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  await addFromCard(page, '#shopGrid', 'Mat de yoga Premium');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '1');
+
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  assert.equal(norm(await text(page, '#cartSubtotal')), '18,99 €');
+  await page.click('#cartDrawer .btn-close');
+  await page.waitForSelector('#cartDrawer:not(.show):not(.hiding)');
+
+  await be.patchProduct(PRODUCT_IDS.mat, { price_cents: 2100 }); // la dueña cambia el precio
+  await openCart(page);
+  await waitFor(page, () => document.querySelector('#cartSubtotal')?.textContent.replace(/\s/g, ' ') === '21,00 €');
+  assert.equal(norm(await text(page, `${rowSel(PRODUCT_IDS.mat)} .cart-info strong`)), '21,00 €');
+});
+
+await test('carrito: si la base falla al abrir el cajón muestra el error con reintento, sin precios inventados', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  await addFromCard(page, '#shopGrid', 'Mat de yoga Premium');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '1');
+
+  await be.behavior({ catalogFail: true });
+  await openCart(page);
+  await waitFor(page, () => document.querySelector('#cartDrawer .yp-state')?.textContent.includes('No pudimos cargar'));
+  assert.equal(await count(page, '#cartList'), 0, 'sin datos reales no se muestran precios');
+  assert.equal(await cartBadge(page), '1', 'el conteo no depende de la base');
+
+  await be.behavior({ catalogFail: false });
+  await page.evaluate(() => [...document.querySelectorAll('#cartDrawer .yp-state button')].find((b) => b.textContent.includes('Reintentar')).click());
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  assert.equal(norm(await text(page, '#cartSubtotal')), '18,99 €');
+});
+
+await test('home: productos reales (no los de ejemplo) que se agregan al carrito', async (page) => {
+  await page.goto(S);
+  await waitFor(page, () => document.querySelectorAll('#homeProducts .shop-card').length === 3);
+  const titles = await page.$$eval('#homeProducts .shop-card h3', (n) => n.map((x) => x.textContent.trim()));
+  assert.deepEqual(titles.sort(), ['Botella térmica', 'Mat de yoga Premium', 'Remera Pop Up']);
+  assert.ok(!(await page.content()).includes('Leggings Bliss'), 'quedaron productos de ejemplo');
+  assert.equal(await page.$eval('#homeProducts', (n) => n.getAttribute('aria-busy')), 'false');
+  assert.equal(await cartBadge(page), '', 'el carrito de ejemplo (3 productos fijos) ya no existe');
+
+  await addFromCard(page, '#homeProducts', 'Mat de yoga Premium');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '1');
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  assert.equal(await text(page, `${rowSel(PRODUCT_IDS.mat)} h3`), 'Mat de yoga Premium');
+  assert.equal(norm(await text(page, '#cartSubtotal')), '18,99 €');
+});
+
+await test('carrito: dos pestañas del mismo navegador se mantienen sincronizadas', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  const other = await page.ctx.newPage(); // mismo navegador: comparte localStorage
+  try {
+    await other.goto(`${S}/videoteca.html`);
+    await waitFor(other, () => !!document.querySelector('[data-cart-count]'));
+    assert.equal(await cartBadge(other), '');
+    await addFromCard(page, '#shopGrid', 'Mat de yoga Premium');
+    await waitFor(other, () => document.querySelector('[data-cart-count]').textContent === '1');
+  } finally {
+    await other.close();
+  }
+});
+
 // ============================================================ catálogo
 await test('home: muestra clases reales (no las tarjetas de ejemplo) y omite borradores', async (page) => {
   await page.goto(S);
@@ -240,10 +457,11 @@ await test('reproductor: controles, velocidad y teclado (video progresivo, sin s
   await loginViaModal(page, 'ana@test.dev');
   await page.waitForSelector('.yp-player');
   await playAndWait(page);
-  // R2 no transcodifica: un solo archivo, sin selector de calidad (el botón queda oculto).
-  assert.equal(await page.$eval('.yp-menuwrap:nth-child(2) .yp-text-btn', (b) => b.hidden), true);
+  // R2 no transcodifica: un solo archivo mp4, así que no existe ningún selector de calidad (solo el de velocidad).
+  assert.equal(await count(page, '.yp-menuwrap'), 1);
+  assert.equal(await count(page, '[aria-label="Calidad"]'), 0);
   // velocidad
-  await page.click('.yp-menuwrap:nth-child(1) .yp-text-btn');
+  await page.click('.yp-menuwrap .yp-text-btn');
   await page.evaluate(() => [...document.querySelectorAll('.yp-menu-item')].find((b) => b.textContent.includes('1.5')).click());
   assert.equal(await page.$eval('.yp-video', (v) => v.playbackRate), 1.5);
   // teclado: espacio pausa, flechas buscan. Se reposiciona a la mitad del video para no depender de cuánto

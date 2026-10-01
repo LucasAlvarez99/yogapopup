@@ -28,7 +28,11 @@ export function renderLayout(active) {
       'aria-controls': 'mainMenu', 'aria-expanded': 'false', 'aria-label': 'Abrir menú',
     }, icon('list'));
     const accountLink = el('a', { class: 'icon-btn', href: page('cuenta.html'), 'aria-label': 'Mi cuenta', 'data-account-toggle': true }, icon('person'));
-    const actions = el('div', { class: 'd-flex align-items-center gap-1 order-lg-3' }, menuButton, accountLink);
+    const cartButton = el('button', {
+      class: 'icon-btn position-relative', type: 'button', 'data-bs-toggle': 'offcanvas', 'data-bs-target': '#cartDrawer',
+      'aria-controls': 'cartDrawer', 'aria-label': 'Abrir carrito', 'data-cart-toggle': true,
+    }, icon('bag'), el('span', { class: 'cart-badge', 'data-cart-count': true, hidden: true }));
+    const actions = el('div', { class: 'd-flex align-items-center gap-1 order-lg-3' }, menuButton, accountLink, cartButton);
     const menu = el('div', { class: 'collapse navbar-collapse order-lg-2', id: 'mainMenu' },
       el('ul', { class: 'navbar-nav mx-lg-auto gap-lg-2' }, ...NAV.map(navItem)));
 

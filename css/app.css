@@ -191,3 +191,18 @@
 .nav-tabs .nav-link.active { color: var(--color-primary); background: none; border-bottom-color: var(--color-primary); }
 .form-check-input:checked { background-color: var(--color-primary); border-color: var(--color-primary); }
 .form-check-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 .2rem rgba(74, 64, 54, .18); }
+
+/* ---- Carrito (Fase 16) ---- */
+.cart-badge[hidden] { display: none; }
+.cart-thumb { overflow: hidden; }
+.cart-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cart-info h3 a { color: inherit; text-decoration: none; }
+.cart-info h3 a:hover { color: var(--color-primary); }
+.cart-issue { color: #9a3412; font-weight: 600; }
+.cart-item.is-broken .cart-info h3 { color: var(--color-text-muted); }
+.qty button:disabled { opacity: .35; cursor: not-allowed; background: none; }
+.cart-empty { text-align: center; padding: 3rem 1rem; color: var(--color-text-muted); }
+.cart-empty .bi { font-size: 2.4rem; color: var(--color-primary); display: block; margin-bottom: .6rem; }
+.cart-alert { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding: .7rem .9rem; margin-bottom: 1rem; border-radius: var(--radius-sm); background: #fff7ed; color: #9a3412; font-size: .85rem; }
+.cart-alert .btn { margin-left: auto; }
+.cart-note { margin: 0 0 .8rem; font-size: .78rem; color: var(--color-text-muted); text-align: center; }

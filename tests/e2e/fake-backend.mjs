@@ -346,6 +346,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
       if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name })), products: db.products, storageKeys: [...db.storage.keys()] });
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
+      if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
       if (url.pathname === '/__test/promote') { const b = await readBody(req); const u = [...db.users.values()].find((u) => u.email === b.email); if (u) u.role = b.role; return send(res, 200, { ok: true }); }
       if (url.pathname.startsWith('/auth/v1/')) return await auth(req, res, url);
       if (url.pathname.startsWith('/rest/v1/')) return await rest(req, res, url);
@@ -412,6 +413,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     behavior: (b) => control('behavior', b),
     entitle: (email, classId) => control('entitle', { email, classId }),
     promote: (email, role) => control('promote', { email, role }),
+    patchProduct: (id, patch) => control('product', { id, patch }),
     state: () => fetch(`${origin.api}/__test/state`).then((r) => r.json()),
     close: () => Promise.all([site, api, cdn].map((s) => new Promise((r) => { s.closeAllConnections?.(); s.close(r); }))),
   };

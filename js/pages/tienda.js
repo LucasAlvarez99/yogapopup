@@ -5,6 +5,7 @@ import { categoriesOf, filterProducts } from "../lib/catalog.js";
 import { el, mount } from "../lib/dom.js";
 import { boot } from "../ui/boot.js";
 import { productCard } from "../components/product-card.js";
+import { addToCart } from "../ui/cart-drawer.js";
 import { emptyState, errorState, skeletonGrid } from "../ui/states.js";
 
 /** Tienda: catálogo real de productos activos, con búsqueda y filtro por categoría. */
@@ -62,7 +63,7 @@ function renderGrid() {
         : emptyState("No encontramos productos con esos filtros", "Prueba con otra búsqueda o categoría."),
     );
   }
-  mount(gridBox, el("div", { class: "row g-4" }, ...list.map((p) => productCard(p))));
+  mount(gridBox, el("div", { class: "row g-4" }, ...list.map((p) => productCard(p, { onAdd: addToCart }))));
 }
 
 async function load() {

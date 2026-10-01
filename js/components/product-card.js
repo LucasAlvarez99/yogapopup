@@ -3,8 +3,8 @@ import { formatPrice, stockInfo } from "../lib/format.js";
 import { page } from "../lib/env.js";
 
 /**
- * Botón "agregar al carrito". El carrito llega en las Fases 15-16: hasta entonces `onAdd` es null y el
- * botón se muestra deshabilitado ("Próximamente") en vez de simular una compra que no existe.
+ * Botón "agregar al carrito". Las páginas le pasan `onAdd` (ver ui/cart-drawer.js). Si alguna no lo hace,
+ * el botón se muestra deshabilitado ("Próximamente") en vez de simular una compra que no existe.
  */
 export function addToCartButton(product, { onAdd = null, block = true } = {}) {
   const { available } = stockInfo(product.stock);

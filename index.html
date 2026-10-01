@@ -32,9 +32,9 @@
           <i class="bi bi-list"></i>
         </button>
         <a class="icon-btn" href="cuenta.html" aria-label="Mi cuenta" data-account-toggle><i class="bi bi-person"></i></a>
-        <button class="icon-btn position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#cartDrawer" aria-controls="cartDrawer" aria-label="Abrir carrito">
+        <button class="icon-btn position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#cartDrawer" aria-controls="cartDrawer" aria-label="Abrir carrito" data-cart-toggle>
           <i class="bi bi-bag"></i>
-          <span class="cart-badge" id="cartCount">3</span>
+          <span class="cart-badge" data-cart-count hidden></span>
         </button>
       </div>
 
@@ -254,17 +254,13 @@
         <h2>Diseñado para acompañar tu práctica</h2>
         <a href="tienda.html" class="link-brand">Ver toda la tienda <i class="bi bi-arrow-right"></i></a>
       </div>
-      <div class="row g-4">
-        <!-- 8 productos -->
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-person-standing"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Leggings Bliss</h3><strong class="price">34,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-flower2"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Top deportivo</h3><strong class="price">32,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-tag"></i></div><div class="shop-body"><span class="product-cat">Ropa</span><h3>Remera Pop Up</h3><strong class="price">19,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-layers"></i></div><div class="shop-body"><span class="product-cat">Mats</span><h3>Mat de yoga Premium</h3><strong class="price">18,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-droplet"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Botella térmica</h3><strong class="price">14,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-handbag"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Bolso de yoga</h3><strong class="price">27,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-light-green"><i class="bi bi-bounding-box-circles"></i></div><div class="shop-body"><span class="product-cat">Accesorios</span><h3>Bloques y cinta</h3><strong class="price">12,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
-        <article class="col-6 col-lg-3 reveal"><div class="shop-card"><div class="shop-media bg-mint"><i class="bi bi-cloud-arrow-down"></i></div><div class="shop-body"><span class="product-cat">Digital</span><h3>Guía de bienestar</h3><strong class="price">6,99&nbsp;€</strong><button class="btn btn-brand btn-sm w-100" type="button"><i class="bi bi-bag-plus"></i> Agregar al carrito</button></div></div></article>
+      <div class="row g-4" id="homeProducts" aria-live="polite" aria-busy="true">
+        <div class="col-6 col-lg-3"><div class="yp-skeleton"></div></div>
+        <div class="col-6 col-lg-3"><div class="yp-skeleton"></div></div>
+        <div class="col-6 col-lg-3 d-none d-md-block"><div class="yp-skeleton"></div></div>
+        <div class="col-6 col-lg-3 d-none d-lg-block"><div class="yp-skeleton"></div></div>
       </div>
+      <noscript><p class="text-muted">Activa JavaScript para ver la tienda.</p></noscript>
     </div>
   </section>
 
@@ -312,41 +308,6 @@
     <p class="copyright">© 2026 Yoga Pop Up. Todos los derechos reservados.</p>
   </div>
 </footer>
-
-<!-- ============ CARRITO (offcanvas Bootstrap) ============ -->
-<aside class="offcanvas offcanvas-end cart-drawer" tabindex="-1" id="cartDrawer" aria-labelledby="cartTitle">
-  <div class="offcanvas-header">
-    <h2 class="offcanvas-title" id="cartTitle">Tu carrito (<span id="cartTitleCount">3</span>)</h2>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
-  </div>
-  <div class="offcanvas-body d-flex flex-column">
-    <ul class="cart-list" id="cartList">
-      <li class="cart-item" data-price="3299">
-        <div class="cart-thumb bg-light-green"><i class="bi bi-person-standing"></i></div>
-        <div class="cart-info"><h3>Top de Yoga Bliss</h3><small>Talle M · Verde</small><strong>32,99&nbsp;€</strong></div>
-        <button class="cart-remove" type="button" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
-        <div class="qty"><button type="button" data-qty="-1" aria-label="Menos"><i class="bi bi-dash"></i></button><span>1</span><button type="button" data-qty="1" aria-label="Más"><i class="bi bi-plus"></i></button></div>
-      </li>
-      <li class="cart-item" data-price="2499">
-        <div class="cart-thumb bg-mint"><i class="bi bi-laptop"></i></div>
-        <div class="cart-info"><h3>Curso | Yoga desde cero</h3><small>Acceso inmediato</small><strong>24,99&nbsp;€</strong></div>
-        <button class="cart-remove" type="button" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
-        <div class="qty"><button type="button" data-qty="-1" aria-label="Menos"><i class="bi bi-dash"></i></button><span>1</span><button type="button" data-qty="1" aria-label="Más"><i class="bi bi-plus"></i></button></div>
-      </li>
-      <li class="cart-item" data-price="1899">
-        <div class="cart-thumb bg-light-green"><i class="bi bi-layers"></i></div>
-        <div class="cart-info"><h3>Mat de yoga Premium</h3><small>6 mm · Verde</small><strong>18,99&nbsp;€</strong></div>
-        <button class="cart-remove" type="button" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
-        <div class="qty"><button type="button" data-qty="-1" aria-label="Menos"><i class="bi bi-dash"></i></button><span>1</span><button type="button" data-qty="1" aria-label="Más"><i class="bi bi-plus"></i></button></div>
-      </li>
-    </ul>
-    <div class="cart-footer mt-auto">
-      <div class="subtotal"><span>Subtotal</span><strong id="cartSubtotal">76,97&nbsp;€</strong></div>
-      <button class="btn btn-brand w-100 mb-2" type="button">Finalizar compra <i class="bi bi-arrow-right"></i></button>
-      <button class="btn btn-soft w-100" type="button">Ver carrito</button>
-    </div>
-  </div>
-</aside>
 
 <script src="js/vendor/bootstrap.bundle.min.js"></script>
 <script src="js/config.js"></script>

@@ -156,6 +156,7 @@ Estado a 29/09/2026 (la hoja de ruta completa, Fases 0-39, está en el `README.m
   (E2E), en base de datos y a mano contra el Supabase real (30/09/2026). Clases: solo la lista tiene E2E; crear/editar/subir/publicar/borrar aún no
 - [x] **Tienda pública** (Fases 12-13): modelo de datos con RLS, catálogo con buscador y ficha de producto
 - [x] **Carrito, estado y validación** (Fase 15): `js/lib/cart.js`, guarda solo `{id, qty}` y valida precio/stock contra la base; sin pantalla aún
-- [ ] Interfaz del carrito (Fase 16), pagos (**todo con PayPal**), reconciliación programada y panel técnico interno
+- [x] **Interfaz del carrito** (Fase 16): ícono con conteo + cajón lateral con precios/stock reales; 8 E2E en navegador
+- [ ] Pagos (**todo con PayPal**), reconciliación programada y panel técnico interno
 
 Lo que falta está planificado por fases en la hoja de ruta del `README.md` y **no** se empieza sin cerrar la fase anterior.

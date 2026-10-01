@@ -4,16 +4,16 @@ Sitio de yoga (cursos, clases en vivo, tienda y **videoteca**) al que se le suma
 videos: los videos viven en **Cloudflare R2**, los usuarios, clases, permisos y progreso en **Supabase**, y la
 web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos en el hosting).
 
-> ## Estado actual (30/09/2026) · Fases 0-8 y 12-15 cumplidas · Fases 9-11 con código y pruebas de backend, sin E2E
+> ## Estado actual (30/09/2026) · Fases 0-8 y 12-16 cumplidas · Fases 9-11 con código y pruebas de backend, sin E2E
 >
 > **Poner el sitio a andar con cuentas reales:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) ·
 > Reglas del proyecto: [`claude.md`](claude.md) · Encargo original: [`docs/ENCARGO-ORIGINAL.md`](docs/ENCARGO-ORIGINAL.md) ·
 > Hoja de ruta hasta la entrega: [`Fases`](#fases) más abajo (Fase 0 = hoy, Fase 39 = día de entrega).
 >
-> **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 82 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
+> **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 87 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
-> verificadas rompiendo la migración a propósito) · **32 pruebas E2E** en Chromium real, todas en verde (29/09/2026, incluidas las 2 de la
-> tienda de la Fase 13 y 4 del panel: acceso por rol, lista de clases y CRUD completo de productos con imagen). Del panel de
+> verificadas rompiendo la migración a propósito) · **40 pruebas E2E** en Chromium real, todas en verde (30/09/2026, incluidas las 2 de la
+> tienda de la Fase 13, 4 del panel —acceso por rol, lista de clases y CRUD completo de productos con imagen— y 8 del carrito de la Fase 16). Del panel de
 > clases solo está probada la lista; crear/publicar/borrar clases sigue sin E2E, ver Fases 9-11 más abajo.
 >
 > **Roles hechos:** `user` / `owner` / `developer` (el desarrollador es superconjunto del propietario), historial de
@@ -37,7 +37,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > npm run verify                                 # formato + lint + tipos + pruebas de backend y frontend
 > npm run test:db                                # base de datos (requiere PostgreSQL y bash)
 > npm run doctor                                 # ¿la configuración está lista para producción?
-> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 32 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
+> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 40 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
 > npm run dev                                    # sitio en http://localhost:3000 (o Live Server: index.html → botón "Go Live")
 > npm run build                                  # arma dist/ (lo único que se sube a Hostinger)
 > ```
@@ -82,7 +82,7 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 13 | Tienda — página pública | ✅ |
 | 14 | Tienda — panel administrativo de productos | ✅ |
 | 15 | Carrito — estado y persistencia | ✅ |
-| 16 | Carrito — interfaz | ⬜ |
+| 16 | Carrito — interfaz | ✅ |
 | 17 | Pagos — modelo de datos | ⬜ |
 | 18 | Checkout — compra puntual con PayPal | ⬜ |
 | 19 | Suscripciones con PayPal — alta | ⬜ |
@@ -290,7 +290,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 > Hoja de ruta puesta al día el 27/09/2026. La **Fase 0** es una foto de "hasta acá se llegó" (no queda
 > nada pendiente adentro, salvo lo que depende de cuentas del cliente). A partir de ahí las fases son
 > chicas a propósito (una tarde de trabajo cada una, más o menos) para poder cerrar y marcar "cumplida"
-> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-8 y 12-15
+> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-8 y 12-16
 > están cumplidas y probadas (las 9-11 tienen código y pruebas de backend pero no E2E de sus acciones). Las Fases 12-31 son tienda, pagos (**todo con PayPal**, tanto compras
 > puntuales como suscripciones — se decidió no sumar un segundo proveedor), perfil de usuario, comentarios
 > y la agenda de clases en vivo. De ahí en más son cuentas reales, escalado y entrega. La última
@@ -544,8 +544,8 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       `null` en la base se contaba como 0 (`Number(null) === 0`), o sea "gratis". Verificadas rompiendo el código a
       propósito en cuatro puntos (conservar campos inyectados, ignorar el stock, no persistir, `Number(null)`): en
       los cuatro la prueba falla, y con el código original pasan
-- [x] Sin pantalla todavía (llega en la Fase 16): la prueba en un navegador real de que el carrito sobrevive a
-      recargar la página se hace en los E2E de la Fase 16, que es la primera que lo usa. Aquí está cubierto con un
+- [x] Persistencia en un navegador real: verificada en la Fase 16 (E2E) — el carrito sobrevive a recargar la página,
+      a cambiar de página y se sincroniza entre dos pestañas. En la Fase 15 estaba cubierta solo con un
       almacenamiento falso de la misma interfaz que `localStorage` y con `browserStorage()` probado ante los
       fallos típicos (acceso denegado, cuota llena, sin `localStorage`)
 
@@ -553,10 +553,33 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 
 ### Fase 16 · Carrito — interfaz
 
-- [ ] Ícono del carrito en el encabezado con el conteo de ítems
-- [ ] Agregar / quitar / cambiar cantidad, resumen con subtotal
+- [x] Ícono del carrito en el encabezado con el conteo de ítems — en todas las páginas (`js/ui/layout.js` para las
+      nuevas, el encabezado de `index.html` para la home). El conteo sale del carrito guardado en el navegador, no de
+      la base; se oculta con 0 y muestra "99+" si son muchos
+- [x] Agregar / quitar / cambiar cantidad, resumen con subtotal — cajón lateral (`js/ui/cart-drawer.js`). Los botones
+      "Agregar al carrito" de la tienda, la ficha y la home son reales; el "+" se bloquea al llegar al stock (o a
+      10 unidades), el "−" se bloquea en 1 (para sacar un producto está la X) y hay "Vaciar carrito". Cada vez que se
+      abre el cajón se vuelven a leer precio y stock de la base: si el stock bajó o un producto se ocultó, lo avisa
+      por línea, el subtotal solo cuenta lo que realmente se puede comprar y "Actualizar carrito" lo corrige. Si la
+      base falla, muestra el error con reintento y **ningún precio**. "Finalizar compra" queda deshabilitado hasta
+      el pago (Fases 17-18)
+- [x] Se quitó el carrito de ejemplo de la home (3 productos fijos y su JavaScript) y las 8 tarjetas de producto de
+      ejemplo: ahora la home muestra los primeros productos activos reales, con el mismo patrón de carga/vacío/error
+      que las clases. `js/lib/cart-view.js` concentra las reglas de presentación (textos de aviso, tope del "+",
+      mensajes al agregar) para probarlas sin navegador: 5 pruebas unitarias
+- [x] 8 pruebas E2E en Chromium real (`carrito: …` y `home: productos reales…`): agregar con tope de stock y
+      persistencia al recargar y entre páginas, sin sesión; cajón con cantidades, subtotal, quitar y vaciar; precio
+      manipulado en `localStorage` (el cajón usa el de la base) y contenido corrupto; stock que baja / producto
+      oculto con corrección; error de la base con reintento; datos que cambian entre dos aperturas; home con
+      productos reales; y dos pestañas sincronizadas (evento `storage` real). Verificadas rompiendo el código a
+      propósito en cuatro puntos (ignorar el stock, no bloquear el "+", sin sincronía entre pestañas, no releer la
+      base al reabrir): en los cuatro falla la prueba que corresponde. La cuarta rotura, al principio, pasaba sin
+      que fallara nada: faltaba una prueba y se agregó
+- [x] Regresión corregida de una entrega anterior: al quitar el código muerto de HLS del reproductor (post-migración
+      a R2) se rompió el E2E `reproductor: controles…`, que buscaba el selector de calidad por posición. Se corrigió
+      el test (ahora comprueba que no existe selector de calidad) y la suite completa volvió a 40 de 40
 
-- [ ] **FASE 16 CUMPLIDA**
+- [x] **FASE 16 CUMPLIDA**
 
 ### Fase 17 · Pagos — modelo de datos
 

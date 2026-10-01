@@ -6,6 +6,7 @@ import { page } from "../lib/env.js";
 import { el, mount } from "../lib/dom.js";
 import { boot } from "../ui/boot.js";
 import { addToCartButton, productCard } from "../components/product-card.js";
+import { addToCart } from "../ui/cart-drawer.js";
 import { emptyState, errorState } from "../ui/states.js";
 
 /** Ficha de un producto: ?id=<uuid>. Estados: cargando · no encontrado · error · producto. */
@@ -40,7 +41,7 @@ function renderProduct(p) {
           ? el("p", { class: "text-muted" }, label)
           : null,
         p.description ? el("p", { class: "producto-desc" }, p.description) : null,
-        el("div", { class: "d-flex gap-2 flex-wrap mt-3" }, addToCartButton(p, { block: false }), backLink()),
+        el("div", { class: "d-flex gap-2 flex-wrap mt-3" }, addToCartButton(p, { onAdd: addToCart, block: false }), backLink()),
       ),
     ),
   );
@@ -53,7 +54,7 @@ async function renderMore() {
     mount(
       more,
       el("h2", { class: "yp-block-title" }, "También te puede gustar"),
-      el("div", { class: "row g-4" }, ...others.map((o) => productCard(o))),
+      el("div", { class: "row g-4" }, ...others.map((o) => productCard(o, { onAdd: addToCart }))),
     );
   } catch { /* opcional: si falla, simplemente no se muestra */ }
 }
