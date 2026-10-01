@@ -61,7 +61,7 @@ function readMetaFromForm(form) {
 
 /**
  * @param {{mode: 'create'|'retry'|'edit', row?: object}} opts row es obligatorio en modo 'retry'/'edit'.
- * @returns {Promise<boolean>} true si se guardó/subió algo (conviene refrescar la lista).
+ * @returns {Promise<boolean>} true si se guardó/subió/creó algo, aunque la subida del video haya fallado (conviene refrescar la lista).
  */
 export function openClassForm({ mode = 'create', row = null } = {}) {
   if (!modalEl) build();
@@ -102,6 +102,9 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
 
   const cancelBtn = showVideo ? form.querySelector('#cfCancel') : null;
   let aborter = null, aborted = false;
+  // La clase que ya se creó en este formulario. Si la subida falla y se vuelve a intentar, se REANUDA esa clase
+  // (misma key en R2) en vez de crear otra: sin esto cada reintento dejaba una clase duplicada sin video.
+  let created = null;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -141,12 +144,14 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
     try {
       const payload = mode === 'retry'
         ? { class_id: row.id, title: row.title, description: row.description, category: row.category, level: row.level, access_level: row.access_level, sort_order: row.sort_order }
-        : { title, ...readMetaFromForm(form) };
+        : { ...(created ? { class_id: created.id } : {}), title, ...readMetaFromForm(form) };
       progressText.textContent = mode === 'retry' ? 'Preparando la subida…' : 'Creando la clase…';
       progressBox.classList.remove('d-none');
+      const firstAttempt = mode === 'create' && !created;
       const { class: cls, upload } = await adminCreateUpload(payload);
+      if (mode === 'create') created = cls;
 
-      const thumbFile = mode === 'create' ? form.cfThumb.files[0] : null;
+      const thumbFile = firstAttempt ? form.cfThumb.files[0] : null; // la miniatura se sube una sola vez
       if (thumbFile) {
         try {
           const blob = await resizeImage(thumbFile);
@@ -193,7 +198,7 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
   let resolveOpen;
   return new Promise((resolve) => {
     resolveOpen = resolve;
-    const onHidden = () => { modalEl.removeEventListener('hidden.bs.modal', onHidden); resolve(false); };
+    const onHidden = () => { modalEl.removeEventListener('hidden.bs.modal', onHidden); resolve(created !== null); };
     modalEl.addEventListener('hidden.bs.modal', onHidden);
   });
 }

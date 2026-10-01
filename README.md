@@ -4,7 +4,7 @@ Sitio de yoga (cursos, clases en vivo, tienda y **videoteca**) al que se le suma
 videos: los videos viven en **Cloudflare R2**, los usuarios, clases, permisos y progreso en **Supabase**, y la
 web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos en el hosting).
 
-> ## Estado actual (30/09/2026) · Fases 0-8 y 12-16 cumplidas · Fases 9-11 con código y pruebas de backend, sin E2E
+> ## Estado actual (30/09/2026) · Fases 0-16 cumplidas
 >
 > **Poner el sitio a andar con cuentas reales:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) ·
 > Reglas del proyecto: [`claude.md`](claude.md) · Encargo original: [`docs/ENCARGO-ORIGINAL.md`](docs/ENCARGO-ORIGINAL.md) ·
@@ -12,9 +12,8 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 >
 > **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 87 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
-> verificadas rompiendo la migración a propósito) · **40 pruebas E2E** en Chromium real, todas en verde (30/09/2026, incluidas las 2 de la
-> tienda de la Fase 13, 4 del panel —acceso por rol, lista de clases y CRUD completo de productos con imagen— y 8 del carrito de la Fase 16). Del panel de
-> clases solo está probada la lista; crear/publicar/borrar clases sigue sin E2E, ver Fases 9-11 más abajo.
+> verificadas rompiendo la migración a propósito) · **44 pruebas E2E** en Chromium real, todas en verde (30/09/2026, incluidas las 2 de la
+> tienda de la Fase 13, las del panel —acceso por rol, lista de clases, CRUD completo de productos con imagen y 4 del ciclo de vida de las clases— y 8 del carrito de la Fase 16).
 >
 > **Roles hechos:** `user` / `owner` / `developer` (el desarrollador es superconjunto del propietario), historial de
 > auditoría que nadie puede editar ni borrar, cambios de rol solo por desarrolladores y protección del último desarrollador.
@@ -27,17 +26,17 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > `logo-oscuro.png`) en navbar, pie y favicon; paleta verificada contra el manual de marca; redes sociales reales
 > (WhatsApp, Instagram, YouTube) en los pies de página.
 >
-> **Aún no existe:** panel técnico interno (solo desarrolladores), reconciliación programada, carrito, pagos,
-> y pruebas E2E de crear/publicar/borrar clases (Fases 9-11: código completo, ver la nota en esa sección).
-> La tienda pública (Fases 12-13) y el panel de productos (Fase 14) están construidos, probados en navegador contra el
-> backend simulado y validados a mano contra el Supabase real (30/09/2026).
+> **Aún no existe:** panel técnico interno (solo desarrolladores), reconciliación programada, pagos, y la prueba con un
+> video real en tu bucket de R2 (Fase 33; el panel de clases está probado de punta a punta contra el backend simulado).
+> La tienda pública (Fases 12-13), el carrito (Fases 15-16) y el panel de productos (Fase 14) están construidos y probados
+> en navegador contra el backend simulado; el panel de productos además se validó a mano contra el Supabase real (30/09/2026).
 >
 > ```bash
 > nvm use && npm ci                              # instalación reproducible
 > npm run verify                                 # formato + lint + tipos + pruebas de backend y frontend
 > npm run test:db                                # base de datos (requiere PostgreSQL y bash)
 > npm run doctor                                 # ¿la configuración está lista para producción?
-> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 40 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
+> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 44 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
 > npm run dev                                    # sitio en http://localhost:3000 (o Live Server: index.html → botón "Go Live")
 > npm run build                                  # arma dist/ (lo único que se sube a Hostinger)
 > ```
@@ -75,9 +74,9 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 6 | Autenticación — páginas protegidas | ✅ |
 | 7 | Autenticación — conectar la home | ✅ |
 | 8 | Panel administrativo — listado | ✅ |
-| 9 | Panel administrativo — alta y edición | 🟡 |
-| 10 | Panel administrativo — subida de video | 🟡 |
-| 11 | Panel administrativo — publicar y borrar | 🟡 |
+| 9 | Panel administrativo — alta y edición | ✅ |
+| 10 | Panel administrativo — subida de video | ✅ |
+| 11 | Panel administrativo — publicar y borrar | ✅ |
 | 12 | Tienda — modelo de datos de productos | ✅ |
 | 13 | Tienda — página pública | ✅ |
 | 14 | Tienda — panel administrativo de productos | ✅ |
@@ -290,8 +289,8 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 > Hoja de ruta puesta al día el 27/09/2026. La **Fase 0** es una foto de "hasta acá se llegó" (no queda
 > nada pendiente adentro, salvo lo que depende de cuentas del cliente). A partir de ahí las fases son
 > chicas a propósito (una tarde de trabajo cada una, más o menos) para poder cerrar y marcar "cumplida"
-> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-8 y 12-16
-> están cumplidas y probadas (las 9-11 tienen código y pruebas de backend pero no E2E de sus acciones). Las Fases 12-31 son tienda, pagos (**todo con PayPal**, tanto compras
+> seguido, en vez de tener fases enormes que quedan a medio camino por muchas sesiones. Las Fases 0-16
+> están cumplidas y probadas. Las Fases 12-31 son tienda, pagos (**todo con PayPal**, tanto compras
 > puntuales como suscripciones — se decidió no sumar un segundo proveedor), perfil de usuario, comentarios
 > y la agenda de clases en vivo. De ahí en más son cuentas reales, escalado y entrega. La última
 > (**Fase 39**) es el día de entrega.
@@ -429,7 +428,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       cambia título/descripción/categoría/nivel/acceso/orden y puede reemplazar la miniatura (borra la
       vieja recién después de confirmar que la nueva se guardó)
 
-- [ ] **FASE 9 CUMPLIDA** (queda sin marcar hasta tener E2E de crear/editar, ver la nota de las Fases 8-11) — el alta ya estaba hecha; el hueco real era editar una clase ya creada (el
+- [x] **FASE 9 CUMPLIDA** (E2E de crear y editar, ver la nota de las Fases 9-11) — el alta ya estaba hecha; el hueco real era editar una clase ya creada (el
       propio código lo admitía: "pendiente para más adelante"), que era justo lo que faltaba de esta fase.
 
 ### Fase 10 · Panel administrativo — subida de video
@@ -438,7 +437,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 - [x] Confirmación automática al terminar (`admin-sync-video` + duración calculada en el navegador)
 - [x] Reintentar una subida que quedó pendiente o con error (mismo formulario, modo `retry`)
 
-- [ ] **FASE 10 CUMPLIDA** (queda sin marcar hasta tener E2E de la subida) — ya estaba hecho de una sesión anterior.
+- [x] **FASE 10 CUMPLIDA** (E2E de la subida y del reintento, ver la nota de las Fases 9-11) — ya estaba hecho de una sesión anterior.
 
 ### Fase 11 · Panel administrativo — publicar y borrar
 
@@ -446,14 +445,27 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 - [x] Eliminar clase (`admin-delete-class` borra el objeto en R2 primero; si falla, no borra nada)
 - [x] Confirmación (`confirm()`) antes de eliminar
 
-- [ ] **FASE 11 CUMPLIDA** (queda sin marcar hasta tener E2E de publicar/borrar) — ya estaba hecho de una sesión anterior.
+- [x] **FASE 11 CUMPLIDA** (E2E de publicar, despublicar y borrar, ver la nota de las Fases 9-11) — ya estaba hecho de una sesión anterior.
 
-> **Pendiente real de este bloque (9-11; la Fase 8 sí tiene E2E de la lista y del acceso por rol):** a diferencia de todas las fases anteriores, el panel **no
-> tiene pruebas E2E de sus acciones** (solo la lista de clases y el acceso por rol; la pestaña de productos de la Fase 14 sí
-> las tiene) — el backend simulado de `tests/e2e/fake-backend.mjs` todavía no implementa
-> `admin-create-upload` / `admin-sync-video` / `admin-delete-class` ni el CRUD completo de `classes` con
-> RLS por rol. Cubrirlo con Puppeteer real queda como tarea aparte (backend de pruebas más grande);
-> mientras tanto, `supabase/functions/_tests/` sí prueba esos tres endpoints a fondo (47 pruebas, sin red).
+> **Cierre de este bloque (9-11) — 30/09/2026:** el backend de pruebas (`tests/e2e/fake-backend.mjs`) ahora implementa
+> `admin-create-upload`, `admin-sync-video` y `admin-delete-class` con el mismo contrato que las funciones reales, el
+> `PATCH` de `classes` con su CHECK ("publicada ⇒ video listo") y el `PUT` prefirmado a R2. Con eso hay 4 pruebas E2E en
+> Chromium real: (1) crear una clase con un video mp4 real, que llega a R2 por PUT directo con la duración leída en
+> el navegador, queda lista **sin publicar**, se publica (aparece en la videoteca), se edita sin tocar el video, se
+> despublica (desaparece) y se borra junto con su video; (2) si la subida falla se avisa y el reintento **reanuda la
+> misma clase** con la misma key de R2; (3) cerrar el formulario tras un fallo deja la clase "Pendiente" visible y sin
+> poder publicarse, y "Subir video" la completa; (4) un usuario común no puede usar ninguna función de administración
+> ni escribir en `classes`. Verificadas deshaciendo cada arreglo y cada comportamiento a propósito: en los tres casos
+> falla la prueba que corresponde.
+>
+> **Dos errores reales que encontró este trabajo, ya corregidos en `js/ui/class-form-modal.js`:** (a) si la subida
+> fallaba después de crear la clase y se volvía a apretar el botón, se creaba **otra clase** (duplicada y sin
+> video) en vez de reanudar la primera; (b) si se cerraba el formulario tras ese fallo, el panel **no refrescaba la
+> lista** y la clase recién creada quedaba invisible hasta recargar.
+>
+> **Lo que sigue sin probarse (y no se puede sin tus cuentas):** que el PUT llegue de verdad a tu bucket de Cloudflare
+> R2. Falta crear el bucket, el token y desplegar las Edge Functions; la primera prueba con un video real es la
+> Fase 33. Hasta entonces, `supabase/functions/_tests/` prueba esos tres endpoints a fondo (47 pruebas, sin red).
 
 ### Fase 12 · Tienda — modelo de datos de productos
 

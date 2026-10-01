@@ -33,7 +33,7 @@ const fakeJwt = (sub, ttl = 3600) => `${b64url('{"alg":"HS256","typ":"JWT"}')}.$
 function seed() {
   const now = new Date().toISOString();
   const base = { updated_at: now, description: null, thumbnail_url: null, level: 'principiante', category: null, access_level: 'free', sort_order: 0, is_published: true, published_at: now, video_status: 'ready', duration_seconds: 12, created_at: now, updated_at: now, r2_object_key: KEY_OF(IDS.free) };
-  return {
+  const seeded = {
     users: new Map(), sessions: new Map(), recoveries: [], progress: new Map(), entitlements: new Set(),
     classes: [
       { ...base, id: IDS.free, title: 'Yoga para principiantes', description: 'Una práctica suave para empezar.\nSin prisa.', category: 'Vinyasa' },
@@ -47,10 +47,13 @@ function seed() {
       { id: '10000000-0000-4000-8000-000000000003', title: 'Remera Pop Up', description: 'Algodón orgánico.', image_url: null, price_cents: 1999, stock: 0, category: 'Ropa', sort_order: 2, is_active: true, created_at: now },
       { id: '10000000-0000-4000-8000-000000000004', title: 'Producto borrador', description: null, image_url: null, price_cents: 500, stock: null, category: 'Ropa', sort_order: 3, is_active: false, created_at: now },
     ],
-    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false },
-    log: { saves: [], playbackCalls: [], r2: [], products: [], storage: [] },
-    storage: new Map(), // Storage simulado: 'product-images/<ruta>' -> { type, data }
+    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false },
+    log: { saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [] },
+    storage: new Map(), // Storage simulado: '<bucket>/<ruta>' -> { type, data }
+    r2objects: new Map(), // R2 simulado: key -> bytes subidos por PUT (las clases de la semilla ya tienen su video)
   };
+  for (const c of seeded.classes) if (c.r2_object_key) seeded.r2objects.set(c.r2_object_key, 1);
+  return seeded;
 }
 
 export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, cdn: 4175 }, progressIntervalSeconds: initialInterval = 2 }) {
@@ -191,6 +194,26 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       return reply(applyFilters(visible, p).map((r) => pick(r, cols)));
     }
 
+    // Escrituras de classes (RLS: solo propietario/desarrollador) + el CHECK "publicada => video listo".
+    if (table === 'classes' && req.method === 'PATCH') {
+      if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
+      if (!isStaff(user)) return reply([]); // RLS: sin permiso, el UPDATE no alcanza ninguna fila
+      const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'sort_order', 'is_published'];
+      const fields = Object.fromEntries(Object.entries(await readBody(req)).filter(([k]) => EDITABLE.includes(k)));
+      const targets = applyFilters(db.classes, p);
+      for (const c of targets) {
+        const next = { ...c, ...fields };
+        if (next.is_published && next.video_status !== 'ready') return send(res, 400, { code: '23514', message: 'new row for relation "classes" violates check constraint "classes_published_requires_ready"' });
+        if (('title' in fields) && (typeof fields.title !== 'string' || fields.title.trim() === '')) return send(res, 400, { code: '23514', message: 'violates check constraint' });
+        if (fields.is_published === true && !c.is_published) next.published_at = new Date().toISOString();
+        if (fields.is_published === false) next.published_at = null;
+        Object.assign(c, next, { updated_at: new Date().toISOString() });
+        db.log.classes.push({ op: 'update', id: c.id, fields: Object.keys(fields) });
+      }
+      const cols = (p.get('select') || '*').split(',');
+      return reply(targets.map((c) => pick(classPublic(c), cols)));
+    }
+
     if (table === 'products' && req.method === 'GET') {
       if (db.behavior.catalogFail) return send(res, 503, { message: 'Service Unavailable' });
       const cols = (p.get('select') || '*').split(',');
@@ -320,21 +343,90 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       res.writeHead(200, { ...CORS, 'Content-Type': file.type, 'Cache-Control': 'no-store' });
       return res.end(file.data);
     }
-    if (req.method === 'DELETE' && path === 'product-images') {
+    const bucketOf = (pth) => ['product-images', 'class-thumbnails'].find((b) => pth === b || pth.startsWith(`${b}/`));
+    if (req.method === 'DELETE' && bucketOf(path) === path) {
       if (!isStaff(user)) return denied(res);
       const { prefixes = [] } = await readBody(req);
-      for (const key of prefixes) { db.storage.delete(`product-images/${key}`); db.log.storage.push({ op: 'delete', path: key }); }
+      for (const key of prefixes) { db.storage.delete(`${path}/${key}`); db.log.storage.push({ op: 'delete', path: key }); }
       return send(res, 200, prefixes.map((name) => ({ name })));
     }
-    if (['POST', 'PUT'].includes(req.method) && path.startsWith('product-images/')) {
+    if (['POST', 'PUT'].includes(req.method) && bucketOf(path)) {
       if (!isStaff(user)) return denied(res);
       const file = multipartFile(await readRaw(req), req.headers['content-type']);
       if (file.data.length > 2 * 1024 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type)) return send(res, 400, { statusCode: '415', error: 'invalid_mime_type', message: 'mime type not supported or file too large' });
       db.storage.set(path, file);
-      db.log.storage.push({ op: 'upload', path: path.replace('product-images/', ''), type: file.type, bytes: file.data.length });
+      db.log.storage.push({ op: 'upload', path: path.replace(/^(product-images|class-thumbnails)\//, ''), type: file.type, bytes: file.data.length });
       return send(res, 200, { Key: path });
     }
     return send(res, 404, { message: 'not found' });
+  }
+
+  // ------------------------------------------------------------------ Edge Functions de administración (contrato de admin-*)
+  const fnFail = (res, status, code, message) => send(res, status, { error: { code, message } });
+  const uploadUrl = (key) => {
+    const expire = Math.floor(Date.now() / 1000) + 900;
+    const sig = createHmac('sha256', R2_SECRET).update(`PUT:${key}:${expire}`).digest('base64url');
+    return { url: `${origin.cdn}/${key}?X-Amz-Signature=${sig}&X-Amz-ExpiresAt=${expire}`, key, expire };
+  };
+  async function adminFn(name, req, res) {
+    const user = bearerUser(req);
+    if (!user) return fnFail(res, 401, 'unauthenticated', 'Invalid or expired session');
+    if (!isStaff(user)) return fnFail(res, 403, 'owner_only', 'Owner access required');
+    const body = await readBody(req);
+    const find = () => db.classes.find((c) => c.id === body.class_id);
+    const now = new Date().toISOString();
+
+    if (name === 'admin-create-upload') {
+      if (!body.class_id && (typeof body.title !== 'string' || body.title.trim() === '')) return fnFail(res, 400, 'invalid_input', 'title is required');
+      let row = body.class_id ? find() : null;
+      let resumed = false;
+      if (body.class_id && !row) return fnFail(res, 404, 'class_not_found', 'Class not found');
+      if (!row) {
+        row = {
+          id: randomUUID(), title: body.title.trim(), description: body.description ?? null, thumbnail_url: null, level: body.level || 'todos',
+          category: body.category ?? null, access_level: body.access_level || 'free', sort_order: Number(body.sort_order) || 0, duration_seconds: null,
+          is_published: false, published_at: null, video_status: 'pending', created_at: now, updated_at: now,
+          r2_object_key: `classes/${randomUUID()}/${randomUUID()}.mp4`,
+        };
+        db.classes.push(row);
+      } else if (row.r2_object_key && (row.video_status === 'ready' || row.video_status === 'processing')) {
+        return fnFail(res, 409, 'video_already_attached', 'This class already has a video');
+      } else if (row.r2_object_key && row.video_status !== 'failed') {
+        resumed = true; // misma key, URL firmada nueva
+      } else {
+        if (row.r2_object_key) db.r2objects.delete(row.r2_object_key); // el video fallido anterior se borra
+        Object.assign(row, { r2_object_key: `classes/${row.id}/${randomUUID()}.mp4`, video_status: 'pending', updated_at: now });
+      }
+      db.log.classes.push({ op: resumed ? 'upload_resumed' : 'upload_prepared', id: row.id });
+      return send(res, 200, { class: classPublic(row), upload: uploadUrl(row.r2_object_key), resumed });
+    }
+
+    const row = find();
+    if (!row) return fnFail(res, 404, 'class_not_found', 'Class not found');
+
+    if (name === 'admin-sync-video') {
+      if (!row.r2_object_key) return fnFail(res, 409, 'no_video', 'This class has no video yet');
+      const exists = db.r2objects.has(row.r2_object_key);
+      let status = row.video_status;
+      if (exists) status = 'ready';
+      else if (status !== 'pending' && status !== 'failed') status = 'failed';
+      if (exists && body.duration_seconds != null) row.duration_seconds = Math.round(Number(body.duration_seconds));
+      if (status !== 'ready' && row.is_published) { row.is_published = false; row.published_at = null; }
+      row.video_status = status;
+      row.updated_at = now;
+      db.log.classes.push({ op: 'sync', id: row.id, status });
+      return send(res, 200, { class: classPublic(row), object_found: exists });
+    }
+
+    if (name === 'admin-delete-class') {
+      const hadVideo = Boolean(row.r2_object_key && db.r2objects.delete(row.r2_object_key));
+      db.classes = db.classes.filter((c) => c !== row);
+      for (const k of [...db.progress.keys()]) if (k.endsWith(`|${row.id}`)) db.progress.delete(k);
+      for (const k of [...db.entitlements]) if (k.endsWith(`|${row.id}`)) db.entitlements.delete(k);
+      db.log.classes.push({ op: 'delete', id: row.id });
+      return send(res, 200, { deleted: true, class_id: row.id, video_deleted: hadVideo });
+    }
+    return fnFail(res, 404, 'not_found', 'unknown function');
   }
 
   // ------------------------------------------------------------------ servidores
@@ -344,7 +436,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     try {
       if (url.pathname === '/__test/reset') { db = seed(); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
-      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name })), products: db.products, storageKeys: [...db.storage.keys()] });
+      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name })), products: db.products, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
       if (url.pathname === '/__test/promote') { const b = await readBody(req); const u = [...db.users.values()].find((u) => u.email === b.email); if (u) u.role = b.role; return send(res, 200, { ok: true }); }
@@ -354,6 +446,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       if (url.pathname === '/functions/v1/health') return send(res, 200, { ok: true });
       if (url.pathname === '/auth/v1/settings') return send(res, 200, { external: { email: true }, disable_signup: false, mailer_autoconfirm: false });
       if (url.pathname === '/functions/v1/playback') return await playback(req, res);
+      if (['admin-create-upload', 'admin-sync-video', 'admin-delete-class'].includes(url.pathname.split('/').pop()) && url.pathname.startsWith('/functions/v1/')) return await adminFn(url.pathname.split('/').pop(), req, res);
       return send(res, 404, { message: 'not found' });
     } catch (e) { console.error('[fake-backend]', e); return send(res, 500, { message: String(e) }); }
   });
@@ -363,12 +456,20 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     const url = new URL(req.url, origin.cdn);
     const key = decodeURIComponent(url.pathname.slice(1));
     const record = (status) => db.log.r2.push({ status, key, at: Date.now() });
-    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' };
+    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET, HEAD, PUT, OPTIONS' };
     if (req.method === 'OPTIONS') { res.writeHead(204, h); return res.end(); }
     const deny = (status, why) => { record(status); res.writeHead(status, h); res.end(why); };
     const sig = url.searchParams.get('X-Amz-Signature');
     const expiresAt = Number(url.searchParams.get('X-Amz-ExpiresAt'));
     if (!sig || !expiresAt) return deny(403, 'signature required');
+    if (req.method === 'PUT') { // subida directa del navegador (URL prefirmada de admin-create-upload)
+      const putSig = createHmac('sha256', R2_SECRET).update(`PUT:${key}:${expiresAt}`).digest('base64url');
+      if (sig !== putSig) return deny(403, 'bad signature');
+      if (expiresAt < Math.floor(Date.now() / 1000)) return deny(403, 'expired');
+      if (db.behavior.uploadFail) { req.resume(); return deny(500, 'upload failed (test)'); }
+      readRaw(req).then((buf) => { db.r2objects.set(key, buf.length); record(200); res.writeHead(200, { ...h, ETag: '"e2e"' }); res.end(); });
+      return;
+    }
     const expected = createHmac('sha256', R2_SECRET).update(`${key}:${expiresAt}`).digest('base64url');
     if (sig !== expected) return deny(403, 'bad signature');
     if (expiresAt < Math.floor(Date.now() / 1000)) return deny(403, 'expired');

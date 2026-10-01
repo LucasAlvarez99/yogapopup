@@ -152,8 +152,10 @@ Estado a 29/09/2026 (la hoja de ruta completa, Fases 0-39, está en el `README.m
 - [~] **Puesta en marcha con cuentas reales**: guía (`docs/PUESTA-EN-MARCHA.md`), `npm run doctor[:online]` y
   `npm run test:integration` listos; **falta que el cliente cree las cuentas**
 
-- [~] **Panel de negocio** (Fases 8-11: clases; Fase 14: productos): código completo. La Fase 8 (lista y acceso por rol) tiene E2E; las 9-11 no se dan por cerradas sin sus pruebas. Productos (Fase 14 ✅): probado en navegador
-  (E2E), en base de datos y a mano contra el Supabase real (30/09/2026). Clases: solo la lista tiene E2E; crear/editar/subir/publicar/borrar aún no
+- [x] **Panel de negocio** (Fases 8-11: clases; Fase 14: productos): código completo y probado. Clases: 4 E2E del ciclo
+  completo (crear con video, publicar, editar, despublicar, borrar, fallo y reintento de subida, permisos) contra el backend
+  simulado; productos: E2E, base de datos y a mano contra el Supabase real (30/09/2026). Falta solo la prueba con un video
+  real en tu bucket de R2 (Fase 33)
 - [x] **Tienda pública** (Fases 12-13): modelo de datos con RLS, catálogo con buscador y ficha de producto
 - [x] **Carrito, estado y validación** (Fase 15): `js/lib/cart.js`, guarda solo `{id, qty}` y valida precio/stock contra la base; sin pantalla aún
 - [x] **Interfaz del carrito** (Fase 16): ícono con conteo + cajón lateral con precios/stock reales; 8 E2E en navegador

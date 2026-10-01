@@ -10,12 +10,16 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { IDS, PRODUCT_IDS, startBackend } from './fake-backend.mjs';
+import { ensureMedia } from './media.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+/** Ruta en la carpeta temporal del sistema (funciona en Linux, macOS y Windows; /tmp fijo no existe en Windows). */
+const tmp = (name) => join(tmpdir(), name);
 const CANDIDATES = [
   process.env.CHROME_PATH,
   '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
@@ -111,7 +115,7 @@ async function test(name, fn) {
     const where = String(err.stack || '').split('\n').find((l) => l.includes('run.mjs'));
     if (where) console.log(`      en ${where.trim().replace(/^at /, '').replace(root, '')}`);
     if (page.errors.length) console.log(`      (errores de la página: ${page.errors.join(' | ').slice(0, 400)})`);
-    await page.screenshot({ path: `/tmp/e2e-fail-${results.length}.png` }).catch(() => {});
+    await page.screenshot({ path: tmp(`e2e-fail-${results.length}.png`) }).catch(() => {});
   } finally {
     await page.ctx.close().catch(() => {});
   }
@@ -791,7 +795,7 @@ const clickRowButton = (page, rowText, label) => page.evaluate((rt, l) => {
   [...row.querySelectorAll('button')].find((b) => (b.textContent.trim() === l) || b.getAttribute('aria-label')?.startsWith(l)).click();
 }, rowText, label);
 async function makeTestImage() {
-  const file = '/tmp/yp-e2e-producto.png';
+  const file = tmp('yp-e2e-producto.png');
   const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x7fb7a4:s=640x480', '-frames:v', '1', file]);
   assert.equal(r.status, 0, 'ffmpeg debe poder generar una imagen de prueba');
   return file;
@@ -818,7 +822,173 @@ await test('panel · Clases: la propietaria ve todas las clases, borradores incl
   const rows = await panelRows(page);
   assert.equal(rows.length, 4, 'las 4 clases de la semilla (3 publicadas + 1 borrador)');
   assert.ok(rows.some((r) => r.includes('Borrador oculto')), 'el borrador es visible para la propietaria');
-  await page.screenshot({ path: '/tmp/yp-panel-clases.png' });
+  await page.screenshot({ path: tmp('yp-panel-clases.png') });
+});
+
+// ---------------------------------------------------------------------------------------------- panel de clases (Fases 9-11)
+const classModalReady = (page) => waitFor(page, () => {
+  const d = document.querySelector('#classFormModal .modal-dialog');
+  return !!d && !!document.querySelector('#classFormModal.show') && /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/.test(getComputedStyle(d).transform);
+}, null, 5000);
+const classModalClosed = (page) => waitFor(page, () => !document.querySelector('.modal-backdrop') && !document.querySelector('#classFormModal.show'), null, 15000);
+const clickButtonText = (page, label) => page.evaluate((l) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim().includes(l)).click(), label);
+const clickRowTitle = (page, rowText, title) => page.evaluate((rt, t) => {
+  const row = [...document.querySelectorAll('#panelContent tbody tr')].find((r) => r.innerText.includes(rt));
+  row.querySelector(`button[title="${t}"]`).click();
+}, rowText, title);
+const rowButtonState = (page, rowText, label) => page.evaluate((rt, l) => {
+  const row = [...document.querySelectorAll('#panelContent tbody tr')].find((r) => r.innerText.includes(rt));
+  const b = [...row.querySelectorAll('button')].find((x) => x.textContent.trim() === l);
+  return b ? { disabled: b.disabled } : null;
+}, rowText, label);
+const waitRow = (page, rowText, part) => waitFor(page, (a) => [...document.querySelectorAll('#panelContent tbody tr')].some((r) => r.innerText.includes(a.rt) && (!a.part || r.innerText.includes(a.part))), { rt: rowText, part }, 10000);
+const classByTitle = async (title) => (await be.state()).classes.filter((c) => c.title === title);
+async function fillNewClass(page, title, videoFile) {
+  await clickButtonText(page, 'Nueva clase');
+  await classModalReady(page);
+  await page.type('#cfTitle', title);
+  await page.type('#cfCategory', 'Vinyasa');
+  await (await page.$('#cfVideo')).uploadFile(videoFile);
+  await page.click('#classFormModal button[type=submit]');
+}
+
+await test('panel · Clases: crear con video real, publicar, editar, despublicar y borrar (Fases 9-11)', async (page) => {
+  const video = ensureMedia('e2e-upload');
+  await loginAsOwner(page);
+  await page.waitForSelector('#panelContent tbody tr');
+  await fillNewClass(page, 'Clase E2E nueva', video);
+  await classModalClosed(page);
+  await toastHas(page, 'Clase creada y video subido');
+  await waitRow(page, 'Clase E2E nueva', 'Lista');
+
+  // el video llegó a R2 por PUT directo (nunca pasó por nuestro backend) y la clase quedó lista pero SIN publicar
+  const [c] = await classByTitle('Clase E2E nueva');
+  assert.equal(c.video_status, 'ready');
+  assert.equal(c.is_published, false, 'subir un video no publica la clase');
+  assert.ok(Math.abs(c.duration_seconds - 12) <= 1, `duración leída en el navegador (≈12 s), fue ${c.duration_seconds}`);
+  assert.match(c.r2_object_key, /^classes\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.mp4$/);
+  assert.ok((await be.state()).r2objects.includes(c.r2_object_key), 'el archivo quedó guardado en R2');
+  assert.ok((await panelRows(page)).some((r) => r.includes('Clase E2E nueva') && r.includes('Sin publicar')));
+
+  const other = await page.ctx.newPage(); // el público: mismo navegador, otra pestaña
+  const publicTitles = async () => {
+    await other.goto(`${S}/videoteca.html`);
+    await waitFor(other, () => document.querySelectorAll('.video-card').length > 0);
+    return other.$$eval('.video-info h3', (n) => n.map((x) => x.textContent.trim()));
+  };
+  try {
+    assert.ok(!(await publicTitles()).includes('Clase E2E nueva'), 'sin publicar no se ve en la videoteca');
+
+    await clickRowButton(page, 'Clase E2E nueva', 'Publicar');
+    await waitRow(page, 'Clase E2E nueva', 'Publicada');
+    assert.ok((await publicTitles()).includes('Clase E2E nueva'), 'publicada: aparece en la videoteca');
+
+    // editar los datos no toca el video ni el estado de publicación
+    await clickRowTitle(page, 'Clase E2E nueva', 'Editar datos de la clase');
+    await classModalReady(page);
+    await page.$eval('#cfTitle', (i) => { i.value = ''; });
+    await page.type('#cfTitle', 'Clase E2E editada');
+    await page.click('#classFormModal button[type=submit]');
+    await classModalClosed(page);
+    await toastHas(page, 'Cambios guardados');
+    await waitRow(page, 'Clase E2E editada', 'Publicada');
+    const [edited] = await classByTitle('Clase E2E editada');
+    assert.equal(edited.r2_object_key, c.r2_object_key, 'editar no cambia el video');
+    assert.equal(edited.id, c.id);
+
+    await clickRowButton(page, 'Clase E2E editada', 'Despublicar');
+    await waitRow(page, 'Clase E2E editada', 'Sin publicar');
+    assert.ok(!(await publicTitles()).includes('Clase E2E editada'), 'despublicada: deja de verse');
+
+    // borrar: pide confirmación y borra la clase Y su video
+    page.once('dialog', (d) => d.accept());
+    await clickRowTitle(page, 'Clase E2E editada', 'Eliminar');
+    await toastHas(page, 'Clase eliminada');
+    await waitFor(page, () => ![...document.querySelectorAll('#panelContent tbody tr')].some((r) => r.innerText.includes('Clase E2E editada')));
+    const after = await be.state();
+    assert.equal(after.classes.some((x) => x.id === c.id), false);
+    assert.equal(after.r2objects.includes(c.r2_object_key), false, 'el video también se borró de R2 (no queda nada cobrando)');
+  } finally {
+    await other.close();
+  }
+});
+
+await test('panel · Clases: si la subida falla se avisa y el reintento reanuda la MISMA clase (no la duplica)', async (page) => {
+  const video = ensureMedia('e2e-upload');
+  await loginAsOwner(page);
+  await page.waitForSelector('#panelContent tbody tr');
+  await be.behavior({ uploadFail: true });
+  await fillNewClass(page, 'Clase con fallo', video);
+  await waitFor(page, () => document.querySelector('#classFormModal .yp-form-error')?.textContent.includes('La subida falló'));
+  const [first] = await classByTitle('Clase con fallo');
+  assert.equal(first.video_status, 'pending', 'la clase quedó creada pero sin video');
+
+  await be.behavior({ uploadFail: false });
+  await page.click('#classFormModal button[type=submit]'); // el modal sigue abierto: se reintenta ahí mismo
+  await classModalClosed(page);
+  await toastHas(page, 'Clase creada y video subido');
+  const same = await classByTitle('Clase con fallo');
+  assert.equal(same.length, 1, 'reintentar no debe crear una segunda clase');
+  assert.equal(same[0].id, first.id);
+  assert.equal(same[0].r2_object_key, first.r2_object_key, 'reanuda con la misma key de R2');
+  assert.equal(same[0].video_status, 'ready');
+});
+
+await test('panel · Clases: cerrar el formulario tras un fallo deja la clase "Pendiente" (visible, sin poder publicarse) y "Subir video" la completa', async (page) => {
+  const video = ensureMedia('e2e-upload');
+  await loginAsOwner(page);
+  await page.waitForSelector('#panelContent tbody tr');
+  await be.behavior({ uploadFail: true });
+  await fillNewClass(page, 'Clase pendiente', video);
+  await waitFor(page, () => document.querySelector('#classFormModal .yp-form-error'));
+  await page.click('#classFormModal .btn-close');
+  await classModalClosed(page);
+
+  await waitRow(page, 'Clase pendiente', 'Pendiente'); // la lista se refresca sola: la clase no queda invisible
+  assert.deepEqual(await rowButtonState(page, 'Clase pendiente', 'Publicar'), { disabled: true }, 'sin video listo no se puede publicar');
+  const [pending] = await classByTitle('Clase pendiente');
+
+  await be.behavior({ uploadFail: false });
+  await clickRowButton(page, 'Clase pendiente', 'Subir video');
+  await classModalReady(page);
+  assert.equal(await text(page, '#classFormTitle'), 'Subir video · Clase pendiente');
+  await (await page.$('#cfVideo')).uploadFile(video);
+  await page.click('#classFormModal button[type=submit]');
+  await classModalClosed(page);
+  await toastHas(page, 'Video subido');
+  await waitRow(page, 'Clase pendiente', 'Lista');
+  assert.deepEqual(await rowButtonState(page, 'Clase pendiente', 'Publicar'), { disabled: false });
+  const [done] = await classByTitle('Clase pendiente');
+  assert.equal(done.r2_object_key, pending.r2_object_key);
+  assert.equal(done.video_status, 'ready');
+});
+
+await test('panel · Clases: un usuario común no puede usar las funciones de administración ni publicar clases', async (page) => {
+  await signup('comun2@test.dev');
+  await page.goto(`${S}/videoteca.html`);
+  await loginViaModal(page, 'comun2@test.dev');
+  await waitFor(page, () => document.querySelector('[data-account-toggle]')?.getAttribute('aria-expanded') !== null);
+  const before = (await be.state()).classes.map((c) => `${c.id}:${c.is_published}:${c.title}`).sort();
+  const out = await page.evaluate(async (id) => {
+    const api = await import('/js/lib/api.js');
+    const attempts = {
+      create: () => api.adminCreateUpload({ title: 'intruso' }),
+      sync: () => api.adminSyncVideo(id),
+      del: () => api.adminDeleteClass(id),
+      publish: () => api.adminUpdateClass(id, { is_published: false, title: 'hackeada' }),
+    };
+    const result = {};
+    for (const [k, fn] of Object.entries(attempts)) {
+      try { await fn(); result[k] = 'ok'; } catch (e) { result[k] = e.code || e.message; }
+    }
+    return result;
+  }, IDS.free);
+  assert.equal(out.create, 'owner_only');
+  assert.equal(out.sync, 'owner_only');
+  assert.equal(out.del, 'owner_only');
+  assert.notEqual(out.publish, 'ok', 'la base rechaza escribir en classes sin ser propietario');
+  const afterState = (await be.state()).classes.map((c) => `${c.id}:${c.is_published}:${c.title}`).sort();
+  assert.deepEqual(afterState, before, 'no cambió ninguna clase');
 });
 
 await test('panel · Productos: ver todo, crear con imagen, publicar, editar el precio en euros y borrar', async (page) => {
@@ -831,7 +1001,7 @@ await test('panel · Productos: ver todo, crear con imagen, publicar, editar el 
   assert.equal(rows.length, 4, 'los 4 productos de la semilla, activos e inactivos');
   assert.ok(rows.some((r) => r.includes('Producto borrador') && r.includes('Oculto')), 'el borrador aparece como Oculto');
   assert.ok(rows.some((r) => r.includes('Remera Pop Up') && r.includes('Agotado')), 'stock 0 se ve como Agotado');
-  await page.screenshot({ path: '/tmp/yp-panel-productos.png' });
+  await page.screenshot({ path: tmp('yp-panel-productos.png') });
 
   // --- crear (con validación: un precio inválido no llega al backend)
   const writesBefore = (await be.state()).log.products.length;
@@ -844,7 +1014,7 @@ await test('panel · Productos: ver todo, crear con imagen, publicar, editar el 
   await page.waitForSelector('#productFormModal .yp-form-error');
   assert.match(await page.$eval('#productFormModal .yp-form-error', (e) => e.textContent), /precio válido/);
   assert.equal((await be.state()).log.products.length, writesBefore, 'un precio inválido no debe escribir nada');
-  await page.screenshot({ path: '/tmp/yp-panel-modal-error.png' });
+  await page.screenshot({ path: tmp('yp-panel-modal-error.png') });
 
   await page.$eval('#pfPrice', (i) => { i.value = ''; });
   await page.type('#pfPrice', '12,5');
@@ -877,7 +1047,7 @@ await test('panel · Productos: ver todo, crear con imagen, publicar, editar el 
   await waitFor(page, () => [...document.querySelectorAll('#panelContent tbody tr')].some((r) => r.innerText.includes('Bloque de corcho') && r.innerText.includes('Visible')), null, 10000);
   await page.goto(`${S}/tienda.html`);
   await waitFor(page, () => document.body.textContent.includes('Bloque de corcho'), null, 10000);
-  await page.screenshot({ path: '/tmp/yp-tienda-con-nuevo.png' });
+  await page.screenshot({ path: tmp('yp-tienda-con-nuevo.png') });
 
   // --- editar el precio
   await page.goto(`${S}/panel.html`);
@@ -890,7 +1060,7 @@ await test('panel · Productos: ver todo, crear con imagen, publicar, editar el 
   assert.equal(await page.$eval('#pfPrice', (i) => i.value), '12,50', 'el precio se rellena en euros, no en céntimos');
   await page.$eval('#pfPrice', (i) => { i.value = ''; });
   await page.type('#pfPrice', '13,99');
-  await page.screenshot({ path: '/tmp/yp-panel-modal-editar.png' });
+  await page.screenshot({ path: tmp('yp-panel-modal-editar.png') });
   await page.click('#productFormModal button[type=submit]');
   await productModalClosed(page);
   await waitFor(page, () => [...document.querySelectorAll('#panelContent tbody tr')].some((r) => r.innerText.replace(/\s/g, ' ').includes('13,99 €')), null, 10000);
