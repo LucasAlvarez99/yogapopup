@@ -63,10 +63,29 @@ Detalle en [`supabase/README.md`](../supabase/README.md#recuperación-de-contras
 4. **No** actives acceso público al bucket ni un dominio público (`r2.dev` o dominio propio) para él: todo el
    acceso al video pasa por las URLs firmadas que generan las Edge Functions. Un bucket público lo dejaría
    viendo cualquiera con el link, sin pasar por `can_access_class()`.
+5. **Política CORS del bucket** (obligatoria: el navegador sube el video directo a R2 con un `PUT`, y sin CORS esa
+   subida falla aunque la URL firmada sea válida). Bucket → *Settings* → *CORS Policy* → *Add CORS policy* → pestaña
+   **JSON**, y pega esto cambiando los orígenes por los tuyos (solo esquema + dominio, **sin** barra final ni ruta):
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://tudominio.com", "https://www.tudominio.com"],
+       "AllowedMethods": ["GET", "HEAD", "PUT"],
+       "AllowedHeaders": ["Content-Type", "Range"],
+       "ExposeHeaders": ["ETag", "Content-Length", "Content-Range", "Accept-Ranges"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+   Para probar desde GitHub Pages agrega `https://lucasalvarez99.github.io` (el origen no incluye `/yogapopup/`), y
+   desde tu equipo `http://localhost:3000`; al publicar de verdad, quita los de prueba. Este formato es el del panel
+   de Cloudflare; el de `wrangler r2 bucket cors set` es distinto.
 
 ## 5 · Secretos del backend y funciones (desarrollador)
 
-1. Completa `supabase/.env` (plantilla: `supabase/.env.example`). `ALLOWED_ORIGINS` = tu dominio, **sin** `localhost` ni barra final.
+1. Completa `supabase/.env` (plantilla: `supabase/.env.example`; no se sube a Git). `ALLOWED_ORIGINS` = tu dominio, **sin** barra final. Para probar antes de tener dominio, agrega temporalmente `https://lucasalvarez99.github.io` (GitHub Pages) o `http://localhost:3000`, y quítalos al publicar (con `npm run sb:secrets` otra vez).
 2. `npm run sb:secrets` → `npm run sb:deploy`.
 
 ## 6 · Comprobar la configuración (desarrollador)
@@ -87,11 +106,17 @@ Debe terminar con **0 errores**. Los avisos (`!`) se leen y se deciden (p. ej. `
 
 ## 8 · Primer video real (desarrollador)
 
-El panel de gestión llega en una fase posterior. Mientras tanto:
-1. Sube el video al bucket de R2 con una key del tipo `classes/<uuid>/archivo.mp4` (con el dashboard de
-   Cloudflare, `rclone`, o el AWS CLI apuntando al endpoint de R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`).
-2. Ejecuta `supabase/first_class.example.sql` en el SQL Editor con esa key y la duración del video en segundos.
-3. Crea una cuenta de prueba **confirmada** y prueba la integración real:
+Desde el panel de negocio (con la cuenta `developer` u `owner`):
+
+1. Abre el sitio (GitHub Pages o `npm run dev`) → menú de la cuenta → **Panel de negocio** → **Clases** → **Nueva clase**.
+2. Título, categoría y un video **mp4 (H.264/AAC)** de prueba, corto (30-60 s). Guardar: se ve una barra de progreso.
+   El archivo viaja del navegador directo a tu bucket de R2.
+3. La clase queda **Lista** y **sin publicar**. Pulsa **Publicar** y mírala en la videoteca con otra cuenta (o la tuya).
+4. Dale a reproducir: debe empezar, permitir adelantar (Range) y recordar dónde te quedaste.
+
+Si algo falla: ver la tabla de abajo (casi siempre es CORS del bucket o `ALLOWED_ORIGINS`).
+
+Opcional, prueba automática contra el Supabase real (necesita una cuenta de prueba **confirmada** y el id de esa clase):
 
 ```bash
 YP_SUPABASE_URL=https://xxxx.supabase.co YP_ANON_KEY=... \
@@ -101,6 +126,9 @@ npm run test:integration
 
 Los 9 pasos deben salir ✓. El paso 7 confirma que R2 soporta Range requests (necesario para buscar dentro del
 video); el 8 confirma que **sin la firma el video no se puede ver** (el bucket no es público).
+
+(Alternativa sin panel, por si lo necesitas: subir el archivo con `rclone`/AWS CLI a `classes/<uuid>/archivo.mp4` y
+ejecutar `supabase/first_class.example.sql` con esa key y la duración.)
 
 ## 9 · Publicar la web (desarrollador + cliente)
 
@@ -124,7 +152,8 @@ Evita que el plan gratuito de Supabase se pause por inactividad y avisa si la ba
 | `doctor`: "CORS … no permitido" | `ALLOWED_ORIGINS` sin el dominio | Corregir `supabase/.env` y `npm run sb:secrets` |
 | Integración paso 6/7 ✗ (403 o sin Range) | `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` equivocadas, o el token no tiene permiso sobre el bucket | Revisar el token en R2 → Manage API Tokens |
 | Integración paso 8 ✗ (se ve sin firma) | El bucket tiene acceso público activado | Desactivar el acceso público / el dominio `r2.dev` del bucket |
-| El navegador bloquea el video por CORS | El navegador sube directo a R2 (PUT) y el bucket no tiene una política de CORS | R2 → bucket → Settings → CORS Policy: permitir `PUT`, `GET`, `HEAD` desde tu dominio |
+| La subida desde el panel falla con "error de red" y en la consola del navegador dice CORS | El navegador sube directo a R2 (PUT) y el bucket no tiene política CORS, o no incluye el origen desde el que estás | R2 → bucket → Settings → CORS Policy (paso 4.5): permitir `PUT`, `GET`, `HEAD` y el header `Content-Type` desde ese origen exacto |
+| La subida falla con estado 403 | Token de R2 sin permiso sobre el bucket, claves mal copiadas o `R2_BUCKET` con otro nombre | Revisar el token y `supabase/.env`, y volver a correr `npm run sb:secrets` |
 | Registro OK pero no llega el correo | SMTP, SPF/DKIM o límite de envíos | Supabase → Logs → Auth y la bandeja de spam |
 | "Demasiados intentos" al recuperar contraseña | Límite de Supabase (~1 por minuto por correo) | Esperar un minuto |
 | Nadie puede registrarse | *Enable sign ups* desactivado | Authentication → Sign In / Providers |
