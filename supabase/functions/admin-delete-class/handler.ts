@@ -1,5 +1,6 @@
 import { createEndpoint, HttpError, readJson } from "../_shared/http.ts";
 import { parseUuid } from "../_shared/validate.ts";
+import { enforceRateLimit, LIMITS } from "../_shared/rate-limit.ts";
 import type { HandlerDeps } from "../_shared/ports.ts";
 
 /**
@@ -9,13 +10,14 @@ import type { HandlerDeps } from "../_shared/ports.ts";
  * reintentar y no quedan objetos huérfanos ocupando (y cobrando) almacenamiento.
  */
 export function createHandler(deps: HandlerDeps) {
-  const { r2, repo, auth, audit, config } = deps;
+  const { r2, repo, auth, audit, limiter, config } = deps;
 
   return createEndpoint({
     methods: ["POST"],
     allowedOrigins: config.allowedOrigins,
     run: async (req) => {
       const actor = await auth.requireOwner(req);
+      await enforceRateLimit(limiter, "delete-class", actor.id, LIMITS.deleteClass);
       const classId = parseUuid((await readJson(req)).class_id, "class_id");
 
       const row = await repo.getClass(classId);

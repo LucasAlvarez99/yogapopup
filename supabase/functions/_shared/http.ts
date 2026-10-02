@@ -2,7 +2,13 @@ import { R2Error } from "./r2/r2.service.ts";
 
 /** Error "esperado" que se traduce a una respuesta HTTP con código estable. */
 export class HttpError extends Error {
-  constructor(public readonly status: number, public readonly code: string, message: string) {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    /** Cabeceras extra de la respuesta (p. ej. `Retry-After` en un 429). */
+    public readonly headers: Record<string, string> = {},
+  ) {
     super(message);
     this.name = "HttpError";
   }
@@ -26,14 +32,27 @@ export function corsHeaders(origin: string | null, allowedOrigins: string[]): Re
 export function json(body: unknown, status = 200, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...extra },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      // Una respuesta de la API nunca debe interpretarse como otra cosa que JSON.
+      "X-Content-Type-Options": "nosniff",
+      ...extra,
+    },
   });
 }
 
-/** Lee y parsea el body JSON con tope de tamaño. */
+/**
+ * Lee y parsea el body JSON con tope de tamaño EN BYTES (no en caracteres: un texto con tildes o emojis
+ * pesa más de lo que cuenta `.length`). Si el cliente declara un tamaño mayor al tope, se corta antes de
+ * leer nada; si no lo declara (o miente), se corta apenas el flujo real lo supera.
+ */
 export async function readJson(req: Request): Promise<Record<string, unknown>> {
-  const raw = await req.text();
-  if (raw.length > MAX_BODY_BYTES) throw new HttpError(413, "payload_too_large", "Request body too large");
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    throw new HttpError(413, "payload_too_large", "Request body too large");
+  }
+  const raw = await readTextLimited(req, MAX_BODY_BYTES);
   if (!raw.trim()) return {};
   try {
     const parsed = JSON.parse(raw);
@@ -42,6 +61,30 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
   } catch {
     throw new HttpError(400, "invalid_json", "Body must be a JSON object");
   }
+}
+
+async function readTextLimited(req: Request, maxBytes: number): Promise<string> {
+  if (!req.body) return "";
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new HttpError(413, "payload_too_large", "Request body too large");
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    all.set(c, offset);
+    offset += c.byteLength;
+  }
+  return new TextDecoder().decode(all);
 }
 
 interface EndpointOptions {
@@ -73,7 +116,7 @@ export function createEndpoint(opts: EndpointOptions): (req: Request) => Promise
       return json(result, 200, cors);
     } catch (e) {
       if (e instanceof HttpError) {
-        return json({ error: { code: e.code, message: e.message } }, e.status, cors);
+        return json({ error: { code: e.code, message: e.message } }, e.status, { ...cors, ...e.headers });
       }
       if (e instanceof R2Error) {
         console.error(`[r2] ${e.operation} failed status=${e.status}: ${e.message}`);

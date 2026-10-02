@@ -114,10 +114,16 @@ export interface AuditPort {
   record(entry: AuditEntry): Promise<void>;
 }
 
+/** Limitador de frecuencia. `hit` registra una petición y devuelve false si ya superó `max` en la ventana. */
+export interface RateLimiterPort {
+  hit(key: string, max: number, windowSeconds: number): Promise<boolean>;
+}
+
 export interface HandlerDeps {
   r2: R2Port;
   repo: ClassRepo;
   auth: AuthPort;
   audit: AuditPort;
+  limiter: RateLimiterPort;
   config: AppConfig;
 }

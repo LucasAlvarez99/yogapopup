@@ -10,9 +10,10 @@
  *
  * Incluye: los *.html de la raíz, las carpetas css/, js/ y assets/, y el .htaccess.
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { htaccessSecurityBlock, injectMetaCsp, originOf, readFrontendConfig } from "./lib/security-headers.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "dist");
@@ -34,9 +35,19 @@ for (const d of PUBLIC_DIRS) {
   cpSync(join(root, d), join(dist, d), { recursive: true, filter: (src) => !/\.(map|example\.js)$/.test(src) });
   copied.push(`${d}/`);
 }
-// El .htaccess viaja con el sitio (Hostinger lo lee desde la raíz publicada; GitHub Pages lo ignora).
-cpSync(join(root, ".htaccess"), join(dist, ".htaccess"));
-copied.push(".htaccess");
+// El .htaccess viaja con el sitio (Hostinger lo lee desde la raíz publicada; GitHub Pages lo ignora)
+// y se le agregan las cabeceras de seguridad (CSP incluida) calculadas con el Supabase de este despliegue.
+const frontendCfg = readFrontendConfig(readFileSync(join(root, "js", "config.js"), "utf8"));
+if (!originOf(frontendCfg.supabaseUrl)) {
+  console.warn("AVISO: js/config.js no tiene un SUPABASE_URL válido; la CSP no permitirá conectar con Supabase.");
+}
+writeFileSync(join(dist, ".htaccess"), readFileSync(join(root, ".htaccess"), "utf8") + htaccessSecurityBlock(frontendCfg));
+copied.push(".htaccess (+ cabeceras de seguridad)");
+// Además, la CSP como <meta> en cada página: GitHub Pages no lee .htaccess.
+for (const f of pages) {
+  const path = join(dist, f);
+  writeFileSync(path, injectMetaCsp(readFileSync(path, "utf8"), frontendCfg));
+}
 
 console.log(`dist/ listo: ${copied.join(", ")}`);
 console.log("Publicar el CONTENIDO de dist/, no la carpeta del proyecto.");

@@ -86,18 +86,26 @@ export function saveProgressOnUnload(classId, seconds) {
 }
 
 // ---------------------------------------------------------------- Edge Functions
-export async function callFunction(name, body = {}) {
+export const FUNCTION_TIMEOUT_MS = 30_000;
+
+export async function callFunction(name, body = {}, { timeoutMs = FUNCTION_TIMEOUT_MS } = {}) {
   const token = accessToken();
   if (!token) throw new AppError('unauthenticated');
+  // Sin tope, una función colgada dejaba el botón en "cargando" para siempre.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   let res;
   try {
     res = await fetch(`${cfg.FUNCTIONS_URL}/${name}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: cfg.SUPABASE_ANON_KEY },
       body: JSON.stringify(body),
+      signal: ctrl.signal,
     });
   } catch {
     throw new AppError('network');
+  } finally {
+    clearTimeout(timer);
   }
   const json = await res.json().catch(() => null);
   if (!res.ok) throw new AppError(json?.error?.code || 'internal_error', json?.error?.message, res.status);
@@ -236,8 +244,12 @@ export function readVideoDuration(file) {
     const url = URL.createObjectURL(file);
     const v = document.createElement('video');
     v.preload = 'metadata';
-    v.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(v.duration); };
-    v.onerror = () => { URL.revokeObjectURL(url); reject(new AppError('invalid_input', 'No se pudo leer el archivo de video.')); };
+    // Un formato que el navegador no decodifica puede no disparar ni onloadedmetadata ni onerror: sin tope colgaba la subida.
+    const timer = setTimeout(() => fail(), 10_000);
+    const done = () => { clearTimeout(timer); URL.revokeObjectURL(url); };
+    const fail = () => { done(); reject(new AppError('invalid_input', 'No se pudo leer el archivo de video.')); };
+    v.onloadedmetadata = () => { done(); resolve(v.duration); };
+    v.onerror = fail;
     v.src = url;
   });
 }

@@ -60,3 +60,24 @@ export function parseCreateClassInput(body: Record<string, unknown>): CreateClas
     sortOrder: sort,
   };
 }
+
+/** Una clase de yoga no dura más que esto; también es el tope que acepta la base. */
+export const MAX_DURATION_SECONDS = 24 * 3600;
+
+/**
+ * Duración (en segundos) informada por el navegador al confirmar la subida. Estricta: solo un NÚMERO finito
+ * entre 1 y 24 h. Antes se hacía `Number(valor)`, que dejaba pasar cadenas ("5"), booleanos, arreglos ("[]" → 0)
+ * y valores enormes que desbordaban la columna `integer` de la base y terminaban en un 500.
+ * `undefined`/`null` significan "no informada" (p. ej. "comprobar estado" a mano).
+ */
+export function parseDurationSeconds(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 1 || value > MAX_DURATION_SECONDS) {
+    throw new HttpError(
+      400,
+      "invalid_input",
+      `duration_seconds must be a number between 1 and ${MAX_DURATION_SECONDS}`,
+    );
+  }
+  return value;
+}

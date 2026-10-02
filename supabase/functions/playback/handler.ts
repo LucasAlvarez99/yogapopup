@@ -1,5 +1,6 @@
 import { createEndpoint, HttpError, readJson } from "../_shared/http.ts";
 import { parseUuid } from "../_shared/validate.ts";
+import { enforceRateLimit, LIMITS } from "../_shared/rate-limit.ts";
 import type { HandlerDeps } from "../_shared/ports.ts";
 
 /** Debajo de esto no vale la pena "continuar": se empieza de cero. */
@@ -14,13 +15,14 @@ const COMPLETED_RATIO = 0.95;
  * retomar. Conocer la URL de la página o el id de una clase no alcanza para ver el video.
  */
 export function createHandler(deps: HandlerDeps) {
-  const { r2, repo, auth, config } = deps;
+  const { r2, repo, auth, limiter, config } = deps;
 
   return createEndpoint({
     methods: ["POST"],
     allowedOrigins: config.allowedOrigins,
     run: async (req) => {
       const user = await auth.requireUser(req);
+      await enforceRateLimit(limiter, "playback", user.id, LIMITS.playback);
       const classId = parseUuid((await readJson(req)).class_id, "class_id");
 
       // Se decide primero el permiso: quien no tiene acceso no averigua si la clase existe.

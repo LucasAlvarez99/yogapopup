@@ -13,6 +13,7 @@ import type {
   NewClass,
   ProgressRow,
   R2Port,
+  RateLimiterPort,
   Role,
   VideoStatePatch,
 } from "../_shared/ports.ts";
@@ -27,7 +28,7 @@ export const DEV_ID = "dddddddd-0000-4000-8000-000000000004";
 // ------------------------------------------------------------------ R2 en memoria
 export class FakeR2 implements R2Port {
   readonly bucket = "test-bucket";
-  objects = new Map<string, { size: number }>();
+  objects = new Map<string, { size: number; contentType: string }>();
   calls: { op: string; key: string }[] = [];
   /** Si se define, la próxima llamada a esa operación falla como si R2 estuviera caído. */
   failWith: { op: string; status: number } | null = null;
@@ -59,7 +60,7 @@ export class FakeR2 implements R2Port {
     this.calls.push({ op: "headObject", key });
     this.maybeFail("headObject");
     const o = this.objects.get(key);
-    return Promise.resolve(o ? { exists: true, size: o.size } : { exists: false });
+    return Promise.resolve(o ? { exists: true, size: o.size, contentType: o.contentType } : { exists: false });
   }
 
   deleteObject(key: string): Promise<boolean> {
@@ -75,8 +76,8 @@ export class FakeR2 implements R2Port {
   }
 
   /** Ayuda de test: simula que el navegador terminó de subir el archivo. */
-  putObject(key: string, size = 1_000_000): void {
-    this.objects.set(key, { size });
+  putObject(key: string, size = 1_000_000, contentType = "video/mp4"): void {
+    this.objects.set(key, { size, contentType });
   }
 }
 
@@ -219,20 +220,34 @@ export class FakeAudit implements AuditPort {
   }
 }
 
+// ------------------------------------------------------------------ Limitador en memoria
+export class FakeLimiter implements RateLimiterPort {
+  hits = new Map<string, number>();
+  /** Si es true, el limitador "se cae" (como si la base no respondiera). */
+  broken = false;
+  hit(key: string, max: number, _windowSeconds: number): Promise<boolean> {
+    if (this.broken) return Promise.reject(new Error("limiter down"));
+    const n = (this.hits.get(key) ?? 0) + 1;
+    this.hits.set(key, n);
+    return Promise.resolve(n <= max);
+  }
+}
+
 // ------------------------------------------------------------------ Armado
 export function makeDeps(over: Partial<AppConfig> = {}) {
   const r2 = new FakeR2();
   const repo = new FakeRepo();
   const auth = new FakeAuth(repo);
   const audit = new FakeAudit();
+  const limiter = new FakeLimiter();
   const config: AppConfig = {
     allowedOrigins: ["https://yogapopup.test"],
     playbackTtlSeconds: 7200,
     uploadTtlSeconds: 14400,
     ...over,
   };
-  const deps: HandlerDeps = { r2, repo, auth, audit, config };
-  return { r2, repo, auth, audit, config, deps };
+  const deps: HandlerDeps = { r2, repo, auth, audit, limiter, config };
+  return { r2, repo, auth, audit, limiter, config, deps };
 }
 
 export function post(body: unknown, token?: string, extra: Record<string, string> = {}): Request {

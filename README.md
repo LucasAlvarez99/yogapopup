@@ -802,5 +802,6 @@ usa:
 - 16 enlaces `href="#"` y el ícono de cuenta sin acción (se resuelven en las Fases 6 y 7); la navegación no tiene
   enlace a "Videoteca".
 - Los textos usan voseo argentino y "Envíos a todo el país": revisar para España.
-- Sin límite de frecuencia (rate limiting) en las funciones; suficiente para ~40 videos, revisar si crece.
+- Límite de frecuencia por usuario en las 4 funciones con sesión (ver `docs/BLINDAJE-FASES-0-16.md`); los topes
+  (60/min reproducción y confirmación, 20/min subir y borrar) se ajustan en `supabase/functions/_shared/rate-limit.ts`.
 - Aún no verificado con servicios reales: CORS del bucket de R2 y los adaptadores de Supabase.

@@ -32,6 +32,8 @@ export interface R2ObjectInfo {
   exists: boolean;
   /** Tamaño en bytes, si el objeto existe. */
   size?: number;
+  /** `Content-Type` con el que se guardó el objeto, si R2 lo informa. */
+  contentType?: string;
 }
 
 export interface R2Config {

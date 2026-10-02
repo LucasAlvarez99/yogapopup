@@ -9,6 +9,9 @@ export function el(tag, attrs = {}, ...children) {
     if (value === undefined || value === null || value === false) continue;
     if (key === 'class') node.className = value;
     else if (key === 'dataset') Object.assign(node.dataset, value);
+    // `style` por la API de estilos del DOM, NO con setAttribute: una CSP estricta (sin 'unsafe-inline') bloquea el
+    // atributo style puesto como texto, pero permite asignar propiedades desde JS.
+    else if (key === 'style' && typeof value === 'string') node.style.cssText = value;
     else if (key.startsWith('on') && typeof value === 'function') node.addEventListener(key.slice(2), value);
     else if (value === true) node.setAttribute(key, '');
     else node.setAttribute(key, String(value));

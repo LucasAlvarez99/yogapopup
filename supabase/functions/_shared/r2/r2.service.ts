@@ -76,7 +76,9 @@ export class R2Service {
     if (res.status === 404) return { exists: false };
     if (!res.ok) throw new R2Error(`R2 headObject failed (${res.status})`, res.status, "headObject");
     const len = res.headers.get("content-length");
-    return { exists: true, size: len ? Number(len) : undefined };
+    const size = len !== null && len !== "" && Number.isFinite(Number(len)) ? Number(len) : undefined;
+    const contentType = res.headers.get("content-type");
+    return { exists: true, ...(size !== undefined ? { size } : {}), ...(contentType ? { contentType } : {}) };
   }
 
   /** Borra el objeto. Idempotente: si ya no existe (404) devuelve false sin error. */

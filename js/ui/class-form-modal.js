@@ -1,6 +1,7 @@
 import { el, mount } from '../lib/dom.js';
 import { LEVEL_LABELS } from '../lib/format.js';
 import { messageFor } from '../lib/errors.js';
+import { assertVideoReady, sanitizeDuration, videoFileProblem } from '../lib/video-upload.js';
 import { adminCreateUpload, adminSyncVideo, adminUpdateClass, deleteThumbnailByUrl, readVideoDuration, resizeImage, uploadThumbnail, uploadVideoToR2 } from '../lib/api.js';
 import { toast } from './toast.js';
 
@@ -135,7 +136,8 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
     }
 
     const videoFile = form.cfVideo.files[0];
-    if (!videoFile) return showError(form, 'Elegí un archivo de video.');
+    const fileProblem = videoFileProblem(videoFile);
+    if (fileProblem) return showError(form, fileProblem);
     const title = mode === 'retry' ? row.title : form.cfTitle.value.trim();
     if (mode !== 'retry' && !title) return showError(form, 'El título es obligatorio.');
 
@@ -164,7 +166,7 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
 
       // R2 no calcula la duración (no transcodifica): se lee en el navegador antes de subir.
       let duration = null;
-      try { duration = await readVideoDuration(videoFile); } catch { /* se guarda sin duración; se puede corregir después */ }
+      try { duration = sanitizeDuration(await readVideoDuration(videoFile)); } catch { /* se guarda sin duración; se puede corregir después */ }
 
       cancelBtn.classList.remove('d-none');
       cancelBtn.onclick = () => { aborted = true; aborter?.(); };
@@ -179,7 +181,8 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
       await promise;
 
       progressText.textContent = 'Confirmando la subida…';
-      await adminSyncVideo(cls.id, duration);
+      const { class: synced } = await adminSyncVideo(cls.id, duration);
+      assertVideoReady(synced); // 'failed' o sin confirmar = error visible (el modal sigue abierto para reintentar)
 
       closeModal();
       toast(mode === 'retry' ? 'Video subido.' : 'Clase creada y video subido.', { type: 'success' });

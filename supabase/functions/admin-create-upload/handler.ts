@@ -1,5 +1,6 @@
 import { createEndpoint, HttpError, readJson } from "../_shared/http.ts";
 import { parseCreateClassInput } from "../_shared/validate.ts";
+import { enforceRateLimit, LIMITS } from "../_shared/rate-limit.ts";
 import { type ClassRow, type HandlerDeps, toPublicClass } from "../_shared/ports.ts";
 
 /**
@@ -17,13 +18,14 @@ import { type ClassRow, type HandlerDeps, toPublicClass } from "../_shared/ports
  *      · processing/ready   -> 409, ya tiene un video en uso
  */
 export function createHandler(deps: HandlerDeps) {
-  const { r2, repo, auth, audit, config } = deps;
+  const { r2, repo, auth, audit, limiter, config } = deps;
 
   return createEndpoint({
     methods: ["POST"],
     allowedOrigins: config.allowedOrigins,
     run: async (req) => {
       const admin = await auth.requireOwner(req);
+      await enforceRateLimit(limiter, "create-upload", admin.id, LIMITS.createUpload);
       const input = parseCreateClassInput(await readJson(req));
 
       const { row, resumed } = input.classId

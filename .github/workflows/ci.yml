@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Mínimo privilegio: ningún job de CI necesita escribir en el repositorio.
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Formato, lint, tipos, pruebas y build
@@ -17,7 +21,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+      - name: Dependencias de producción sin vulnerabilidades altas o críticas
+        run: npm audit --omit=dev --audit-level=high
       - run: npm run build
+      - name: Comprobar que el build lleva las cabeceras de seguridad (CSP)
+        run: |
+          grep -q "Content-Security-Policy" dist/.htaccess
+          for f in dist/*.html; do grep -q 'http-equiv="Content-Security-Policy"' "$f" || { echo "Falta la CSP en $f"; exit 1; }; done
       - name: Comprobar que dist/ no contiene archivos sensibles
         run: |
           ! find dist \( -name ".env*" -o -name "*.sql" -o -name "package*.json" -o -path "dist/supabase" -o -path "dist/supabase/*" -o -path "dist/scripts" -o -path "dist/scripts/*" -o -path "dist/tests" -o -path "dist/tests/*" \) | grep .

@@ -68,6 +68,20 @@ Deno.test("R2Service: headObject existente / inexistente", async () => {
   assert.deepEqual(calls, ["HEAD", "HEAD"]);
 });
 
+Deno.test("R2Service: headObject informa tipo de contenido y descarta tamaños ilegibles", async () => {
+  const r2 = makeR2((input) => {
+    const req = input as Request;
+    if (req.url.includes("/video.mp4")) {
+      return Promise.resolve(
+        new Response(null, { status: 200, headers: { "content-length": "99", "content-type": "video/mp4" } }),
+      );
+    }
+    return Promise.resolve(new Response(null, { status: 200, headers: { "content-length": "no-es-numero" } }));
+  });
+  assert.deepEqual(await r2.headObject("classes/x/video.mp4"), { exists: true, size: 99, contentType: "video/mp4" });
+  assert.deepEqual(await r2.headObject("classes/x/raro.mp4"), { exists: true });
+});
+
 Deno.test("R2Service: deleteObject es idempotente (404 -> false, sin error)", async () => {
   const r2 = makeR2((input) => {
     const req = input as Request;

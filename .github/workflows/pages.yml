@@ -36,6 +36,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Nada se publica sin pasar formato, lint, tipos y pruebas: antes un push roto salía en vivo igual.
+      - run: npm run verify
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

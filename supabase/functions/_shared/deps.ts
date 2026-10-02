@@ -3,6 +3,7 @@ import { loadConfig } from "./config.ts";
 import { createSupabaseRepo } from "./repo.supabase.ts";
 import { createSupabaseAuth } from "./auth.supabase.ts";
 import { createSupabaseAudit } from "./audit.supabase.ts";
+import { createSupabaseRateLimiter } from "./rate-limit.supabase.ts";
 import { json } from "./http.ts";
 import type { HandlerDeps } from "./ports.ts";
 
@@ -14,6 +15,7 @@ export function buildDeps(env: Record<string, string | undefined> = Deno.env.toO
     repo: createSupabaseRepo(cfg.supabase.url, cfg.supabase.serviceRoleKey),
     auth: createSupabaseAuth(cfg.supabase.url, cfg.supabase.anonKey),
     audit: createSupabaseAudit(cfg.supabase.url, cfg.supabase.serviceRoleKey),
+    limiter: createSupabaseRateLimiter(cfg.supabase.url, cfg.supabase.serviceRoleKey),
     config: cfg.app,
   };
 }
