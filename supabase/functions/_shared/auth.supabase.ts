@@ -6,7 +6,7 @@ import type { AuthedUser, AuthPort, Role } from "./ports.ts";
 /**
  * Autenticación y permisos usando el JWT del propio usuario:
  *  - El token se valida contra Supabase Auth (getUser), no solo se decodifica.
- *  - Los permisos se consultan con las funciones SQL is_admin() y can_access_class()
+ *  - Los permisos se consultan con las funciones SQL is_staff() y can_access_class()
  *    ejecutadas COMO el usuario, así auth.uid() y RLS son los reales.
  */
 export function createSupabaseAuth(url: string, anonKey: string): AuthPort {
@@ -28,7 +28,7 @@ export function createSupabaseAuth(url: string, anonKey: string): AuthPort {
     const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", data.user.id)
       .maybeSingle();
     if (profileError) throw new Error(`profile lookup: ${profileError.message}`);
-    const role: Role = profile?.role === "owner" || profile?.role === "developer" ? profile.role : "user";
+    const role: Role = profile?.role === "admin" || profile?.role === "developer" ? profile.role : "user";
 
     return {
       client,
@@ -48,10 +48,10 @@ export function createSupabaseAuth(url: string, anonKey: string): AuthPort {
     async requireUser(req) {
       return (await authenticate(req)).user;
     },
-    async requireOwner(req) {
+    async requireStaff(req) {
       const { user } = await authenticate(req);
-      if (user.role !== "owner" && user.role !== "developer") {
-        throw new HttpError(403, "owner_only", "Owner access required");
+      if (user.role !== "admin" && user.role !== "developer") {
+        throw new HttpError(403, "admin_only", "Admin access required");
       }
       return user;
     },

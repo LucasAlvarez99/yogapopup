@@ -24,7 +24,8 @@ export function createHandler(deps: HandlerDeps) {
     methods: ["POST"],
     allowedOrigins: config.allowedOrigins,
     run: async (req) => {
-      const admin = await auth.requireOwner(req);
+      // Subir videos es SOLO del developer: el admin gestiona (editar, publicar, borrar) pero no sube.
+      const admin = await auth.requireDeveloper(req);
       await enforceRateLimit(limiter, "create-upload", admin.id, LIMITS.createUpload);
       const input = parseCreateClassInput(await readJson(req));
 

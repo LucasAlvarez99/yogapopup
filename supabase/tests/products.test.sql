@@ -4,9 +4,9 @@
 -- a lo largo de sus propias pruebas de cambio de rol, igual que hace classes_publish_audit.test.sql).
 
 insert into auth.users (id, email, raw_user_meta_data) values
-  ('00000000-0000-4000-8000-0000000000a3', 'owner3@test.dev', '{}'),
+  ('00000000-0000-4000-8000-0000000000a3', 'admin3@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000a4', 'comprador@test.dev', '{}');
-update public.profiles set role = 'owner' where id = '00000000-0000-4000-8000-0000000000a3';
+update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000a3';
 
 -- 1. Un producto activo lo ve cualquiera, incluso sin sesión (anon); uno inactivo, nadie salvo el dueño.
 do $$ declare pid_active uuid; pid_draft uuid; begin
@@ -111,7 +111,7 @@ do $$ declare pid uuid; begin
 end $$;
 
 -- 6. Fase 14: el bucket de imágenes de producto es público con tope de tamaño/tipo, y solo el
---    propietario/desarrollador escribe. (Los usuarios a3 = owner y a4 = comprador se crearon arriba.)
+--    admin/developer escribe. (Los usuarios a3 = admin y a4 = comprador se crearon arriba.)
 do $$ declare b record; begin
   select * into b from storage.buckets where id = 'product-images';
   assert found, 'el bucket product-images debe existir';

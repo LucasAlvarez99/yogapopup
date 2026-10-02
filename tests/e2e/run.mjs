@@ -800,12 +800,15 @@ async function makeTestImage() {
   assert.equal(r.status, 0, 'ffmpeg debe poder generar una imagen de prueba');
   return file;
 }
-async function loginAsOwner(page, email = 'duena@test.dev') {
-  await signup(email, 'Dueña Test');
-  await be.promote(email, 'owner');
+async function loginAsRole(page, role, email, name) {
+  await signup(email, name);
+  await be.promote(email, role);
   await page.goto(`${S}/panel.html`);
   await loginViaModal(page, email);
 }
+// developer: gestiona Y sube videos (los tests de subida usan este). admin: gestiona, no sube.
+const loginAsDeveloper = (page, email = 'equipo@test.dev') => loginAsRole(page, 'developer', email, 'Equipo Test');
+const loginAsAdmin = (page, email = 'admin@test.dev') => loginAsRole(page, 'admin', email, 'Admin Test');
 
 await test('panel: sin sesión pide iniciar sesión y un usuario común ve "Acceso restringido"', async (page) => {
   await page.goto(`${S}/panel.html`);
@@ -816,13 +819,54 @@ await test('panel: sin sesión pide iniciar sesión y un usuario común ve "Acce
   assert.equal(await page.$('.nav-tabs'), null, 'un usuario común no debe ver las pestañas del panel');
 });
 
-await test('panel · Clases: la propietaria ve todas las clases, borradores incluidos', async (page) => {
-  await loginAsOwner(page);
+await test('panel · Clases: el equipo ve todas las clases, borradores incluidos', async (page) => {
+  await loginAsDeveloper(page);
   await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });
   const rows = await panelRows(page);
   assert.equal(rows.length, 4, 'las 4 clases de la semilla (3 publicadas + 1 borrador)');
-  assert.ok(rows.some((r) => r.includes('Borrador oculto')), 'el borrador es visible para la propietaria');
+  assert.ok(rows.some((r) => r.includes('Borrador oculto')), 'el borrador es visible para el equipo');
   await page.screenshot({ path: tmp('yp-panel-clases.png') });
+});
+
+await test('panel · admin: gestiona las clases pero NO sube videos (sin "Nueva clase"; el servidor también lo rechaza)', async (page) => {
+  await loginAsAdmin(page);
+  await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });
+  const rows = await panelRows(page);
+  assert.equal(rows.length, 4, 'el admin ve todas las clases, borradores incluidos');
+  const ui = await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll('#panelContent button')].map((b) => b.textContent.trim());
+    return {
+      newClass: buttons.some((t) => t.includes('Nueva clase')),
+      upload: buttons.some((t) => /Subir video|Reintentar video/.test(t)),
+      notice: document.querySelector('#panelContent')?.innerText.includes('equipo técnico') ?? false,
+    };
+  });
+  assert.equal(ui.newClass, false, 'el admin no ve el botón "Nueva clase"');
+  assert.equal(ui.upload, false, 'ni "Subir video" / "Reintentar video"');
+  assert.ok(ui.notice, 'en su lugar ve quién sube los videos');
+
+  // Aunque se salte la interfaz: subir -> developer_only; sincronizar y borrar atraviesan la autorización
+  // (con un id inexistente fallan DESPUÉS, por class_not_found, sin tocar ninguna clase real).
+  const before = (await be.state()).classes.map((c) => `${c.id}:${c.title}`).sort();
+  const out = await page.evaluate(async () => {
+    const api = await import('/js/lib/api.js');
+    const ghost = '00000000-0000-4000-8000-00000000dead';
+    const attempts = {
+      create: () => api.adminCreateUpload({ title: 'intento del admin' }),
+      sync: () => api.adminSyncVideo(ghost),
+      del: () => api.adminDeleteClass(ghost),
+    };
+    const result = {};
+    for (const [k, fn] of Object.entries(attempts)) {
+      try { await fn(); result[k] = 'ok'; } catch (e) { result[k] = e.code || e.message; }
+    }
+    return result;
+  });
+  assert.equal(out.create, 'developer_only');
+  assert.equal(out.sync, 'class_not_found');
+  assert.equal(out.del, 'class_not_found');
+  const after = (await be.state()).classes.map((c) => `${c.id}:${c.title}`).sort();
+  assert.deepEqual(after, before, 'no se creó ni se tocó ninguna clase');
 });
 
 // ---------------------------------------------------------------------------------------------- panel de clases (Fases 9-11)
@@ -854,7 +898,7 @@ async function fillNewClass(page, title, videoFile) {
 
 await test('panel · Clases: crear con video real, publicar, editar, despublicar y borrar (Fases 9-11)', async (page) => {
   const video = ensureMedia('e2e-upload');
-  await loginAsOwner(page);
+  await loginAsDeveloper(page);
   await page.waitForSelector('#panelContent tbody tr');
   await fillNewClass(page, 'Clase E2E nueva', video);
   await classModalClosed(page);
@@ -915,7 +959,7 @@ await test('panel · Clases: crear con video real, publicar, editar, despublicar
 
 await test('panel · Clases: si la subida falla se avisa y el reintento reanuda la MISMA clase (no la duplica)', async (page) => {
   const video = ensureMedia('e2e-upload');
-  await loginAsOwner(page);
+  await loginAsDeveloper(page);
   await page.waitForSelector('#panelContent tbody tr');
   await be.behavior({ uploadFail: true });
   await fillNewClass(page, 'Clase con fallo', video);
@@ -936,7 +980,7 @@ await test('panel · Clases: si la subida falla se avisa y el reintento reanuda 
 
 await test('panel · Clases: cerrar el formulario tras un fallo deja la clase "Pendiente" (visible, sin poder publicarse) y "Subir video" la completa', async (page) => {
   const video = ensureMedia('e2e-upload');
-  await loginAsOwner(page);
+  await loginAsDeveloper(page);
   await page.waitForSelector('#panelContent tbody tr');
   await be.behavior({ uploadFail: true });
   await fillNewClass(page, 'Clase pendiente', video);
@@ -983,17 +1027,17 @@ await test('panel · Clases: un usuario común no puede usar las funciones de ad
     }
     return result;
   }, IDS.free);
-  assert.equal(out.create, 'owner_only');
-  assert.equal(out.sync, 'owner_only');
-  assert.equal(out.del, 'owner_only');
-  assert.notEqual(out.publish, 'ok', 'la base rechaza escribir en classes sin ser propietario');
+  assert.equal(out.create, 'developer_only');
+  assert.equal(out.sync, 'admin_only');
+  assert.equal(out.del, 'admin_only');
+  assert.notEqual(out.publish, 'ok', 'la base rechaza escribir en classes sin ser del equipo');
   const afterState = (await be.state()).classes.map((c) => `${c.id}:${c.is_published}:${c.title}`).sort();
   assert.deepEqual(afterState, before, 'no cambió ninguna clase');
 });
 
 await test('panel · Productos: ver todo, crear con imagen, publicar, editar el precio en euros y borrar', async (page) => {
   const image = await makeTestImage();
-  await loginAsOwner(page);
+  await loginAsDeveloper(page);
   await page.waitForSelector('.nav-tabs');
   await clickTab(page, 'Productos');
   await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });

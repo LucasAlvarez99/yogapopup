@@ -20,7 +20,7 @@ export function createHandler(deps: HandlerDeps) {
     methods: ["POST"],
     allowedOrigins: config.allowedOrigins,
     run: async (req) => {
-      const actor = await auth.requireOwner(req);
+      const actor = await auth.requireStaff(req);
       await enforceRateLimit(limiter, "sync-video", actor.id, LIMITS.syncVideo);
       const body = await readJson(req);
       const classId = parseUuid(body.class_id, "class_id");

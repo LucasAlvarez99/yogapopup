@@ -1,6 +1,7 @@
 import { supabase } from './supabase.js';
 import { AppError } from './errors.js';
 import { page } from './env.js';
+import { canUploadRole, isDeveloperRole, isStaffRole } from './roles.js';
 
 /**
  * Estado de sesión compartido por todas las páginas.
@@ -14,9 +15,10 @@ let initPromise = null;
 
 export const getState = () => state;
 export const isLoggedIn = () => !!state.user;
-/** Propietario o desarrollador (el desarrollador es superconjunto). Solo ordena la interfaz: el permiso real lo decide el servidor. */
-export const isOwner = () => state.profile?.role === 'owner' || state.profile?.role === 'developer';
-export const isDeveloper = () => state.profile?.role === 'developer';
+/** Solo ordenan la interfaz: el permiso real lo deciden el servidor y la base (ver roles.js). */
+export const isStaff = () => isStaffRole(state.profile?.role);
+export const isDeveloper = () => isDeveloperRole(state.profile?.role);
+export const canUpload = () => canUploadRole(state.profile?.role);
 export const accessToken = () => state.session?.access_token ?? null;
 
 /** Suscribe un callback (state, event). Devuelve la función para cancelar. */

@@ -13,41 +13,41 @@ grant execute on function t.raises(text, text) to public;
 
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-0000000000a1', 'user@test.dev', '{}'),
-  ('00000000-0000-4000-8000-0000000000b1', 'owner@test.dev', '{}'),
+  ('00000000-0000-4000-8000-0000000000b1', 'admin@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000d1', 'dev@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000d2', 'dev2@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000f1', 'evil@test.dev', '{"role":"developer"}');   -- intenta escalar por metadata
-update public.profiles set role = 'owner' where id = '00000000-0000-4000-8000-0000000000b1';
+update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000b1';
 update public.profiles set role = 'developer' where id in ('00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000d2');
 
--- 1. La migración convirtió al admin de antes en owner, y el registro con metadata maliciosa sigue siendo 'user'.
+-- 1. El admin de antes pasó por 'owner' (Fase 4) y terminó en 'admin' (esquema de 3 escalas); el registro con metadata maliciosa sigue siendo 'user'.
 do $$ begin
-  assert (select role from public.profiles where id = '00000000-0000-4000-8000-0000000000e1') = 'owner', 'admin antiguo debe ser owner';
+  assert (select role from public.profiles where id = '00000000-0000-4000-8000-0000000000e1') = 'admin', 'el admin antiguo sigue siendo admin tras las dos migraciones';
   assert (select role from public.profiles where id = '00000000-0000-4000-8000-0000000000f1') = 'user', 'la metadata no puede asignar rol';
-  assert not exists (select 1 from public.profiles where role = 'admin'), 'no debe quedar ningún rol admin';
+  assert not exists (select 1 from public.profiles where role = 'owner'), 'el rol owner ya no existe';
 end $$;
--- Un rol inventado se rechaza
+-- Un rol inventado se rechaza (y 'owner', el nombre anterior, ya no es válido)
 do $$ begin
-  perform t.raises($q$ update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000a1' $q$, '23514');
+  perform t.raises($q$ update public.profiles set role = 'owner' where id = '00000000-0000-4000-8000-0000000000a1' $q$, '23514');
 end $$;
 
 -- 2. Matriz de funciones de rol
 do $$ declare r record; begin
   for r in select * from (values
       ('00000000-0000-4000-8000-0000000000a1'::uuid, 'user', false, false),
-      ('00000000-0000-4000-8000-0000000000b1'::uuid, 'owner', true, false),
+      ('00000000-0000-4000-8000-0000000000b1'::uuid, 'admin', true, false),
       ('00000000-0000-4000-8000-0000000000d1'::uuid, 'developer', true, true),
       ('00000000-0000-4000-8000-0000000000e1'::uuid, 'ex-admin', true, false)) v(id, label, o, d) loop
     perform set_config('request.jwt.claim.sub', r.id::text, true);
     set local role authenticated;
-    assert public.is_owner() = r.o, format('is_owner de %s', r.label);
+    assert public.is_staff() = r.o, format('is_staff de %s', r.label);
     assert public.is_developer() = r.d, format('is_developer de %s', r.label);
     assert public.is_admin() = r.o, format('is_admin (alias) de %s', r.label);
     reset role;
   end loop;
 end $$;
 
--- 3. Clases: el usuario no escribe; owner y developer sí
+-- 3. Clases: el usuario y el admin NO crean (subir es del developer); el developer sí
 do $$ begin
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000a1', true);
   set local role authenticated;
@@ -55,16 +55,16 @@ do $$ begin
   reset role;
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000b1', true);
   set local role authenticated;
-  insert into public.classes (title) values ('creada por owner');
+  perform t.raises($q$ insert into public.classes (title) values ('creada por admin') $q$, '42501');
   reset role;
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000d1', true);
   set local role authenticated;
   insert into public.classes (title) values ('creada por developer');
   reset role;
-  assert (select count(*) from public.classes) = 2;
+  assert (select count(*) from public.classes) = 1, 'solo la del developer';
 end $$;
 
--- 4. Perfiles: cada uno ve el suyo; owner y developer ven todos; nadie edita roles directamente
+-- 4. Perfiles: cada uno ve el suyo; admin y developer ven todos; nadie edita roles directamente
 do $$ begin
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000a1', true);
   set local role authenticated;
@@ -73,7 +73,7 @@ do $$ begin
   reset role;
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000b1', true);
   set local role authenticated;
-  assert (select count(*) from public.profiles) >= 6, 'el owner ve todos los perfiles';
+  assert (select count(*) from public.profiles) >= 6, 'el admin ve todos los perfiles';
   perform t.raises($q$ update public.profiles set role = 'developer' where id = '00000000-0000-4000-8000-0000000000b1' $q$, '42501');
   reset role;
 end $$;
@@ -86,7 +86,7 @@ do $$ begin
   reset role;
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000b1', true);
   set local role authenticated;
-  assert (select count(*) from public.audit_log) = 0, 'el owner no ve auditoría';
+  assert (select count(*) from public.audit_log) = 0, 'el admin no ve auditoría';
   reset role;
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000d1', true);
   set local role authenticated;
@@ -106,26 +106,26 @@ do $$ begin
   reset role;
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000b1', true);
   set local role authenticated;
-  perform t.raises($q$ select public.set_user_role('00000000-0000-4000-8000-0000000000a1', 'owner') $q$, '42501');
+  perform t.raises($q$ select public.set_user_role('00000000-0000-4000-8000-0000000000a1', 'admin') $q$, '42501');
   reset role;
   set local role anon;
-  perform t.raises($q$ select public.set_user_role('00000000-0000-4000-8000-0000000000a1', 'owner') $q$, '42501');
+  perform t.raises($q$ select public.set_user_role('00000000-0000-4000-8000-0000000000a1', 'admin') $q$, '42501');
   reset role;
 
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000d1', true);
   set local role authenticated;
-  perform public.set_user_role('00000000-0000-4000-8000-0000000000a1', 'owner');
-  perform t.raises($q$ select public.set_user_role('00000000-0000-4000-8000-0000000000a1', 'admin') $q$, '22023');
+  perform public.set_user_role('00000000-0000-4000-8000-0000000000a1', 'admin');
+  perform t.raises($q$ select public.set_user_role('00000000-0000-4000-8000-0000000000a1', 'owner') $q$, '22023');   -- el nombre anterior ya no existe
   perform t.raises($q$ select public.set_user_role('00000000-0000-4000-8000-0000000000a1', null) $q$, '22023');
-  perform t.raises($q$ select public.set_user_role(gen_random_uuid(), 'owner') $q$, 'P0002');
+  perform t.raises($q$ select public.set_user_role(gen_random_uuid(), 'admin') $q$, 'P0002');
   reset role;
 
-  assert (select role from public.profiles where id = '00000000-0000-4000-8000-0000000000a1') = 'owner';
+  assert (select role from public.profiles where id = '00000000-0000-4000-8000-0000000000a1') = 'admin';
   assert exists (
     select 1 from public.audit_log
     where action = 'role.change' and entity_id = '00000000-0000-4000-8000-0000000000a1'
       and actor_id = '00000000-0000-4000-8000-0000000000d1' and actor_role = 'developer'
-      and details = '{"from":"user","to":"owner"}'::jsonb), 'el cambio de rol debe quedar auditado con su actor';
+      and details = '{"from":"user","to":"admin"}'::jsonb), 'el cambio de rol debe quedar auditado con su actor';
   -- devolver a 'user' para no alterar el resto de pruebas
   update public.profiles set role = 'user' where id = '00000000-0000-4000-8000-0000000000a1';
 end $$;
@@ -137,7 +137,7 @@ do $$ begin
   perform public.set_user_role('00000000-0000-4000-8000-0000000000d2', 'user');      -- queda uno: se puede
   perform t.raises($q$ select public.set_user_role('00000000-0000-4000-8000-0000000000d1', 'user') $q$, '23514');
   reset role;
-  perform t.raises($q$ update public.profiles set role = 'owner' where id = '00000000-0000-4000-8000-0000000000d1' $q$, '23514');
+  perform t.raises($q$ update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000d1' $q$, '23514');
   assert (select role from public.profiles where id = '00000000-0000-4000-8000-0000000000d1') = 'developer';
 end $$;
 
@@ -161,7 +161,7 @@ do $$ declare v bigint; begin
   set local role service_role;
   v := public.audit_write('00000000-0000-4000-8000-0000000000b1', 'class.delete', 'class', 'abc', '{"title":"t"}');
   reset role;
-  assert (select actor_role from public.audit_log where id = v) = 'owner', 'el rol se busca en la base';
+  assert (select actor_role from public.audit_log where id = v) = 'admin', 'el rol se busca en la base';
   assert (select details->>'title' from public.audit_log where id = v) = 't';
   assert (select entity_id from public.audit_log where id = v) = 'abc';
 end $$;

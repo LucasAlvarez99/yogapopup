@@ -1,9 +1,10 @@
 import { el, mount } from '../lib/dom.js';
 import { LEVEL_LABELS } from '../lib/format.js';
-import { messageFor } from '../lib/errors.js';
+import { AppError, messageFor } from '../lib/errors.js';
 import { assertVideoReady, sanitizeDuration, videoFileProblem } from '../lib/video-upload.js';
 import { adminCreateUpload, adminSyncVideo, adminUpdateClass, deleteThumbnailByUrl, readVideoDuration, resizeImage, uploadThumbnail, uploadVideoToR2 } from '../lib/api.js';
 import { toast } from './toast.js';
+import * as session from '../lib/session.js';
 
 /**
  * Fases 8-11 (panel administrativo): crear una clase y subir su video (con barra de progreso),
@@ -65,6 +66,12 @@ function readMetaFromForm(form) {
  * @returns {Promise<boolean>} true si se guardó/subió/creó algo, aunque la subida del video haya fallado (conviene refrescar la lista).
  */
 export function openClassForm({ mode = 'create', row = null } = {}) {
+  // Crear una clase o subir/reintentar su video es del developer. El panel ya no ofrece estas acciones al admin;
+  // esta guarda evita abrir el formulario por un camino olvidado (el servidor y la base lo rechazan igual).
+  if (mode !== 'edit' && !session.canUpload()) {
+    toast(messageFor(new AppError('developer_only')), { type: 'error' });
+    return Promise.resolve(false);
+  }
   if (!modalEl) build();
   titleEl.textContent = mode === 'edit' ? `Editar · ${row.title}` : mode === 'retry' ? `Subir video · ${row.title}` : 'Nueva clase';
 

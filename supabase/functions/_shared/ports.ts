@@ -72,7 +72,7 @@ export interface ClassRepo {
   ping(): Promise<void>;
 }
 
-export type Role = "user" | "owner" | "developer";
+export type Role = "user" | "admin" | "developer";
 
 export interface AuthedUser {
   id: string;
@@ -84,9 +84,9 @@ export interface AuthedUser {
 
 export interface AuthPort {
   requireUser(req: Request): Promise<AuthedUser>;
-  /** Propietario o desarrollador (el desarrollador es superconjunto). 403 `owner_only` si no. */
-  requireOwner(req: Request): Promise<AuthedUser>;
-  /** Solo desarrolladores. 403 `developer_only` si no. */
+  /** Personal de gestión: admin o developer (el developer es superconjunto). 403 `admin_only` si no. */
+  requireStaff(req: Request): Promise<AuthedUser>;
+  /** Solo developer (subir videos, cambiar roles). 403 `developer_only` si no. */
   requireDeveloper(req: Request): Promise<AuthedUser>;
 }
 

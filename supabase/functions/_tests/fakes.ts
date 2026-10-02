@@ -170,7 +170,7 @@ export class FakeAuth implements AuthPort {
   /** userId -> clases a las que tiene entitlement */
   entitlements = new Map<string, Set<string>>();
   private tokens: Record<string, { id: string; role: Role }> = {
-    owner: { id: ADMIN_ID, role: "owner" },
+    admin: { id: ADMIN_ID, role: "admin" },
     developer: { id: DEV_ID, role: "developer" },
     user: { id: USER_ID, role: "user" },
     user2: { id: USER2_ID, role: "user" },
@@ -181,7 +181,7 @@ export class FakeAuth implements AuthPort {
     const m = /^Bearer (.+)$/.exec(req.headers.get("authorization") ?? "");
     const t = m ? this.tokens[m[1]] : undefined;
     if (!t) throw new HttpError(401, "unauthenticated", "Invalid or expired session");
-    const isStaff = t.role === "owner" || t.role === "developer";
+    const isStaff = t.role === "admin" || t.role === "developer";
     return {
       id: t.id,
       role: t.role,
@@ -197,9 +197,9 @@ export class FakeAuth implements AuthPort {
   requireUser(req: Request) {
     return Promise.resolve(this.user(req));
   }
-  requireOwner(req: Request) {
+  requireStaff(req: Request) {
     const u = this.user(req);
-    if (u.role !== "owner" && u.role !== "developer") throw new HttpError(403, "owner_only", "Owner access required");
+    if (u.role !== "admin" && u.role !== "developer") throw new HttpError(403, "admin_only", "Admin access required");
     return Promise.resolve(u);
   }
   requireDeveloper(req: Request) {

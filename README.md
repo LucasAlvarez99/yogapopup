@@ -15,7 +15,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > verificadas rompiendo la migración a propósito) · **44 pruebas E2E** en Chromium real, todas en verde (30/09/2026, incluidas las 2 de la
 > tienda de la Fase 13, las del panel —acceso por rol, lista de clases, CRUD completo de productos con imagen y 4 del ciclo de vida de las clases— y 8 del carrito de la Fase 16).
 >
-> **Roles hechos:** `user` / `owner` / `developer` (el desarrollador es superconjunto del propietario), historial de
+> **Roles hechos:** `user` / `admin` / `developer` (el developer es superconjunto del admin; la diferencia: **solo el developer sube videos**), historial de
 > auditoría que nadie puede editar ni borrar, cambios de rol solo por desarrolladores y protección del último desarrollador.
 > **Cuentas reales preparadas:** guía, `npm run doctor[:online]` y una prueba de integración real que se ejecuta
 > sola cuando existan las credenciales (`npm run test:integration`). **Falta que el cliente cree las cuentas** (ver
@@ -40,6 +40,24 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > npm run dev                                    # sitio en http://localhost:3000 (o Live Server: index.html → botón "Go Live")
 > npm run build                                  # arma dist/ (lo único que se sube a Hostinger)
 > ```
+
+### Roles y permisos
+
+| Acción | `user` | `admin` | `developer` |
+|---|:-:|:-:|:-:|
+| Ver catálogo, reproducir lo permitido, guardar progreso, comprar | ✅ | ✅ | ✅ |
+| Editar clases (título, nivel, miniatura…) | ❌ | ✅ | ✅ |
+| Publicar / despublicar clases | ❌ | ✅ | ✅ |
+| **Borrar** clases (borra también su video en R2) | ❌ | ✅ | ✅ |
+| Productos: crear, editar, activar/ocultar, borrar (con imagen) | ❌ | ✅ | ✅ |
+| Ver borradores y clases no publicadas | ❌ | ✅ | ✅ |
+| **Subir videos** (clase nueva, reintentar o reemplazar el video) | ❌ | ❌ | ✅ |
+| Cambiar el rol de otras personas | ❌ | ❌ | ✅ |
+| Leer el historial interno (`audit_log`) | ❌ | ❌ | ✅ |
+
+"Subir" se impide en **tres capas**: la Edge Function `admin-create-upload` exige `developer`, la base solo deja insertar
+en `classes` al `developer`, y el panel no muestra las acciones de subida al admin. Cambiar el rol de alguien (solo un
+developer): `select public.set_user_role('<id>', 'admin');` — queda auditado.
 
 ## Demo pública (GitHub Pages)
 
@@ -414,7 +432,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 ### Fase 8 · Panel administrativo — listado
 
 - [x] Listado de clases: título/categoría, nivel, estado del video, publicada/sin publicar, fecha y acciones
-- [x] Acceso solo para propietario y desarrolladores (rol `owner` o `developer`, `session.isOwner()`)
+- [x] Acceso solo para admin y developer (rol `admin` o `developer`, `session.isStaff()`)
 - [x] Filtros básicos: Todas / Publicadas / Borradores / Con error (nuevo esta vuelta)
 
 - [x] **FASE 8 CUMPLIDA** — el listado, el acceso por rol y la subida (Fase 10) ya estaban hechos de una
@@ -472,11 +490,11 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 - [x] Tabla `products` (`supabase/migrations/20260927120000_products.sql`): título, descripción, imagen,
       precio en **céntimos de euro** (entero, nunca float), stock opcional (`null` = sin control de
       stock), orden, activo/inactivo
-- [x] RLS: cualquiera (incluso sin sesión) lee los productos activos; solo el propietario/desarrollador
-      ve los inactivos y crea/edita/borra (`is_owner()`, mismo criterio que `classes`)
+- [x] RLS: cualquiera (incluso sin sesión) lee los productos activos; solo admin/developer
+      ve los inactivos y crea/edita/borra (`is_staff()`, mismo criterio que `classes`)
 - [x] `price_cents >= 0` y `stock >= 0` garantizados por CHECK en la base
 - [x] 4 bloques de pruebas SQL (`supabase/tests/products.test.sql`, enganchado en `npm run test:db`):
-      visibilidad anon/usuario/dueño, permisos de escritura, precio no negativo, `updated_at`.
+      visibilidad anon/usuario/admin, permisos de escritura, precio no negativo, `updated_at`.
       Verificado rompiendo la política a propósito (el test falla como debe).
 - Fuera de esta fase, a propósito: el bucket de imágenes de producto (Fase 14) y el proveedor de pago
   (Fase 17+): el catálogo no sabe nada de cómo se cobra.
@@ -514,7 +532,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       (todos / visibles / ocultos / agotados), publicar/ocultar y confirmación antes de borrar. La base sigue
       decidiendo el permiso (RLS de la Fase 12); la interfaz solo ordena
 - [x] Subida de imagen del producto (reutiliza `resizeImage`; bucket `product-images` público con tope de 2 MB y
-      solo JPG/PNG/WebP, migración `20260929120000`; escribir, reemplazar y borrar: solo propietario/desarrollador).
+      solo JPG/PNG/WebP, migración `20260929120000`; escribir, reemplazar y borrar: solo admin/developer).
       La imagen vieja se borra recién con el cambio ya guardado, y si el guardado falla se borra la nueva
       (no quedan huérfanas), y solo si la URL es de nuestro bucket (`storagePathFromPublicUrl`)
 - [x] Precio ingresado en euros y guardado en **céntimos** con aritmética de enteros (`js/lib/product-form.js`):
@@ -522,10 +540,10 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 - [x] 10 pruebas unitarias (`tests/web/product-form.test.js`) — encontraron un bug real: un precio ausente (`null`)
       se rellenaba como `0` (`Number(null) === 0`), o sea "gratis"
 - [x] Pruebas de base de datos del bucket (`supabase/tests/products.test.sql`, sección 6): configuración del bucket,
-      usuario común y anon rechazados al subir/renombrar/borrar, propietario permitido. Verificadas rompiendo la
+      usuario común y anon rechazados al subir/renombrar/borrar, admin permitido. Verificadas rompiendo la
       política de subida a propósito (la prueba falla) y restaurándola (pasa)
 - [x] **E2E en navegador** (`tests/e2e/run.mjs`, backend simulado ampliado con lectura por rol, escrituras de `products`
-      con sus CHECK y un Storage simulado): sin sesión y usuario común → no ven el panel; la propietaria ve todo (borradores
+      con sus CHECK y un Storage simulado): sin sesión y usuario común → no ven el panel; el admin ve todo (borradores
       incluidos); precio inválido → mensaje y nada se escribe; crear con imagen (12,5 € → 1250 céntimos, nace oculto,
       imagen en `product-images/<id>/…`); oculto no aparece en la tienda, publicado sí; editar (precio rellenado en euros);
       borrar (borra también la imagen); un usuario común recibe 403 al escribir productos o subir imágenes
@@ -678,7 +696,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 ### Fase 28 · Súper-admin — modelo de datos de la agenda
 
 - [ ] Tablas `live_sessions` (fecha, hora, cupo, presencial/virtual) y `live_bookings` (quién se anotó a cuál)
-- [ ] La agenda es del rol `owner`/`developer` que ya existe (Fase 0); no hace falta un rol nuevo
+- [ ] La agenda es del rol `admin`/`developer` que ya existe (Fase 0); no hace falta un rol nuevo
 
 - [ ] **FASE 28 CUMPLIDA**
 

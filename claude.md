@@ -25,8 +25,8 @@ al bucket en `admin-sync-video`) y pruebas.
 | Nivel | Superficie | Puede | No puede |
 |---|---|---|---|
 | **Usuario final** | Sitio público (`index.html`, `videoteca.html`, `clase.html`, cuenta) | Ver catálogo, reproducir lo que tenga permitido, guardar su progreso, editar su perfil, comprar | Ver o llamar nada de administración |
-| **Propietario** (`owner`) | Panel de negocio (`/panel`), fuera de la app de usuarios | Clases, publicación, catálogo, usuarios, entitlements, pedidos, métricas | Recibir secretos, service role, claves de R2 o acceso directo a Supabase/R2/infra |
-| **Desarrollador** (`developer`) | Panel técnico interno (`/interno`), separado del de negocio | Diagnóstico, reconciliación, configuración, mantenimiento | — (todo queda auditado) |
+| **Admin** (`admin`) | Panel de gestión (`/panel`), fuera de la app de usuarios | Editar, publicar/despublicar y **borrar** clases; crear, editar, activar/ocultar y borrar productos; imágenes de producto y miniaturas | **Subir videos** (crear clases o reemplazar su video), cambiar roles, leer el historial interno, recibir secretos, service role, claves de R2 o acceso directo a Supabase/R2/infra |
+| **Desarrollador** (`developer`) | Panel de gestión + panel técnico interno (`/interno`) | Todo lo del admin **+ subir videos** + cambiar roles + historial interno, diagnóstico, reconciliación, configuración, mantenimiento | — (todo queda auditado) |
 
 - La autorización se valida **siempre en el servidor** (RLS + Edge Functions). Ocultar un botón nunca es un control.
 - Cada superficie tiene su propia entrada, sus propias funciones y sus propias pruebas de "acceso denegado".
@@ -40,7 +40,7 @@ interna de otro**. Sin dependencias circulares. Lo compartido vive solo en `comm
 | Módulo | Responsabilidad | Puede depender de |
 |---|---|---|
 | `common` | HTTP, errores, validación, config, rate limiting, idempotencia, auditoría | — |
-| `auth` | Sesión, roles, guardas (`requireUser/Owner/Developer`) | common |
+| `auth` | Sesión, roles, guardas (`requireUser/Staff/Developer`) | common |
 | `profiles` | Perfil propio (lectura/edición) | common, auth |
 | `catalog` | Lectura del catálogo publicado | common |
 | `classes` | Alta/edición/publicación/borrado lógico de clases | common, auth, catalog, r2 |
@@ -61,7 +61,7 @@ la migración a módulos con contrato es un objetivo futuro y se hace **de forma
 ## 4. Seguridad: reglas no negociables
 
 1. Nunca exponer en el frontend: service role key, claves de R2, secretos de webhooks, claves de pago.
-   El propietario tampoco los recibe.
+   El admin tampoco los recibe.
 2. **No** usar `select('*')` en tablas con columnas privadas (`classes` tiene `r2_object_key` restringida): listar columnas.
 3. **Nunca** conceder acceso por datos que envía el navegador (ni redirecciones de checkout): solo por webhook
    firmado y verificado en servidor.
@@ -147,7 +147,7 @@ Estado a 29/09/2026 (la hoja de ruta completa, Fases 0-39, está en el `README.m
   (periódico, al pausar, al salir, al terminar, retomar y empezar de cero)
 - [~] README con comandos de instalación y pruebas; faltan los pasos de despliegue definitivos con cuentas reales
 
-- [x] **Roles y auditoría** (`user`/`owner`/`developer`, historial inmutable): base de datos con `npm run test:db` y guardas
+- [x] **Roles y auditoría** (`user`/`admin`/`developer`, historial inmutable; subir videos solo `developer`): base de datos con `npm run test:db` y guardas
   con pruebas de "acceso denegado" por nivel
 - [~] **Puesta en marcha con cuentas reales**: guía (`docs/PUESTA-EN-MARCHA.md`), `npm run doctor[:online]` y
   `npm run test:integration` listos; **falta que el cliente cree las cuentas**

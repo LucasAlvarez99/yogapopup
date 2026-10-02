@@ -105,10 +105,12 @@ function classRow(row) {
     }, row.is_published ? 'Despublicar' : 'Publicar'),
   ];
   if (NEEDS_VIDEO.has(row.video_status)) {
-    actions.push(el('button', {
-      type: 'button', class: 'btn btn-sm btn-outline-brand',
-      onclick: () => retryUpload(row),
-    }, row.video_status === 'failed' ? 'Reintentar video' : 'Subir video'));
+    actions.push(session.canUpload()
+      ? el('button', {
+        type: 'button', class: 'btn btn-sm btn-outline-brand',
+        onclick: () => retryUpload(row),
+      }, row.video_status === 'failed' ? 'Reintentar video' : 'Subir video')
+      : el('span', { class: 'text-muted small align-self-center', title: 'Subir videos lo hace el equipo técnico.' }, 'Falta el video'));
   }
   if (row.video_status === 'processing' || row.video_status === 'uploading') {
     actions.push(el('button', {
@@ -131,6 +133,11 @@ function classRow(row) {
 }
 
 function newClassButton() {
+  // El admin no sube videos: en vez del botón, un aviso que explica quién lo hace (el servidor y la base lo impiden igual).
+  if (!session.canUpload()) {
+    return el('p', { class: 'text-muted small mb-3' }, icon('info-circle'),
+      ' Podés editar, publicar, despublicar y eliminar clases. Subir videos nuevos lo hace el equipo técnico.');
+  }
   return el('button', {
     type: 'button', class: 'btn btn-brand mb-3',
     onclick: async () => { if (await openClassForm({ mode: 'create' })) loadClasses(); },
@@ -158,7 +165,8 @@ function renderTable() {
   if (activeTab !== 'classes') return; // el usuario ya cambió de pestaña: no pisar lo que está viendo
   const visible = classes.filter(FILTERS.find(([key]) => key === statusFilter)[2]);
   if (classes.length === 0) {
-    return mount(root, newClassButton(), emptyState('Todavía no hay clases', 'Creá la primera con el botón de arriba.'));
+    return mount(root, newClassButton(), emptyState('Todavía no hay clases',
+      session.canUpload() ? 'Creá la primera con el botón de arriba.' : 'Cuando el equipo técnico suba la primera, la vas a ver acá.'));
   }
   if (visible.length === 0) {
     return mount(root, newClassButton(), filterBar(), emptyState('No hay clases en este filtro', 'Probá con otro filtro de arriba.'));
@@ -222,7 +230,7 @@ function render() {
     return mount(outer, emptyState('Iniciá sesión para ver el panel', '',
       el('button', { type: 'button', class: 'btn btn-brand', onclick: () => openAuth() }, 'Iniciar sesión')));
   }
-  if (!session.isOwner()) {
+  if (!session.isStaff()) {
     return mount(outer, emptyState('Acceso restringido', 'Esta sección es solo para el equipo de gestión.'));
   }
   mount(outer, tabsHost, root);

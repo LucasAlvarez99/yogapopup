@@ -9,7 +9,7 @@ export interface RateLimit {
 
 /**
  * Límites por usuario y por función. Generosos para el uso normal (un reproductor pide como mucho una URL
- * nueva cada pocas horas; un propietario sube pocas clases por día) pero lo bastante bajos como para que
+ * nueva cada pocas horas; un developer sube pocas clases por día) pero lo bastante bajos como para que
  * una cuenta robada o un script en bucle no pueda disparar firmas de R2, borrados o subidas sin freno.
  */
 export const LIMITS = {

@@ -101,12 +101,13 @@ Debe terminar con **0 errores**. Los avisos (`!`) se leen y se deciden (p. ej. `
 
 1. Regístrate desde la web con tu correo y confírmalo.
 2. En Supabase → SQL Editor ejecuta `supabase/promote_role.example.sql` con tu correo (rol `developer`).
-3. La persona propietaria se registra igual y se le asigna `owner` con
-   `select public.set_user_role('<su id>', 'owner');` (queda en `audit_log`).
+3. La persona que gestiona el negocio se registra igual y se le asigna `admin` con
+   `select public.set_user_role('<su id>', 'admin');` (queda en `audit_log`). El `admin` edita, publica y borra
+   clases y gestiona productos, pero **no sube videos**: eso lo hace un `developer`.
 
 ## 8 · Primer video real (desarrollador)
 
-Desde el panel de negocio (con la cuenta `developer` u `owner`):
+Desde el panel de negocio (con una cuenta `developer`: el `admin` no puede subir videos):
 
 1. Abre el sitio (GitHub Pages o `npm run dev`) → menú de la cuenta → **Panel de negocio** → **Clases** → **Nueva clase**.
 2. Título, categoría y un video **mp4 (H.264/AAC)** de prueba, corto (30-60 s). Guardar: se ve una barra de progreso.

@@ -153,7 +153,8 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     }
     return params.get('limit') ? out.slice(0, Number(params.get('limit'))) : out;
   }
-  const isStaff = (u) => Boolean(u) && (u.role === 'owner' || u.role === 'developer');
+  const isStaff = (u) => Boolean(u) && (u.role === 'admin' || u.role === 'developer'); // gestión: admin y developer
+  const isDeveloper = (u) => Boolean(u) && u.role === 'developer'; // subir videos: solo developer
   const readRaw = (req) => new Promise((resolve) => { const chunks = []; req.on('data', (c) => chunks.push(c)); req.on('end', () => resolve(Buffer.concat(chunks))); });
   const pick = (row, cols) => Object.fromEntries(cols.map((c) => [c, row[c]]));
   const classPublic = (c) => { const { r2_object_key, ...rest } = c; return rest; };
@@ -190,11 +191,11 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       if (db.behavior.catalogLatencyMs) await new Promise((r) => setTimeout(r, db.behavior.catalogLatencyMs));
       if (db.behavior.catalogFail) return send(res, 503, { message: 'Service Unavailable' });
       const cols = select.split(',');
-      const visible = db.classes.filter((c) => c.is_published || isStaff(user)).map(classPublic); // RLS: público = publicadas; propietario/desarrollador = todas
+      const visible = db.classes.filter((c) => c.is_published || isStaff(user)).map(classPublic); // RLS: público = publicadas; admin/developer = todas
       return reply(applyFilters(visible, p).map((r) => pick(r, cols)));
     }
 
-    // Escrituras de classes (RLS: solo propietario/desarrollador) + el CHECK "publicada => video listo".
+    // Escrituras de classes (RLS: solo admin/developer; crear filas, solo developer) + el CHECK "publicada => video listo".
     if (table === 'classes' && req.method === 'PATCH') {
       if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
       if (!isStaff(user)) return reply([]); // RLS: sin permiso, el UPDATE no alcanza ninguna fila
@@ -221,7 +222,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       return reply(applyFilters(visible, p).map((r) => pick(r, cols)));
     }
 
-    // Escrituras de products: solo propietario/desarrollador (RLS de la Fase 12) + los CHECK de la tabla.
+    // Escrituras de products: solo admin/developer (RLS de la Fase 12) + los CHECK de la tabla.
     if (table === 'products' && ['POST', 'PATCH', 'DELETE'].includes(req.method)) {
       if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
       if (!isStaff(user)) return send(res, 403, { code: '42501', message: 'new row violates row-level security policy for table "products"' });
@@ -284,7 +285,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
   }
 
   function canAccess(user, c) {
-    if (user.role === 'owner' || user.role === 'developer') return true;
+    if (user.role === 'admin' || user.role === 'developer') return true;
     if (!c.is_published || c.video_status !== 'ready') return false;
     return c.access_level === 'free' || db.entitlements.has(`${user.id}|${c.id}`);
   }
@@ -371,7 +372,10 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
   async function adminFn(name, req, res) {
     const user = bearerUser(req);
     if (!user) return fnFail(res, 401, 'unauthenticated', 'Invalid or expired session');
-    if (!isStaff(user)) return fnFail(res, 403, 'owner_only', 'Owner access required');
+    // Subir es solo del developer; sincronizar y borrar, del personal de gestión (admin o developer).
+    if (name === 'admin-create-upload') {
+      if (!isDeveloper(user)) return fnFail(res, 403, 'developer_only', 'Developer access required');
+    } else if (!isStaff(user)) return fnFail(res, 403, 'admin_only', 'Admin access required');
     const body = await readBody(req);
     const find = () => db.classes.find((c) => c.id === body.class_id);
     const now = new Date().toISOString();

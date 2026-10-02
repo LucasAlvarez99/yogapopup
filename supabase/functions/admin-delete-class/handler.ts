@@ -16,7 +16,7 @@ export function createHandler(deps: HandlerDeps) {
     methods: ["POST"],
     allowedOrigins: config.allowedOrigins,
     run: async (req) => {
-      const actor = await auth.requireOwner(req);
+      const actor = await auth.requireStaff(req);
       await enforceRateLimit(limiter, "delete-class", actor.id, LIMITS.deleteClass);
       const classId = parseUuid((await readJson(req)).class_id, "class_id");
 

@@ -10,7 +10,6 @@ export class AppError extends Error {
 
 const MESSAGES = {
   unauthenticated: 'Tu sesión venció. Iniciá sesión de nuevo.',
-  owner_only: 'Esta acción es solo para el equipo de gestión.',
   developer_only: 'Esta acción es solo para el equipo técnico.',
   admin_only: 'Esta acción es solo para el equipo de gestión.',
   no_access: 'Esta clase no está incluida en tu acceso actual.',

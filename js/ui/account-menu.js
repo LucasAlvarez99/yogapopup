@@ -26,7 +26,7 @@ function open(anchor) {
     el('a', { class: 'yp-account-item', href: page('videoteca.html'), role: 'menuitem' }, icon('collection-play'), 'Videoteca'),
     // El enlace a /interno (session.isDeveloper()) se añade cuando esa página exista: no se muestra
     // ningún enlace a una página que todavía no está.
-    session.isOwner()
+    session.isStaff()
       ? el('a', { class: 'yp-account-item', href: page('panel.html'), role: 'menuitem' }, icon('kanban'), 'Panel de negocio')
       : null,
     el('button', {

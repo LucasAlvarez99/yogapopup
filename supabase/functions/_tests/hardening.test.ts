@@ -54,7 +54,7 @@ Deno.test("sync-video: una duración inválida se rechaza con 400 y no toca la c
   r2.putObject("classes/a/b.mp4");
   const h = createSync(deps);
   for (const bad of ["5", 1e12, -3, true, []]) {
-    const res = await h(post({ class_id: row.id, duration_seconds: bad }, "owner"));
+    const res = await h(post({ class_id: row.id, duration_seconds: bad }, "developer"));
     assert.equal(res.status, 400, JSON.stringify(bad));
     assert.equal(await errCode(res), "invalid_input");
   }
@@ -86,7 +86,7 @@ Deno.test("readJson: corta por Content-Length declarado sin leer el cuerpo, y ac
 
 Deno.test("endpoint: un cuerpo enorme da 413 por la vía normal (no 500)", async () => {
   const { deps } = makeDeps();
-  const res = await createUpload(deps)(post(JSON.stringify({ title: "x".repeat(20_000) }), "owner"));
+  const res = await createUpload(deps)(post(JSON.stringify({ title: "x".repeat(20_000) }), "developer"));
   assert.equal(res.status, 413);
   assert.equal(await errCode(res), "payload_too_large");
 });
@@ -94,7 +94,7 @@ Deno.test("endpoint: un cuerpo enorme da 413 por la vía normal (no 500)", async
 // =============================================================== cabeceras
 Deno.test("toda respuesta JSON (éxito y error) lleva nosniff y no-store", async () => {
   const { deps } = makeDeps();
-  const ok = await createUpload(deps)(post({ title: "A" }, "owner"));
+  const ok = await createUpload(deps)(post({ title: "A" }, "developer"));
   const denied = await createUpload(deps)(post({ title: "A" }));
   const wrongMethod = await createUpload(deps)(new Request("https://fn.test/x", { method: "GET" }));
   for (const r of [ok, denied, wrongMethod]) {
@@ -144,19 +144,19 @@ Deno.test("rate limit: las funciones administrativas también limitan (subida, c
   const row = repo.addClass({ r2_object_key: "classes/a/b.mp4", video_status: "pending" });
 
   const upload = createUpload(deps);
-  for (let i = 0; i < LIMITS.createUpload.max; i++) await upload(post({ title: `C${i}` }, "owner"));
-  assert.equal((await upload(post({ title: "una más" }, "owner"))).status, 429);
+  for (let i = 0; i < LIMITS.createUpload.max; i++) await upload(post({ title: `C${i}` }, "developer"));
+  assert.equal((await upload(post({ title: "una más" }, "developer"))).status, 429);
 
   const sync = createSync(deps);
-  for (let i = 0; i < LIMITS.syncVideo.max; i++) await sync(post({ class_id: row.id }, "owner"));
-  assert.equal((await sync(post({ class_id: row.id }, "owner"))).status, 429);
+  for (let i = 0; i < LIMITS.syncVideo.max; i++) await sync(post({ class_id: row.id }, "developer"));
+  assert.equal((await sync(post({ class_id: row.id }, "developer"))).status, 429);
 
   const del = createDelete(deps);
   const missing = crypto.randomUUID();
   for (let i = 0; i < LIMITS.deleteClass.max; i++) {
-    assert.equal((await del(post({ class_id: missing }, "owner"))).status, 404);
+    assert.equal((await del(post({ class_id: missing }, "developer"))).status, 404);
   }
-  assert.equal((await del(post({ class_id: missing }, "owner"))).status, 429);
+  assert.equal((await del(post({ class_id: missing }, "developer"))).status, 429);
 });
 
 Deno.test("rate limit: si el limitador se cae, la petición PASA (disponibilidad) y queda registrado", async () => {
@@ -230,7 +230,7 @@ Deno.test("sync-video: un objeto vacío o que no es video deja la clase en 'fail
     });
     r2.putObject("classes/a/b.mp4", size, contentType);
 
-    const res = await createSync(deps)(post({ class_id: row.id, duration_seconds: 600 }, "owner"));
+    const res = await createSync(deps)(post({ class_id: row.id, duration_seconds: 600 }, "developer"));
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.class.video_status, "failed", `${size}/${contentType}`);
@@ -243,29 +243,29 @@ Deno.test("sync-video: un archivo inválido no recibe la duración que mande el 
   const { deps, repo, r2 } = makeDeps();
   const row = repo.addClass({ r2_object_key: "classes/a/b.mp4", video_status: "pending" });
   r2.putObject("classes/a/b.mp4", 0);
-  const body = await (await createSync(deps)(post({ class_id: row.id, duration_seconds: 900 }, "owner"))).json();
+  const body = await (await createSync(deps)(post({ class_id: row.id, duration_seconds: 900 }, "developer"))).json();
   assert.equal(body.class.video_status, "failed");
   assert.equal(body.class.duration_seconds, null);
 });
 
 Deno.test("flujo completo: video inválido -> 'failed' -> reintento reemplaza la key y BORRA el objeto malo de R2", async () => {
   const { deps, repo, r2 } = makeDeps();
-  const created = await (await createUpload(deps)(post({ title: "Clase" }, "owner"))).json();
+  const created = await (await createUpload(deps)(post({ title: "Clase" }, "developer"))).json();
   const id = created.class.id as string;
   const badKey = [...repo.classes.values()][0].r2_object_key!;
   r2.putObject(badKey, 3, "text/html"); // el navegador "subió" otra cosa
 
-  const synced = await (await createSync(deps)(post({ class_id: id, duration_seconds: 600 }, "owner"))).json();
+  const synced = await (await createSync(deps)(post({ class_id: id, duration_seconds: 600 }, "developer"))).json();
   assert.equal(synced.class.video_status, "failed");
 
-  const retry = await (await createUpload(deps)(post({ title: "Clase", class_id: id }, "owner"))).json();
+  const retry = await (await createUpload(deps)(post({ title: "Clase", class_id: id }, "developer"))).json();
   const newKey = repo.classes.get(id)!.r2_object_key!;
   assert.notEqual(newKey, badKey);
   assert.equal(retry.class.video_status, "pending");
   assert.equal(r2.objects.has(badKey), false, "el objeto inválido no queda ocupando (ni cobrando) almacenamiento");
 
   r2.putObject(newKey, 8_000_000, "video/mp4");
-  const ok = await (await createSync(deps)(post({ class_id: id, duration_seconds: 600 }, "owner"))).json();
+  const ok = await (await createSync(deps)(post({ class_id: id, duration_seconds: 600 }, "developer"))).json();
   assert.equal(ok.class.video_status, "ready");
   assert.equal(ok.class.duration_seconds, 600);
 });

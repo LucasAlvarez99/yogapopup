@@ -49,6 +49,12 @@ Deno.test("assertVideoReady: solo 'ready' es éxito; 'failed' y todo lo demás e
   }
 });
 
+Deno.test("errors: los rechazos por rol tienen mensaje propio (y 'owner_only' ya no existe)", () => {
+  assert.match(messageFor(new AppError("admin_only")), /gestión/);
+  assert.match(messageFor(new AppError("developer_only")), /técnico/);
+  assert.doesNotMatch(messageFor(new AppError("owner_only")), /gestión|técnico/);
+});
+
 Deno.test("errors: los códigos nuevos del servidor tienen mensaje propio", () => {
   assert.match(messageFor(new AppError("rate_limited")), /Esper/);
   assert.match(messageFor(new AppError("upload_failed")), /subida/i);

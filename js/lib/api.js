@@ -26,7 +26,7 @@ function unwrap({ data, error }) {
 // ---------------------------------------------------------------- tienda (público)
 export const PRODUCT_COLUMNS = 'id,title,description,image_url,price_cents,stock,category,sort_order,created_at';
 
-/** Productos activos (la base solo deja ver esos a quien no es propietario). */
+/** Productos activos (la base solo deja ver esos a quien no es admin ni developer). */
 export async function listActiveProducts() {
   return unwrap(await db().from('products').select(PRODUCT_COLUMNS).eq('is_active', true)
     .order('sort_order', { ascending: true }).order('created_at', { ascending: false })) ?? [];
@@ -165,13 +165,13 @@ const PRODUCT_EDITABLE = ['title', 'description', 'image_url', 'price_cents', 's
 const pickProductFields = (obj) => Object.fromEntries(Object.entries(obj).filter(([k]) => PRODUCT_EDITABLE.includes(k)));
 
 function productError(error) {
-  if (error.code === '42501') return new AppError('owner_only');
+  if (error.code === '42501') return new AppError('admin_only');
   if (error.code === '23514') return new AppError('invalid_input', 'Revisá los datos: hay un valor fuera de rango (precio, stock o largo de un texto).');
   if (error.code === 'PGRST116') return new AppError('product_not_found');
   return new AppError('internal_error', error.message);
 }
 
-/** Todos los productos, activos e inactivos (la base solo deja ver los inactivos al propietario). */
+/** Todos los productos, activos e inactivos (la base solo deja ver los inactivos a admin y developer). */
 export async function adminListProducts() {
   return unwrap(await db().from('products').select(PRODUCT_ADMIN_COLUMNS).order('created_at', { ascending: false })) ?? [];
 }

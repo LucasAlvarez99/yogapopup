@@ -6,9 +6,9 @@
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-0000000000c5', 'alumna@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000c6', 'alumno2@test.dev', '{}'),
-  ('00000000-0000-4000-8000-0000000000c7', 'owner-hard@test.dev', '{}'),
+  ('00000000-0000-4000-8000-0000000000c7', 'admin-hard@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000c8', 'dev-hard@test.dev', '{}');
-update public.profiles set role = 'owner' where id = '00000000-0000-4000-8000-0000000000c7';
+update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000c7';
 update public.profiles set role = 'developer' where id = '00000000-0000-4000-8000-0000000000c8';
 
 -- Clases de prueba (las inserta el superusuario de la prueba; los CHECK de la base siguen vigentes).
@@ -306,7 +306,7 @@ begin
   assert (select details ->> 'from' from public.audit_log where entity_id = pid::text and action = 'product.price_change') = '3000', 'precio anterior';
   assert (select details ->> 'to' from public.audit_log where entity_id = pid::text and action = 'product.price_change') = '3500', 'precio nuevo';
   assert (select actor_id from public.audit_log where entity_id = pid::text and action = 'product.price_change') = '00000000-0000-4000-8000-0000000000c7', 'queda quién lo hizo';
-  assert (select actor_role from public.audit_log where entity_id = pid::text and action = 'product.price_change') = 'owner', 'y con qué rol';
+  assert (select actor_role from public.audit_log where entity_id = pid::text and action = 'product.price_change') = 'admin', 'y con qué rol';
   assert (select count(*) from public.audit_log where entity_id = pid::text and action = 'product.activate') = 1, 'activar';
   assert (select count(*) from public.audit_log where entity_id = pid::text and action = 'product.deactivate') = 1, 'ocultar';
   assert (select count(*) from public.audit_log where entity_id = pid::text) = 3, 'ni stock, ni título, ni updates sin cambio de valor';

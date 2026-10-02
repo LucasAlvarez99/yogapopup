@@ -1,5 +1,9 @@
 # Blindaje de las Fases 0 a 16
 
+> **Nota posterior:** el rol `owner` que se menciona en este informe pasó a llamarse `admin` (migración
+> `20261002120000_roles_admin_developer.sql`), y desde entonces **subir videos es solo del `developer`**. Ver la tabla
+> de permisos en el README.
+
 Revisión de seguridad y robustez de todo lo construido antes de Cloudflare R2 real y pagos. Se auditó el código
 (backend, SQL, frontend, CI), se ejecutaron las pruebas existentes y se corrigieron las brechas encontradas, cada una
 con su prueba. Las migraciones anteriores **no se tocaron**: todo lo nuevo está en

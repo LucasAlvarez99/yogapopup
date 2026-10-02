@@ -2,15 +2,16 @@
 -- Requiere el esquema de tests/roles_and_audit.test.sql ya aplicado en la misma base (usa el mismo helper t.raises).
 
 insert into auth.users (id, email, raw_user_meta_data) values
-  ('00000000-0000-4000-8000-0000000000c1', 'owner2@test.dev', '{}');
-update public.profiles set role = 'owner' where id = '00000000-0000-4000-8000-0000000000c1';
+  ('00000000-0000-4000-8000-0000000000c1', 'admin2@test.dev', '{}');
+update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000c1';
 
 -- 1. Una clase sin video listo no se puede publicar (constraint ya vigente), y sin video
 --    "publicar" ni siquiera es una opción real: se prueba igual para no depender de eso.
 do $$ declare cid uuid; begin
+  -- La clase la crea el backend al preparar una subida (el admin ya no puede insertar en classes).
+  insert into public.classes (title) values ('clase sin video listo') returning id into cid;
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000c1', true);
   set local role authenticated;
-  insert into public.classes (title) values ('clase sin video listo') returning id into cid;
   perform t.raises(format($q$ update public.classes set is_published = true where id = %L $q$, cid), '23514');
   reset role;
 end $$;
@@ -27,7 +28,7 @@ do $$ declare cid uuid; begin
   assert exists (
     select 1 from public.audit_log
     where action = 'class.publish' and entity_type = 'class' and entity_id = cid::text
-      and actor_id = '00000000-0000-4000-8000-0000000000c1' and actor_role = 'owner'
+      and actor_id = '00000000-0000-4000-8000-0000000000c1' and actor_role = 'admin'
       and details = jsonb_build_object('title', 'clase lista')
   ), 'publicar debe quedar auditado con su actor';
 

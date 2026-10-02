@@ -17,29 +17,59 @@ function devOnlyEndpoint(deps: ReturnType<typeof makeDeps>["deps"]) {
   });
 }
 
-Deno.test("roles: matriz de acceso — usuario, propietario y desarrollador en cada nivel", async () => {
-  const { deps, repo } = makeDeps();
-  const c = repo.addClass();
-  const level = {
-    // función de negocio (owner o superior)
-    owner: [createUpload(deps), createSync(deps), createDelete(deps)],
+Deno.test("roles: matriz completa — quién puede qué (subir = developer · gestionar = admin y developer)", async () => {
+  const { deps, repo, r2 } = makeDeps();
+  const mkClass = () => {
+    const key = r2.newObjectKey(crypto.randomUUID());
+    r2.putObject(key);
+    return repo.addClass({ r2_object_key: key, video_status: "ready", is_published: false });
   };
-  const body = { title: "x", class_id: c.id };
+  // La subida crea su propia clase (sin class_id); sincronizar y borrar necesitan una clase existente.
+  const call = (h: (req: Request) => Promise<Response>, token?: string, creates = false) => () => {
+    if (creates) return h(post({ title: "x" }, token));
+    return h(post({ class_id: mkClass().id }, token));
+  };
 
-  for (const h of level.owner) {
-    assert.equal((await h(post(body))).status, 401, "sin sesión");
-    const asUser = await h(post(body, "user"));
-    assert.equal(asUser.status, 403);
-    assert.equal(await codeOf(asUser), "owner_only");
+  // [función, quién entra, código de rechazo]
+  const upload = {
+    name: "admin-create-upload",
+    h: createUpload(deps),
+    allowed: ["developer"],
+    deny: "developer_only",
+    creates: true,
+  };
+  const sync = {
+    name: "admin-sync-video",
+    h: createSync(deps),
+    allowed: ["admin", "developer"],
+    deny: "admin_only",
+    creates: false,
+  };
+  const del = {
+    name: "admin-delete-class",
+    h: createDelete(deps),
+    allowed: ["admin", "developer"],
+    deny: "admin_only",
+    creates: false,
+  };
+
+  for (const fn of [upload, sync, del]) {
+    assert.equal((await call(fn.h, undefined, fn.creates)()).status, 401, `${fn.name}: sin sesión`);
+    for (const role of ["user", "admin", "developer"]) {
+      const res = await call(fn.h, role, fn.creates)();
+      if (fn.allowed.includes(role)) {
+        assert.equal(res.status, 200, `${fn.name}: ${role} debe poder`);
+      } else {
+        assert.equal(res.status, 403, `${fn.name}: ${role} NO debe poder`);
+        assert.equal(await codeOf(res), fn.deny, `${fn.name}: código de rechazo para ${role}`);
+      }
+    }
   }
-  // propietario y desarrollador sí entran a las funciones de negocio
-  assert.equal((await createUpload(deps)(post({ title: "de owner" }, "owner"))).status, 200);
-  assert.equal((await createUpload(deps)(post({ title: "de developer" }, "developer"))).status, 200);
 
-  // el nivel técnico: solo el desarrollador
+  // el nivel técnico (roles, historial): solo el developer
   const tech = devOnlyEndpoint(deps);
   assert.equal((await tech(post({}))).status, 401);
-  for (const token of ["user", "owner"]) {
+  for (const token of ["user", "admin"]) {
     const r = await tech(post({}, token));
     assert.equal(r.status, 403, `${token} no debe entrar al nivel técnico`);
     assert.equal(await codeOf(r), "developer_only");
@@ -47,6 +77,43 @@ Deno.test("roles: matriz de acceso — usuario, propietario y desarrollador en c
   const ok = await tech(post({}, "developer"));
   assert.equal(ok.status, 200);
   assert.equal((await ok.json()).actor, DEV_ID);
+});
+
+Deno.test("admin NO sube: se le rechaza sin crear la clase, sin tocar R2 y sin dejar rastro", async () => {
+  const { deps, repo, r2, audit } = makeDeps();
+  const existing = repo.addClass({ video_status: "failed" });
+
+  // crear una clase nueva con video
+  const create = await createUpload(deps)(post({ title: "Intento del admin" }, "admin"));
+  assert.equal(create.status, 403);
+  assert.equal(await codeOf(create), "developer_only");
+  // reintentar / reemplazar el video de una clase existente (la otra vía de "subir")
+  const retry = await createUpload(deps)(post({ title: "x", class_id: existing.id }, "admin"));
+  assert.equal(retry.status, 403);
+
+  assert.equal(repo.classes.size, 1, "no se creó ninguna clase");
+  assert.equal(repo.classes.get(existing.id)!.r2_object_key, null, "la clase existente no recibió un video");
+  assert.equal(r2.calls.filter((c) => c.op === "createUploadUrl").length, 0, "no se firmó ninguna URL de subida a R2");
+  assert.equal(audit.entries.length, 0, "no hay entradas de auditoría de una acción que no ocurrió");
+});
+
+Deno.test("admin SÍ gestiona: confirma/consulta video, despublica por estado y borra clase + video, con auditoría a su nombre", async () => {
+  const { deps, repo, r2, audit } = makeDeps();
+  const key = r2.newObjectKey(crypto.randomUUID());
+  r2.putObject(key);
+  const c = repo.addClass({ title: "Para borrar", r2_object_key: key, video_status: "uploading", is_published: false });
+
+  const sync = await createSync(deps)(post({ class_id: c.id, duration_seconds: 600 }, "admin"));
+  assert.equal(sync.status, 200);
+  assert.equal((await sync.json()).class.video_status, "ready");
+
+  const del = await createDelete(deps)(post({ class_id: c.id }, "admin"));
+  assert.equal(del.status, 200);
+  assert.equal(repo.classes.has(c.id), false, "la clase se borró");
+  assert.equal(r2.objects.has(key), false, "y su video también");
+  assert.equal(audit.entries.length, 1);
+  assert.equal(audit.entries[0].action, "class.delete");
+  assert.equal(audit.entries[0].actorId, ADMIN_ID, "queda registrado QUIÉN borró");
 });
 
 Deno.test("roles: el usuario final solo usa la app pública (playback), nunca la administración", async () => {
@@ -63,10 +130,10 @@ Deno.test("roles: el usuario final solo usa la app pública (playback), nunca la
 
 Deno.test("auditoría: subir un video registra quién, qué y sobre qué (best effort)", async () => {
   const { deps, audit } = makeDeps();
-  const r = await createUpload(deps)(post({ title: "Yoga suave" }, "owner"));
+  const r = await createUpload(deps)(post({ title: "Yoga suave" }, "developer"));
   assert.equal(r.status, 200);
   assert.equal(audit.entries.length, 1);
-  assert.equal(audit.entries[0].actorId, ADMIN_ID);
+  assert.equal(audit.entries[0].actorId, DEV_ID);
   assert.equal(audit.entries[0].action, "class.upload_prepared");
   assert.equal(audit.entries[0].entityType, "class");
   assert.equal(audit.entries[0].details?.title, "Yoga suave");
@@ -75,7 +142,7 @@ Deno.test("auditoría: subir un video registra quién, qué y sobre qué (best e
 Deno.test("auditoría: si falla el registro, subir NO se rompe (no es destructivo)", async () => {
   const { deps, audit, repo } = makeDeps();
   audit.fail = true;
-  const r = await createUpload(deps)(post({ title: "Yoga suave" }, "owner"));
+  const r = await createUpload(deps)(post({ title: "Yoga suave" }, "developer"));
   assert.equal(r.status, 200);
   assert.equal(repo.classes.size, 1);
 });
@@ -87,7 +154,7 @@ Deno.test("auditoría: borrar registra ANTES de borrar y, si no se puede auditar
   const c = repo.addClass({ title: "A borrar", r2_object_key: key, is_published: false });
 
   audit.fail = true; // el historial no responde
-  const blocked = await createDelete(deps)(post({ class_id: c.id }, "owner"));
+  const blocked = await createDelete(deps)(post({ class_id: c.id }, "admin"));
   assert.equal(blocked.status, 500);
   assert.equal(repo.classes.has(c.id), true, "la clase sigue existiendo");
   assert.equal(r2.objects.has(key), true, "el objeto en R2 sigue existiendo");
@@ -112,7 +179,7 @@ Deno.test("auditoría: un usuario rechazado por permisos no deja registros ni ef
 
 Deno.test("contrato: el frontend traduce los códigos de rol que devuelve el backend", async () => {
   const messages = await Deno.readTextFile(new URL("../../../js/lib/errors.js", import.meta.url));
-  for (const code of ["owner_only", "developer_only"]) {
+  for (const code of ["admin_only", "developer_only"]) {
     assert.ok(messages.includes(code), `errors.js no traduce ${code}`);
   }
 });
