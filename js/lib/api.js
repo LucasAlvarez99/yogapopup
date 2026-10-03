@@ -2,6 +2,7 @@ import { cfg } from './env.js';
 import { supabase } from './supabase.js';
 import { accessToken } from './session.js';
 import { AppError } from './errors.js';
+import { fitImage, storageUploadError } from './image.js';
 import { storagePathFromPublicUrl } from './product-form.js';
 
 /**
@@ -146,7 +147,7 @@ export async function uploadThumbnail(classId, blob) {
   const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
   const path = `${classId}/${crypto.randomUUID()}.${ext}`;
   const { error } = await db().storage.from(THUMB_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
-  if (error) throw new AppError('internal_error', 'No se pudo subir la miniatura.');
+  if (error) { console.warn('[storage] class-thumbnails upload:', error); throw storageUploadError(error, 'No se pudo subir la miniatura.'); }
   return db().storage.from(THUMB_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
@@ -203,7 +204,7 @@ export async function uploadProductImage(productId, blob) {
   const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
   const path = `${productId}/${crypto.randomUUID()}.${ext}`;
   const { error } = await db().storage.from(PRODUCT_IMAGE_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
-  if (error) throw new AppError('internal_error', 'No se pudo subir la imagen.');
+  if (error) { console.warn('[storage] product-images upload:', error); throw storageUploadError(error, 'No se pudo subir la imagen.'); }
   return db().storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
@@ -255,16 +256,21 @@ export function readVideoDuration(file) {
 }
 
 /** Reduce una imagen a un ancho máximo y la convierte a WebP (ahorra almacenamiento y ancho de banda). */
-export async function resizeImage(file, { maxWidth = 1280, quality = 0.82 } = {}) {
+export async function resizeImage(file) {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new AppError('invalid_input', 'La imagen debe ser JPG, PNG o WebP.');
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxWidth / bitmap.width);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close?.();
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
-  if (!blob) throw new AppError('internal_error', 'No se pudo procesar la imagen.');
-  return blob;
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); } catch { throw new AppError('invalid_input', 'No se pudo leer la imagen. Prueba con otro archivo.'); }
+  try {
+    const canvas = document.createElement('canvas');
+    const encode = (width, type, quality) => {
+      const scale = Math.min(1, width / bitmap.width);
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+    };
+    return await fitImage(encode); // WebP si el navegador sabe; JPEG si no (Safari); y siempre bajo el tope del bucket
+  } finally {
+    bitmap.close?.();
+  }
 }

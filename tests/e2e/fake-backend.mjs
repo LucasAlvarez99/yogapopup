@@ -47,7 +47,7 @@ function seed() {
       { id: '10000000-0000-4000-8000-000000000003', title: 'Remera Pop Up', description: 'Algodón orgánico.', image_url: null, price_cents: 1999, stock: 0, category: 'Ropa', sort_order: 2, is_active: true, created_at: now },
       { id: '10000000-0000-4000-8000-000000000004', title: 'Producto borrador', description: null, image_url: null, price_cents: 500, stock: null, category: 'Ropa', sort_order: 3, is_active: false, created_at: now },
     ],
-    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false },
+    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null },
     log: { saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [] },
     storage: new Map(), // Storage simulado: '<bucket>/<ruta>' -> { type, data }
     r2objects: new Map(), // R2 simulado: key -> bytes subidos por PUT (las clases de la semilla ya tienen su video)
@@ -352,6 +352,10 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       return send(res, 200, prefixes.map((name) => ({ name })));
     }
     if (['POST', 'PUT'].includes(req.method) && bucketOf(path)) {
+      // storageReject simula lo que Storage devuelve de verdad: 'rls' = sin permiso · 'size' = pasa el tope del bucket · 'bucket' = no existe
+      if (db.behavior.storageReject === 'rls') { req.resume(); return denied(res); }
+      if (db.behavior.storageReject === 'size') { req.resume(); return send(res, 413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' }); }
+      if (db.behavior.storageReject === 'bucket') { req.resume(); return send(res, 404, { statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' }); }
       if (!isStaff(user)) return denied(res);
       const file = multipartFile(await readRaw(req), req.headers['content-type']);
       if (file.data.length > 2 * 1024 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type)) return send(res, 400, { statusCode: '415', error: 'invalid_mime_type', message: 'mime type not supported or file too large' });

@@ -126,6 +126,11 @@ Para abrir el registro al público falta lo que solo el titular del negocio pued
 Tampoco hace falta un aviso de cookies mientras solo se use el almacenamiento necesario (sesión y carrito, como ahora).
 Si se añade analítica, publicidad o contenido de terceros que use cookies, hace falta consentimiento previo y actualizar la política.
 
+> **Si un admin no puede subir imágenes** (productos o miniaturas): el aviso de la pantalla ahora dice el motivo
+> (sin permiso, imagen demasiado pesada, falta el bucket). Si es de permisos, `supabase/diagnostico_imagenes.sql`
+> (solo lectura, para el SQL Editor) muestra en qué falla la base. La imagen se reduce a WebP y, en Safari (que no sabe
+> codificar WebP), a JPEG, siempre por debajo de los 2 MB del bucket.
+
 ## 8 · Primer video real (desarrollador)
 
 Desde el panel de negocio (con una cuenta `developer`: el `admin` no puede subir videos):

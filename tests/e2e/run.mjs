@@ -1210,6 +1210,58 @@ await test('panel · Productos: ver todo, crear con imagen, publicar, editar el 
   assert.equal(st.products.length, 4, 'quedan los 4 productos de la semilla');
 });
 
+/** Abre "Nuevo producto", lo rellena y (opcionalmente) adjunta una imagen. No envía. */
+async function fillNewProduct(page, title, imagePath) {
+  await clickTab(page, 'Productos');
+  await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });
+  await page.evaluate(() => [...document.querySelectorAll('#panelContent button')].find((b) => b.textContent.includes('Nuevo producto')).click());
+  await page.waitForSelector('#pfTitle', { visible: true });
+  await productModalReady(page);
+  await page.type('#pfTitle', title);
+  await page.type('#pfPrice', '9,90');
+  if (imagePath) await (await page.$('#pfImage')).uploadFile(imagePath);
+  await page.click('#productFormModal button[type=submit]');
+}
+
+await test('panel · Productos (admin): un admin crea un producto Y sube su foto (no solo el developer)', async (page) => {
+  const image = await makeTestImage();
+  await loginAsAdmin(page);
+  await page.waitForSelector('.nav-tabs');
+  await fillNewProduct(page, 'Foto del admin', image);
+  await productModalClosed(page);
+  const st = await be.state();
+  const created = st.products.find((p) => p.title === 'Foto del admin');
+  assert.ok(created, 'el producto se creó');
+  assert.ok(created.image_url?.includes('/product-images/'), `el admin subió la foto: ${created.image_url}`);
+  assert.equal(st.storageKeys.length, 1, 'se guardó exactamente una imagen');
+  assert.ok(st.log.storage.some((l) => l.op === 'upload' && /^image\/(webp|jpeg)$/.test(l.type)), 'se subió como WebP o JPEG (nunca un PNG pesado)');
+  assert.ok(st.log.storage.every((l) => l.op !== 'upload' || l.bytes <= 2 * 1024 * 1024), 'ninguna imagen supera el tope del bucket');
+});
+
+await test('panel · Productos: si Storage rechaza la imagen, el aviso dice el MOTIVO real (permiso, tamaño, bucket)', async (page) => {
+  const image = await makeTestImage();
+  await loginAsDeveloper(page);
+  await page.waitForSelector('.nav-tabs');
+  const cases = [
+    ['rls', 'Sin permiso', /no tiene permiso para subir imágenes/],
+    ['size', 'Demasiado grande', /pesa demasiado/],
+    ['bucket', 'Sin bucket', /Falta el almacenamiento de imágenes/],
+  ];
+  for (const [mode, title, expected] of cases) {
+    await be.behavior({ storageReject: mode });
+    await fillNewProduct(page, title, image);
+    await toastHas(page, 'El producto se creó, pero la imagen falló');
+    const msg = await page.evaluate(() => [...document.querySelectorAll('.yp-toast')].map((n) => n.textContent).join(' | '));
+    assert.match(msg, expected, `modo ${mode}: ${msg}`);
+    assert.doesNotMatch(msg, /inesperado/, 'ya no se muestra el aviso genérico');
+    await productModalClosed(page);
+    await page.evaluate(() => document.querySelectorAll('.yp-toast').forEach((n) => n.remove()));
+  }
+  const st = await be.state();
+  assert.equal(st.storageKeys.length, 0, 'no quedó ninguna imagen guardada');
+  assert.equal(st.products.filter((p) => ['Sin permiso', 'Demasiado grande', 'Sin bucket'].includes(p.title)).length, 3, 'los productos sí se crearon (sin imagen)');
+});
+
 await test('panel · Productos: un usuario común no puede escribir productos ni subir imágenes (la base lo rechaza)', async () => {
   await signup('intruso@test.dev');
   const tok = await (await fetch(`${be.origin.api}/auth/v1/token?grant_type=password`, { method: 'POST', body: JSON.stringify({ email: 'intruso@test.dev', password: PASS }) })).json();
