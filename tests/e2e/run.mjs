@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { IDS, PRODUCT_IDS, startBackend } from './fake-backend.mjs';
@@ -33,10 +33,16 @@ if (!chromePath) {
   process.exit(2);
 }
 
-const be = await startBackend({ siteRoot: root });
+// Por defecto se sirve el repositorio tal cual. Con E2E_SITE_ROOT=dist se prueba el sitio CONSTRUIDO (con su CSP):
+// cualquier recurso que la política bloquee aparece como error de consola y hace fallar la prueba.
+const siteRoot = process.env.E2E_SITE_ROOT ? resolve(root, process.env.E2E_SITE_ROOT) : root;
+const be = await startBackend({ siteRoot });
 const browser = await puppeteer.launch({
   executablePath: chromePath,
   headless: process.env.CHROME_HEADLESS_SHELL ? 'shell' : true,
+  // Por defecto Puppeteer espera 180 s a que una llamada al navegador responda. Si algo se cuelga (p. ej. un diálogo
+  // abierto en una pestaña en segundo plano) se quiere un error rápido, no tres minutos de silencio.
+  protocolTimeout: 60_000,
   args: ['--no-sandbox', '--disable-dev-shm-usage', '--autoplay-policy=no-user-gesture-required', '--mute-audio'],
 });
 
@@ -918,7 +924,11 @@ await test('panel · Clases: crear con video real, publicar, editar, despublicar
   const publicTitles = async () => {
     await other.goto(`${S}/videoteca.html`);
     await waitFor(other, () => document.querySelectorAll('.video-card').length > 0);
-    return other.$$eval('.video-info h3', (n) => n.map((x) => x.textContent.trim()));
+    const titles = await other.$$eval('.video-info h3', (n) => n.map((x) => x.textContent.trim()));
+    // Chrome real (no el modo headless antiguo) trata la otra pestaña como "en segundo plano": ahí un confirm() o una
+    // animación del panel no avanzan. Se vuelve a la pestaña del panel antes de seguir operándola.
+    await page.bringToFront();
+    return titles;
   };
   try {
     assert.ok(!(await publicTitles()).includes('Clase E2E nueva'), 'sin publicar no se ve en la videoteca');

@@ -57,5 +57,11 @@ Deno.test("errors: los rechazos por rol tienen mensaje propio (y 'owner_only' ya
 
 Deno.test("errors: los códigos nuevos del servidor tienen mensaje propio", () => {
   assert.match(messageFor(new AppError("rate_limited")), /Esper/);
-  assert.match(messageFor(new AppError("upload_failed")), /subida/i);
+});
+
+Deno.test("errors: los mensajes específicos de la subida NO se pisan con uno genérico (regresión detectada por el E2E)", () => {
+  // uploadVideoToR2 rechaza con estos textos; el panel (y el E2E) buscan "La subida falló".
+  for (const msg of ["La subida falló: error de red.", "La subida falló (estado 403).", "Subida cancelada."]) {
+    assert.equal(messageFor(new AppError("upload_failed", msg)), msg);
+  }
 });

@@ -49,6 +49,12 @@ jobs:
       - run: npm run test:e2e
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+      # La misma suite contra el sitio CONSTRUIDO y con la CSP de producción: si algo que la política prohíbe vuelve a
+      # colarse (un script o estilo inline, un host no permitido), el navegador lo bloquea y esto falla.
+      - name: E2E bajo la CSP de producción
+        run: npm run test:e2e:csp
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
 
   db:
     name: Base de datos (migraciones + permisos por rol)

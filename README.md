@@ -12,7 +12,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 >
 > **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 87 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
-> verificadas rompiendo la migración a propósito) · **44 pruebas E2E** en Chromium real, todas en verde (30/09/2026, incluidas las 2 de la
+> verificadas rompiendo la migración a propósito) · **45 pruebas E2E** en Chromium real, todas en verde (02/10/2026, incluidas las 2 de la
 > tienda de la Fase 13, las del panel —acceso por rol, lista de clases, CRUD completo de productos con imagen y 4 del ciclo de vida de las clases— y 8 del carrito de la Fase 16).
 >
 > **Roles hechos:** `user` / `admin` / `developer` (el developer es superconjunto del admin; la diferencia: **solo el developer sube videos**), historial de
@@ -36,7 +36,8 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > npm run verify                                 # formato + lint + tipos + pruebas de backend y frontend
 > npm run test:db                                # base de datos (requiere PostgreSQL y bash)
 > npm run doctor                                 # ¿la configuración está lista para producción?
-> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 44 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
+> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 45 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
+> npm run test:e2e:csp                          # las mismas, contra el sitio construido y con la CSP de producción
 > npm run dev                                    # sitio en http://localhost:3000 (o Live Server: index.html → botón "Go Live")
 > npm run build                                  # arma dist/ (lo único que se sube a Hostinger)
 > ```

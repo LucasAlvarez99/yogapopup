@@ -25,6 +25,7 @@
     "sb:deploy": "node scripts/supabase.mjs deploy",
     "deno:lock": "deno cache --config supabase/functions/deno.json --lock=deno.lock \"supabase/functions/*/index.ts\" \"supabase/functions/_tests/*.ts\"",
     "test:e2e": "node tests/e2e/run.mjs",
+    "test:e2e:csp": "node scripts/e2e-csp.mjs",
     "test:web": "deno test --allow-read --config supabase/functions/deno.json tests/web",
     "test:db": "bash supabase/tests/run.sh",
     "doctor": "node scripts/doctor.mjs",

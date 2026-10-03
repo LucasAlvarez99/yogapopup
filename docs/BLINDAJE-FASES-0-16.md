@@ -67,8 +67,10 @@ El orden no es crítico: si las funciones nuevas llegan antes que la migración,
 ## Pendiente de verificar a mano (no se pudo automatizar en esta revisión)
 
 1. `npm run test:e2e` (necesita Chrome y ffmpeg; corre en CI, no se pudo ejecutar localmente en la revisión).
-2. Abrir cada página del sitio construido con la consola del navegador abierta y comprobar que **no hay avisos de CSP**
-   (login, catálogo, reproducción, tienda, panel, subida de video y de imágenes).
+2. ~~Abrir cada página con la consola abierta para buscar avisos de CSP~~ — **ya está automatizado**:
+   `npm run test:e2e:csp` corre toda la suite E2E contra el sitio construido y con la CSP de producción (login,
+   catálogo, reproducción, tienda, panel, subida de video e imágenes). Cualquier recurso bloqueado hace fallar el test.
+   Solo queda mirar a mano el sitio ya publicado, con los hosts reales de Supabase y R2.
 3. Subir un video real a R2 y comprobar la reproducción (verifica CORS del bucket + CSP juntos).
 
 ## Fuera de alcance / para la siguiente etapa
