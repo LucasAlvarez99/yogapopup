@@ -58,6 +58,7 @@ export function renderLayout(active) {
         col('Yoga Pop Up', 'Navegación', NAV.slice(0, 4)),
         col('Más', 'Más', NAV.slice(4)),
         socials),
-      el('p', { class: 'copyright' }, `© ${new Date().getFullYear()} Yoga Pop Up. Todos los derechos reservados.`)));
+      el('p', { class: 'copyright' }, `© ${new Date().getFullYear()} Yoga Pop Up. Todos los derechos reservados. · `,
+        el('a', { href: page('privacidad.html') }, 'Política de privacidad'))));
   }
 }

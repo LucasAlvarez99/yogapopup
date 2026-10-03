@@ -41,6 +41,14 @@ export function checkFrontendConfig(cfg = {}) {
   const fn = String(cfg.FUNCTIONS_URL || '');
   if (fn && url && !PLACEHOLDER.test(url) && !fn.startsWith(url)) out.push(warn('js/config.js · FUNCTIONS_URL', 'no cuelga de SUPABASE_URL'));
   if (!cfg.PRIVACY_URL) out.push(warn('js/config.js · PRIVACY_URL', 'vacío: el registro NO pide aceptar la política de privacidad (RGPD). Complétalo antes de abrir el registro.'));
+  else {
+    // La política muestra los datos del responsable desde LEGAL: sin ellos la página dice "pendiente de completar".
+    const labels = { NAME: 'nombre o razón social', TAX_ID: 'NIF/CIF', ADDRESS: 'domicilio', EMAIL: 'correo de contacto' };
+    const missing = Object.keys(labels).filter((k) => !String(cfg.LEGAL?.[k] || '').trim());
+    if (missing.length) out.push(warn('js/config.js · LEGAL', `faltan los datos del responsable de la política de privacidad: ${missing.map((k) => labels[k]).join(', ')}`));
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(cfg.LEGAL.EMAIL))) out.push(warn('js/config.js · LEGAL', `el correo de contacto (${cfg.LEGAL.EMAIL}) no parece válido`));
+    else out.push(ok('js/config.js · LEGAL', 'datos del responsable completos'));
+  }
   return out;
 }
 

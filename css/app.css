@@ -206,3 +206,11 @@
 .cart-alert { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding: .7rem .9rem; margin-bottom: 1rem; border-radius: var(--radius-sm); background: #fff7ed; color: #9a3412; font-size: .85rem; }
 .cart-alert .btn { margin-left: auto; }
 .cart-note { margin: 0 0 .8rem; font-size: .78rem; color: var(--color-text-muted); text-align: center; }
+
+/* ---- Páginas legales (política de privacidad) ---- */
+.legal { max-width: 46rem; }
+.legal h2 { font-size: 1.3rem; font-weight: 700; margin: 2.2rem 0 .6rem; }
+.legal p, .legal li { line-height: 1.65; }
+.legal ul { padding-left: 1.2rem; }
+.legal .legal-meta { color: var(--color-text-muted); font-size: .9rem; }
+.legal .yp-pending { background: #fff3cd; color: #664d03; padding: 0 .35em; border-radius: .3em; font-style: normal; }

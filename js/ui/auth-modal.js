@@ -1,5 +1,5 @@
 import { el, icon, mount } from '../lib/dom.js';
-import { cfg } from '../lib/env.js';
+import { privacyHref } from '../lib/legal.js';
 import { supabase } from '../lib/supabase.js';
 import * as session from '../lib/session.js';
 import { toast } from './toast.js';
@@ -97,11 +97,12 @@ function render() {
   }
 
   if (view === 'register') {
-    const consent = cfg.PRIVACY_URL
+    const policyUrl = privacyHref();
+    const consent = policyUrl
       ? el('div', { class: 'form-check mb-3' },
         el('input', { class: 'form-check-input', type: 'checkbox', id: 'authConsent', required: true }),
         el('label', { class: 'form-check-label', for: 'authConsent' }, 'He leído y acepto la ',
-          el('a', { href: cfg.PRIVACY_URL, target: '_blank', rel: 'noopener' }, 'política de privacidad')))
+          el('a', { href: policyUrl, target: '_blank', rel: 'noopener' }, 'política de privacidad')))
       : null;
     const f = el('form', { novalidate: true },
       field('authName', 'Nombre', { type: 'text', autocomplete: 'name', maxlength: 80 }),
@@ -118,7 +119,7 @@ function render() {
       if (consent && !f.authConsent.checked) return showError(f, 'Necesitamos que aceptes la política de privacidad.');
       setBusy(f, true, 'Crear cuenta');
       try {
-        const { needsConfirmation } = await session.signUp(email, pass, name);
+        const { needsConfirmation } = await session.signUp(email, pass, name, { privacyAccepted: consent ? f.authConsent.checked : false });
         if (needsConfirmation) return go('confirm-sent', `Enviamos un enlace de confirmación a ${email}.`);
         closeModal();
         toast('¡Bienvenida/o a Yoga Pop Up!', { type: 'success' });

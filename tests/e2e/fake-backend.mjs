@@ -47,7 +47,7 @@ function seed() {
       { id: '10000000-0000-4000-8000-000000000003', title: 'Remera Pop Up', description: 'Algodón orgánico.', image_url: null, price_cents: 1999, stock: 0, category: 'Ropa', sort_order: 2, is_active: true, created_at: now },
       { id: '10000000-0000-4000-8000-000000000004', title: 'Producto borrador', description: null, image_url: null, price_cents: 500, stock: null, category: 'Ropa', sort_order: 3, is_active: false, created_at: now },
     ],
-    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false },
+    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false },
     log: { saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [] },
     storage: new Map(), // Storage simulado: '<bucket>/<ruta>' -> { type, data }
     r2objects: new Map(), // R2 simulado: key -> bytes subidos por PUT (las clases de la semilla ya tienen su video)
@@ -113,7 +113,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       const email = String(body.email || '').toLowerCase();
       if (db.users.has(email)) return authErr(res, 422, 'user_already_exists', 'User already registered');
       if (String(body.password || '').length < 6) return authErr(res, 422, 'weak_password', 'Password should be at least 6 characters');
-      const u = { id: randomUUID(), email, password: body.password, name: body.data?.full_name || '', role: 'user' };
+      const u = { id: randomUUID(), email, password: body.password, name: body.data?.full_name || '', role: 'user', metadata: body.data || {} };
       db.users.set(email, u);
       return send(res, 200, db.behavior.confirmEmail ? userJson(u) : sessionFor(u));
     }
@@ -440,7 +440,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     try {
       if (url.pathname === '/__test/reset') { db = seed(); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
-      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name })), products: db.products, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
+      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata })), products: db.products, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
       if (url.pathname === '/__test/promote') { const b = await readBody(req); const u = [...db.users.values()].find((u) => u.email === b.email); if (u) u.role = b.role; return send(res, 200, { ok: true }); }
@@ -499,7 +499,10 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     const url = new URL(req.url, origin.site);
     if (url.pathname === '/js/config.js') {
       res.writeHead(200, { 'Content-Type': MIME['.js'] });
-      return res.end(`window.YOGAPOPUP_CONFIG = Object.freeze({ SUPABASE_URL: '${origin.api}', SUPABASE_ANON_KEY: 'e2e-anon-key', FUNCTIONS_URL: '${origin.api}/functions/v1', PRIVACY_URL: '', PROGRESS_INTERVAL_SECONDS: ${progressIntervalSeconds} });`);
+      // privacy: false = sin política (el registro no pide casilla) · 'full' = datos del titular completos · 'partial' = faltan algunos
+      const legal = { full: { NAME: 'Yoga Pop Up S.L.', TAX_ID: 'B12345678', ADDRESS: 'Calle Mayor 1, 28013 Madrid', EMAIL: 'hola@yogapopup.es' },
+        partial: { NAME: 'Yoga <b>Pop</b> Up S.L.', TAX_ID: '', ADDRESS: 'Calle Mayor 1, 28013 Madrid', EMAIL: 'hola@yogapopup.es' } }[db.behavior.privacy] || {};
+      return res.end(`window.YOGAPOPUP_CONFIG = Object.freeze({ SUPABASE_URL: '${origin.api}', SUPABASE_ANON_KEY: 'e2e-anon-key', FUNCTIONS_URL: '${origin.api}/functions/v1', PRIVACY_URL: '${db.behavior.privacy ? 'privacidad.html' : ''}', LEGAL: ${JSON.stringify(legal)}, PROGRESS_INTERVAL_SECONDS: ${progressIntervalSeconds} });`);
     }
     let path = decodeURIComponent(url.pathname);
     if (path.endsWith('/')) path += 'index.html';

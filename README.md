@@ -12,7 +12,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 >
 > **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 87 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
-> verificadas rompiendo la migración a propósito) · **45 pruebas E2E** en Chromium real, todas en verde (02/10/2026, incluidas las 2 de la
+> verificadas rompiendo la migración a propósito) · **48 pruebas E2E** en Chromium real, todas en verde (02/10/2026, incluidas las 2 de la
 > tienda de la Fase 13, las del panel —acceso por rol, lista de clases, CRUD completo de productos con imagen y 4 del ciclo de vida de las clases— y 8 del carrito de la Fase 16).
 >
 > **Roles hechos:** `user` / `admin` / `developer` (el developer es superconjunto del admin; la diferencia: **solo el developer sube videos**), historial de
@@ -36,7 +36,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > npm run verify                                 # formato + lint + tipos + pruebas de backend y frontend
 > npm run test:db                                # base de datos (requiere PostgreSQL y bash)
 > npm run doctor                                 # ¿la configuración está lista para producción?
-> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 45 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
+> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 48 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
 > npm run test:e2e:csp                          # las mismas, contra el sitio construido y con la CSP de producción
 > npm run dev                                    # sitio en http://localhost:3000 (o Live Server: index.html → botón "Go Live")
 > npm run build                                  # arma dist/ (lo único que se sube a Hostinger)
@@ -58,7 +58,19 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 
 "Subir" se impide en **tres capas**: la Edge Function `admin-create-upload` exige `developer`, la base solo deja insertar
 en `classes` al `developer`, y el panel no muestra las acciones de subida al admin. Cambiar el rol de alguien (solo un
-developer): `select public.set_user_role('<id>', 'admin');` — queda auditado.
+developer): en Supabase → Table Editor → `profiles`, editar la celda `role` (`user` / `admin` / `developer`) — queda auditado.
+(`set_user_role()` solo funciona con una sesión de developer, no desde el SQL Editor.)
+
+### Privacidad (RGPD / LOPDGDD)
+
+- `privacidad.html`: política con los apartados que exige el art. 13 del RGPD. Los datos del responsable **no están en el
+  HTML**: salen de `LEGAL` en `js/config.js` (si faltan, la página muestra «pendiente de completar» y `npm run doctor` avisa).
+- Registro: casilla obligatoria con enlace a la política (`PRIVACY_URL`). Al marcarla viaja la versión aceptada y el
+  trigger `handle_new_user()` guarda en `profiles` **`privacy_version`** y **`privacy_accepted_at`** (hora del servidor;
+  ninguna persona puede editarla ni falsearla). Cuentas anteriores: sin registro.
+- Al cambiar de fondo el texto (pagos, analítica, nuevos proveedores): actualizar `privacidad.html` y `PRIVACY_VERSION`
+  (`js/lib/legal.js`). El texto es una redacción base: **debe revisarlo el asesor legal del titular**.
+- Sin banner de cookies a propósito: solo se usa almacenamiento estrictamente necesario (sesión y carrito).
 
 ## Demo pública (GitHub Pages)
 

@@ -716,6 +716,85 @@ await test('cuenta: registro, sesión persistente tras recargar, menú y cierre 
   assert.equal(await page.$eval('[data-account-toggle]', (n) => n.classList.contains('has-session')), false);
 });
 
+await test('privacidad: la política muestra los datos del titular desde la configuración, como texto, y marca lo que falta', async (page) => {
+  await be.behavior({ privacy: 'partial' });
+  await page.goto(`${S}/privacidad.html`);
+  await waitFor(page, () => document.querySelector('[data-legal="NAME"]')?.textContent.length > 0);
+  const out = await page.evaluate(() => ({
+    name: document.querySelector('[data-legal="NAME"]').textContent,
+    nameHasMarkup: document.querySelector('[data-legal="NAME"]').children.length > 0,
+    taxPending: document.querySelector('[data-legal="TAX_ID"] .yp-pending')?.textContent ?? null,
+    address: document.querySelector('[data-legal="ADDRESS"]').textContent,
+    mail: document.querySelector('[data-legal="EMAIL"] a')?.getAttribute('href') ?? null,
+    version: document.querySelector('[data-privacy-version]').textContent,
+    date: document.querySelector('[data-privacy-date]').textContent,
+    sections: document.querySelectorAll('#policy h2').length,
+    footerLink: Boolean(document.querySelector('#siteFooter .copyright a[href$="privacidad.html"]')),
+    hero: document.querySelector('h1').textContent,
+  }));
+  assert.equal(out.name, 'Yoga <b>Pop</b> Up S.L.', 'un nombre con etiquetas se muestra como TEXTO, no como HTML');
+  assert.equal(out.nameHasMarkup, false, 'no se creó ningún elemento a partir del dato');
+  assert.match(out.taxPending, /pendiente de completar/, 'el dato que falta se ve como pendiente');
+  assert.equal(out.address, 'Calle Mayor 1, 28013 Madrid');
+  assert.equal(out.mail, 'mailto:hola@yogapopup.es');
+  assert.match(out.version, /^\d{4}-\d{2}-\d{2}$/);
+  assert.match(out.date, /\d{4}/);
+  assert.equal(out.sections, 11, 'la política tiene sus 11 apartados');
+  assert.ok(out.footerLink, 'el pie de página enlaza la política');
+  assert.equal(out.hero, 'Política de privacidad');
+});
+
+await test('registro con política: exige la casilla, abre la política y guarda la versión aceptada', async (page) => {
+  await be.behavior({ privacy: 'full' });
+  await page.goto(S);
+  await page.click('[data-account-toggle]');
+  await page.waitForSelector('#authEmail', { visible: true });
+  await modalReady(page);
+  await page.evaluate(() => [...document.querySelectorAll('.yp-tab')].find((b) => b.textContent === 'Crear cuenta').click());
+  await page.waitForSelector('#authConsent', { visible: true });
+
+  const link = await page.$eval('label[for="authConsent"] a', (a) => ({ href: a.getAttribute('href'), target: a.target, rel: a.rel }));
+  assert.match(link.href, /\/privacidad\.html$/);
+  assert.equal(link.target, '_blank');
+  assert.match(link.rel, /noopener/);
+
+  await page.type('#authName', 'Marta Privada');
+  await page.type('#authEmail', 'marta@test.dev');
+  await page.type('#authPass', PASS);
+
+  // Sin marcar la casilla: se rechaza y NO se crea la cuenta.
+  await page.click('.yp-auth button[type=submit]');
+  await page.waitForSelector('.yp-form-error');
+  assert.match(await text(page, '.yp-form-error'), /aceptes la política de privacidad/);
+  assert.equal((await be.state()).users.some((u) => u.email === 'marta@test.dev'), false, 'sin aceptar no hay cuenta');
+
+  // Marcada: se crea, y la versión aceptada viaja con el registro (la fecha la pone el servidor, no el navegador).
+  await page.click('#authConsent');
+  await page.click('.yp-auth button[type=submit]');
+  await waitFor(page, () => document.querySelector('[data-account-toggle]').classList.contains('has-session'));
+  const user = (await be.state()).users.find((u) => u.email === 'marta@test.dev');
+  assert.match(user.metadata.privacy_version, /^\d{4}-\d{2}-\d{2}$/, 'viaja la versión aceptada');
+  assert.equal(user.metadata.privacy_accepted_at, undefined, 'el navegador no manda una fecha propia');
+  assert.equal(user.metadata.full_name, 'Marta Privada');
+});
+
+await test('registro sin política configurada: no hay casilla y no se registra ninguna aceptación', async (page) => {
+  await page.goto(S);
+  await page.click('[data-account-toggle]');
+  await page.waitForSelector('#authEmail', { visible: true });
+  await modalReady(page);
+  await page.evaluate(() => [...document.querySelectorAll('.yp-tab')].find((b) => b.textContent === 'Crear cuenta').click());
+  await page.waitForSelector('#authName', { visible: true });
+  assert.equal(await page.$('#authConsent'), null, 'sin PRIVACY_URL no se muestra la casilla');
+  await page.type('#authName', 'Sin Politica');
+  await page.type('#authEmail', 'sinpolitica@test.dev');
+  await page.type('#authPass', PASS);
+  await page.click('.yp-auth button[type=submit]');
+  await waitFor(page, () => document.querySelector('[data-account-toggle]').classList.contains('has-session'));
+  const user = (await be.state()).users.find((u) => u.email === 'sinpolitica@test.dev');
+  assert.equal(user.metadata.privacy_version, undefined, 'sin casilla no se afirma ninguna aceptación');
+});
+
 await test('cuenta: registro que exige confirmar el correo, y recuperación de contraseña', async (page) => {
   await be.behavior({ confirmEmail: true });
   await page.goto(S);

@@ -1,6 +1,7 @@
 import { supabase } from './supabase.js';
 import { AppError } from './errors.js';
 import { page } from './env.js';
+import { consentMetadata } from './legal.js';
 import { canUploadRole, isDeveloperRole, isStaffRole } from './roles.js';
 
 /**
@@ -83,9 +84,11 @@ export async function signIn(email, password) {
 }
 
 /** @returns {Promise<{needsConfirmation: boolean}>} */
-export async function signUp(email, password, fullName) {
+export async function signUp(email, password, fullName, { privacyAccepted = false } = {}) {
   const { data, error } = await need().auth.signUp({
-    email, password, options: { data: { full_name: fullName || '' }, emailRedirectTo: page('index.html') },
+    email, password,
+    // `privacy_version` solo viaja si la persona marcó la casilla; la FECHA de aceptación la pone el servidor (trigger).
+    options: { data: { full_name: fullName || '', ...consentMetadata(privacyAccepted) }, emailRedirectTo: page('index.html') },
   });
   if (error) throw error;
   return { needsConfirmation: !data.session };

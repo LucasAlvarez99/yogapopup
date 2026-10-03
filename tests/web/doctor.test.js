@@ -117,3 +117,40 @@ Deno.test("doctor · jwtPayload no revienta con basura", () => {
   assert.equal(jwtPayload(undefined), null);
   assert.deepEqual(jwtPayload(jwt({ role: "anon" })), { role: "anon" });
 });
+
+Deno.test("doctor · frontend: los datos del responsable de la política de privacidad (LEGAL)", () => {
+  const base = {
+    SUPABASE_URL: "https://abcdwxyz.supabase.co",
+    SUPABASE_ANON_KEY: jwt({ role: "anon" }),
+    PRIVACY_URL: "privacidad.html",
+  };
+  const find = (cfg) => checkFrontendConfig(cfg).find((x) => x.name === "js/config.js · LEGAL");
+
+  const none = find(base);
+  assert.equal(none.level, "warn");
+  for (const f of ["nombre o razón social", "NIF/CIF", "domicilio", "correo de contacto"]) {
+    assert.match(none.detail, new RegExp(f));
+  }
+
+  const partial = find({ ...base, LEGAL: { NAME: "Yoga SL", TAX_ID: "   ", ADDRESS: "", EMAIL: "hola@yogapopup.es" } });
+  assert.equal(partial.level, "warn");
+  assert.match(partial.detail, /NIF\/CIF/);
+  assert.match(partial.detail, /domicilio/);
+  assert.doesNotMatch(partial.detail, /nombre o razón|correo/);
+
+  const badMail = find({
+    ...base,
+    LEGAL: { NAME: "Yoga SL", TAX_ID: "B12345678", ADDRESS: "Calle 1", EMAIL: "no-es-un-correo" },
+  });
+  assert.equal(badMail.level, "warn");
+  assert.match(badMail.detail, /correo/);
+
+  const full = find({
+    ...base,
+    LEGAL: { NAME: "Yoga SL", TAX_ID: "B12345678", ADDRESS: "Calle 1, Madrid", EMAIL: "hola@yogapopup.es" },
+  });
+  assert.equal(full.level, "ok");
+
+  // Sin PRIVACY_URL el aviso relevante es ese; no se apila otro por LEGAL.
+  assert.equal(find({ ...base, PRIVACY_URL: "" }), undefined);
+});

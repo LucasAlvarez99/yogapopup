@@ -16,7 +16,7 @@ Cada paso indica **quién** lo hace y **cómo comprobar** que salió bien. Tiemp
 | Cuenta en **UptimeRobot** (gratis) | Evitar que Supabase se pause | |
 | **Dominio** definitivo | CORS y enlaces de correo | Ej. `https://yogapopup.es` |
 | Proveedor de correo (Resend, Postmark…) | Correos de confirmación y recuperación | Ver paso 3 |
-| **Política de privacidad** publicada | RGPD/LOPDGDD | Su URL va en `PRIVACY_URL` |
+| **Datos del titular** (nombre/razón social, NIF/CIF, domicilio, correo) | Política de privacidad (RGPD/LOPDGDD) | Van en `LEGAL` de `js/config.js`; ver sección 7 bis |
 
 ## 1 · Preparar el proyecto en tu equipo (desarrollador)
 
@@ -101,9 +101,30 @@ Debe terminar con **0 errores**. Los avisos (`!`) se leen y se deciden (p. ej. `
 
 1. Regístrate desde la web con tu correo y confírmalo.
 2. En Supabase → SQL Editor ejecuta `supabase/promote_role.example.sql` con tu correo (rol `developer`).
-3. La persona que gestiona el negocio se registra igual y se le asigna `admin` con
-   `select public.set_user_role('<su id>', 'admin');` (queda en `audit_log`). El `admin` edita, publica y borra
-   clases y gestiona productos, pero **no sube videos**: eso lo hace un `developer`.
+3. La persona que gestiona el negocio se registra igual y se le asigna `admin`: en Supabase → **Table Editor → `profiles`**,
+   doble clic en su celda `role` y escribir `admin` (o por SQL:
+   `update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'correo@ejemplo.com');`).
+   Queda registrado en `audit_log`. El `admin` edita, publica y borra clases y gestiona productos, pero **no sube
+   videos**: eso lo hace un `developer`. *(`set_user_role()` no sirve desde el SQL Editor: exige una sesión de developer.)*
+
+## 7 bis · Política de privacidad (RGPD / LOPDGDD)
+
+El sitio ya trae la página `privacidad.html`, la casilla obligatoria en el registro y el registro de la aceptación.
+Para abrir el registro al público falta lo que solo el titular del negocio puede aportar:
+
+1. **Completar `LEGAL` en `js/config.js`:** nombre o razón social, NIF/CIF, domicilio y correo de contacto de privacidad.
+   Hasta entonces la página muestra «[pendiente de completar]» y `npm run doctor` lo avisa.
+2. **Que el asesor legal del titular revise el texto** de `privacidad.html`. Es una redacción base que describe lo que
+   el sitio hace hoy; no sustituye una revisión jurídica. Conviene confirmar en particular: la edad mínima (14 años),
+   los plazos de conservación y las transferencias internacionales.
+3. **Mantenerla al día:** si cambia lo que se hace con los datos (pagos, analítica, boletín, nuevos proveedores),
+   actualizar `privacidad.html` **y subir `PRIVACY_VERSION`** en `js/lib/legal.js`.
+4. **Comprobar quién aceptó y cuándo** (la hora la pone el servidor):
+   `select p.display_name, u.email, p.privacy_version, p.privacy_accepted_at from public.profiles p join auth.users u on u.id = p.id;`
+   Las cuentas creadas antes de esta función quedan con ambos campos vacíos (no consta aceptación).
+
+Tampoco hace falta un aviso de cookies mientras solo se use el almacenamiento necesario (sesión y carrito, como ahora).
+Si se añade analítica, publicidad o contenido de terceros que use cookies, hace falta consentimiento previo y actualizar la política.
 
 ## 8 · Primer video real (desarrollador)
 
