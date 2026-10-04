@@ -1,3 +1,4 @@
+import { knownCategories } from '../lib/catalog-fields.js';
 import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
 import { adminDeleteClass, adminListClasses, adminSyncVideo, adminUpdateClass } from '../lib/api.js';
@@ -82,7 +83,7 @@ async function removeClass(row) {
 }
 
 async function editClass(row) {
-  if (await openClassForm({ mode: 'edit', row })) loadClasses();
+  if (await openClassForm({ mode: 'edit', row, categories: knownCategories(classes) })) loadClasses();
 }
 
 async function retryUpload(row) {
@@ -140,7 +141,7 @@ function newClassButton() {
   }
   return el('button', {
     type: 'button', class: 'btn btn-brand mb-3',
-    onclick: async () => { if (await openClassForm({ mode: 'create' })) loadClasses(); },
+    onclick: async () => { if (await openClassForm({ mode: 'create', categories: knownCategories(classes) })) loadClasses(); },
   }, icon('plus-lg'), ' Nueva clase');
 }
 

@@ -1,3 +1,4 @@
+import { canonicalCategory, CATEGORY_HINT_CLASS, categoryProblem, cleanCategory, parseSortOrder, SORT_HINT } from '../lib/catalog-fields.js';
 import { el, mount } from '../lib/dom.js';
 import { LEVEL_LABELS } from '../lib/format.js';
 import { AppError, messageFor } from '../lib/errors.js';
@@ -36,8 +37,9 @@ function showError(form, message) {
   box.textContent = message;
 }
 
-function field(id, label, node) {
-  return el('div', { class: 'mb-3' }, el('label', { class: 'form-label', for: id }, label), node);
+function field(id, label, node, hint) {
+  return el('div', { class: 'mb-3' }, el('label', { class: 'form-label', for: id }, label), node,
+    hint ? el('div', { class: 'form-text' }, hint) : null);
 }
 
 function levelSelect(current) {
@@ -50,14 +52,20 @@ function accessSelect(current) {
     ...Object.entries(ACCESS_LABELS).map(([v, label]) => el('option', { value: v, selected: v === current }, label)));
 }
 
-function readMetaFromForm(form) {
+/** @returns {object} los campos de la clase, o `{ error }` si Categoría u Orden no son válidos. */
+function readMetaFromForm(form, { categories = [], previousCategory = null } = {}) {
+  const category = cleanCategory(form.cfCategory.value);
+  const categoryError = categoryProblem(category, { previous: previousCategory });
+  if (categoryError) return { error: categoryError };
+  const sort = parseSortOrder(form.cfSort.value);
+  if (sort.error) return { error: sort.error };
   return {
     title: form.cfTitle.value.trim(),
     description: form.cfDescription.value.trim() || null,
-    category: form.cfCategory.value.trim() || null,
+    category: canonicalCategory(category, categories) || null,
     level: form.cfLevel.value,
     access_level: form.cfAccess.value,
-    sort_order: Number(form.cfSort.value) || 0,
+    sort_order: sort.value,
   };
 }
 
@@ -65,7 +73,7 @@ function readMetaFromForm(form) {
  * @param {{mode: 'create'|'retry'|'edit', row?: object}} opts row es obligatorio en modo 'retry'/'edit'.
  * @returns {Promise<boolean>} true si se guardó/subió/creó algo, aunque la subida del video haya fallado (conviene refrescar la lista).
  */
-export function openClassForm({ mode = 'create', row = null } = {}) {
+export function openClassForm({ mode = 'create', row = null, categories = [] } = {}) {
   // Crear una clase o subir/reintentar su video es del developer. El panel ya no ofrece estas acciones al admin;
   // esta guarda evita abrir el formulario por un camino olvidado (el servidor y la base lo rechazan igual).
   if (mode !== 'edit' && !session.canUpload()) {
@@ -89,8 +97,14 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
       field('cfTitle', 'Título', el('input', { class: 'form-control', id: 'cfTitle', required: true, maxlength: 150, value: row?.title ?? '' })),
       field('cfDescription', 'Descripción', el('textarea', { class: 'form-control', id: 'cfDescription', rows: 3, maxlength: 5000 }, row?.description ?? '')),
       el('div', { class: 'row' },
-        el('div', { class: 'col-12 col-sm-6' }, field('cfCategory', 'Categoría', el('input', { class: 'form-control', id: 'cfCategory', maxlength: 60, value: row?.category ?? '' }))),
-        el('div', { class: 'col-12 col-sm-6' }, field('cfSort', 'Orden', el('input', { class: 'form-control', id: 'cfSort', type: 'number', value: String(row?.sort_order ?? 0), step: '1' })))),
+        el('div', { class: 'col-12 col-sm-6' }, field('cfCategory', 'Categoría',
+          el('input', { class: 'form-control', id: 'cfCategory', maxlength: 60, list: 'cfCategoryList', autocomplete: 'off', placeholder: 'Vinyasa', value: row?.category ?? '' }),
+          CATEGORY_HINT_CLASS),
+        // Categorías ya usadas: se sugieren al escribir, para no crear "vinyasa" y "Vinyasa" por separado.
+        el('datalist', { id: 'cfCategoryList' }, ...categories.map((c) => el('option', { value: c })))),
+        el('div', { class: 'col-12 col-sm-6' }, field('cfSort', 'Orden',
+          el('input', { class: 'form-control', id: 'cfSort', type: 'number', inputmode: 'numeric', value: String(row?.sort_order ?? 0), step: '1' }),
+          SORT_HINT))),
       el('div', { class: 'row' },
         el('div', { class: 'col-12 col-sm-6' }, field('cfLevel', 'Nivel', levelSelect(row?.level ?? 'todos'))),
         el('div', { class: 'col-12 col-sm-6' }, field('cfAccess', 'Acceso', accessSelect(row?.access_level ?? 'free')))),
@@ -119,7 +133,8 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
     const submitBtn = form.querySelector('button[type=submit]');
 
     if (mode === 'edit') {
-      const patch = readMetaFromForm(form);
+      const patch = readMetaFromForm(form, { categories, previousCategory: row.category });
+      if (patch.error) return showError(form, patch.error);
       if (!patch.title) return showError(form, 'El título es obligatorio.');
       submitBtn.disabled = true;
       try {
@@ -147,13 +162,16 @@ export function openClassForm({ mode = 'create', row = null } = {}) {
     if (fileProblem) return showError(form, fileProblem);
     const title = mode === 'retry' ? row.title : form.cfTitle.value.trim();
     if (mode !== 'retry' && !title) return showError(form, 'El título es obligatorio.');
+    // Categoría y Orden se validan ANTES de crear nada (un error aquí no debe dejar una clase a medias).
+    const meta = mode === 'retry' ? null : readMetaFromForm(form, { categories });
+    if (meta?.error) return showError(form, meta.error);
 
     submitBtn.disabled = true;
     aborted = false;
     try {
       const payload = mode === 'retry'
         ? { class_id: row.id, title: row.title, description: row.description, category: row.category, level: row.level, access_level: row.access_level, sort_order: row.sort_order }
-        : { ...(created ? { class_id: created.id } : {}), title, ...readMetaFromForm(form) };
+        : { ...(created ? { class_id: created.id } : {}), title, ...meta };
       progressText.textContent = mode === 'retry' ? 'Preparando la subida…' : 'Creando la clase…';
       progressBox.classList.remove('d-none');
       const firstAttempt = mode === 'create' && !created;

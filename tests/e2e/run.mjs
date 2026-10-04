@@ -1262,6 +1262,77 @@ await test('panel · Productos: si Storage rechaza la imagen, el aviso dice el M
   assert.equal(st.products.filter((p) => ['Sin permiso', 'Demasiado grande', 'Sin bucket'].includes(p.title)).length, 3, 'los productos sí se crearon (sin imagen)');
 });
 
+await test('panel · Productos: Categoría y Orden explican qué son, sugieren las ya usadas y no aceptan números como categoría', async (page) => {
+  await loginAsAdmin(page);
+  await page.waitForSelector('.nav-tabs');
+  await clickTab(page, 'Productos');
+  await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });
+  await page.evaluate(() => [...document.querySelectorAll('#panelContent button')].find((b) => b.textContent.includes('Nuevo producto')).click());
+  await page.waitForSelector('#pfTitle', { visible: true });
+  await productModalReady(page);
+
+  const ui = await page.evaluate(() => ({
+    hints: [...document.querySelectorAll('#productFormModal .form-text')].map((n) => n.textContent),
+    options: [...document.querySelectorAll('#pfCategoryList option')].map((o) => o.value),
+    listAttr: document.querySelector('#pfCategory').getAttribute('list'),
+  }));
+  assert.ok(ui.hints.some((h) => /agrupa los productos en la tienda/.test(h) && /Sin números/.test(h)), 'la pista de Categoría explica qué es');
+  assert.ok(ui.hints.some((h) => /menor aparece primero/.test(h)), 'la pista de Orden explica cómo ordena');
+  assert.equal(ui.listAttr, 'pfCategoryList');
+  await page.screenshot({ path: tmp('yp-panel-producto-pistas.png') });
+  assert.deepEqual(ui.options, ['Accesorios', 'Mats', 'Ropa'], 'sugiere las categorías que ya existen, sin repetir y ordenadas');
+
+  // Un número como categoría se rechaza con un motivo, y no se escribe nada.
+  const writesBefore = (await be.state()).log.products.length;
+  await page.type('#pfTitle', 'Porta mat');
+  await page.type('#pfPrice', '35');
+  await page.type('#pfCategory', '2');
+  await page.click('#productFormModal button[type=submit]');
+  await page.waitForSelector('#productFormModal .yp-form-error');
+  assert.match(await page.$eval('#productFormModal .yp-form-error', (e) => e.textContent), /texto.*no un número.*campo Orden/);
+  assert.equal((await be.state()).log.products.length, writesBefore, 'una categoría numérica no escribe nada');
+
+  // "ropa" (minúscula, con espacios) se guarda como "Ropa", la grafía que ya existe.
+  await page.$eval('#pfCategory', (i) => { i.value = ''; });
+  await page.type('#pfCategory', '  ropa ');
+  await page.click('#productFormModal button[type=submit]');
+  await productModalClosed(page);
+  const created = (await be.state()).products.find((p) => p.title === 'Porta mat');
+  assert.equal(created.category, 'Ropa', 'adopta la categoría existente en vez de crear "ropa" aparte');
+});
+
+await test('panel · Clases: Categoría y Orden explican qué son, sugieren las ya usadas y validan antes de guardar', async (page) => {
+  await loginAsAdmin(page);
+  await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });
+  await clickRowTitle(page, 'Yoga para principiantes', 'Editar datos de la clase');
+  await page.waitForSelector('#cfTitle', { visible: true });
+  await classModalReady(page);
+
+  const ui = await page.evaluate(() => ({
+    hints: [...document.querySelectorAll('#classFormModal .form-text')].map((n) => n.textContent),
+    options: [...document.querySelectorAll('#cfCategoryList option')].map((o) => o.value),
+  }));
+  assert.ok(ui.hints.some((h) => /agrupa las clases en la videoteca/.test(h)), 'la pista de Categoría explica qué es');
+  assert.ok(ui.hints.some((h) => /menor aparece primero/.test(h)), 'la pista de Orden explica cómo ordena');
+  assert.deepEqual(ui.options, ['Fuerza', 'Relajación', 'Vinyasa'], 'sugiere las categorías de las clases existentes');
+
+  // Categoría numérica: error visible, la clase NO se modifica.
+  const before = (await be.state()).classes.find((c) => c.title === 'Yoga para principiantes');
+  await page.$eval('#cfCategory', (i) => { i.value = ''; });
+  await page.type('#cfCategory', '7');
+  await page.click('#classFormModal button[type=submit]');
+  await page.waitForSelector('#classFormModal .yp-form-error');
+  assert.match(await page.$eval('#classFormModal .yp-form-error', (e) => e.textContent), /texto.*no un número/);
+  assert.equal((await be.state()).classes.find((c) => c.title === 'Yoga para principiantes').category, before.category, 'no se tocó la clase');
+
+  // "vinyasa" en minúscula se guarda como "Vinyasa".
+  await page.$eval('#cfCategory', (i) => { i.value = ''; });
+  await page.type('#cfCategory', 'vinyasa');
+  await page.click('#classFormModal button[type=submit]');
+  await classModalClosed(page);
+  assert.equal((await be.state()).classes.find((c) => c.title === 'Yoga para principiantes').category, 'Vinyasa');
+});
+
 await test('panel · Productos: un usuario común no puede escribir productos ni subir imágenes (la base lo rechaza)', async () => {
   await signup('intruso@test.dev');
   const tok = await (await fetch(`${be.origin.api}/auth/v1/token?grant_type=password`, { method: 'POST', body: JSON.stringify({ email: 'intruso@test.dev', password: PASS }) })).json();

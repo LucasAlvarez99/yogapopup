@@ -4,6 +4,7 @@
  * Regla de la Fase 12: el precio viaja y se guarda en CÉNTIMOS de euro (entero, nunca float).
  * Quien edita escribe euros ("19,99"); acá se convierte con aritmética de enteros, sin pasar por decimales.
  */
+import { canonicalCategory, categoryProblem, cleanCategory, parseSortOrder } from './catalog-fields.js';
 
 /** Tope: `price_cents` es integer en Postgres (máx. 2 147 483 647). Se deja un margen amplio. */
 export const MAX_PRICE_CENTS = 99_999_999; // 999.999,99 €
@@ -46,7 +47,7 @@ export function parseStock(input) {
  * Valida los campos crudos del formulario y arma el objeto que se guarda en `products`.
  * @returns {{ value: object } | { error: string }}
  */
-export function buildProductInput(raw) {
+export function buildProductInput(raw, { previousCategory = null, knownCategories: known = [] } = {}) {
   const title = String(raw.title ?? '').trim();
   if (!title) return { error: 'El título es obligatorio.' };
   if (title.length > 150) return { error: 'El título admite hasta 150 caracteres.' };
@@ -54,8 +55,10 @@ export function buildProductInput(raw) {
   const description = String(raw.description ?? '').trim();
   if (description.length > 5000) return { error: 'La descripción admite hasta 5000 caracteres.' };
 
-  const category = String(raw.category ?? '').trim();
+  const category = cleanCategory(raw.category);
   if (category.length > 60) return { error: 'La categoría admite hasta 60 caracteres.' };
+  const categoryError = categoryProblem(category, { previous: previousCategory });
+  if (categoryError) return { error: categoryError };
 
   const price_cents = eurosToCents(raw.price);
   if (price_cents === null) {
@@ -65,17 +68,17 @@ export function buildProductInput(raw) {
   const stock = parseStock(raw.stock);
   if (stock === undefined) return { error: 'El stock debe ser un número entero, o quedar vacío si no se controla.' };
 
-  const sortText = String(raw.sort_order ?? '').trim();
-  if (sortText !== '' && !/^-?\d{1,9}$/.test(sortText)) return { error: 'El orden debe ser un número entero.' };
+  const sort = parseSortOrder(raw.sort_order);
+  if (sort.error) return { error: sort.error };
 
   return {
     value: {
       title,
       description: description || null,
-      category: category || null,
+      category: canonicalCategory(category, known) || null,
       price_cents,
       stock,
-      sort_order: sortText === '' ? 0 : Number(sortText),
+      sort_order: sort.value,
       is_active: Boolean(raw.is_active),
     },
   };

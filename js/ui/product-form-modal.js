@@ -1,3 +1,4 @@
+import { CATEGORY_HINT_PRODUCT, SORT_HINT } from '../lib/catalog-fields.js';
 import { el, mount } from '../lib/dom.js';
 import { messageFor } from '../lib/errors.js';
 import { buildProductInput, centsToEurosInput } from '../lib/product-form.js';
@@ -48,7 +49,7 @@ function field(id, label, node, hint) {
  * @param {{ row?: object|null }} opts row = producto a editar; sin row se crea uno nuevo.
  * @returns {Promise<boolean>} true si se guardó algo (conviene refrescar la lista).
  */
-export function openProductForm({ row = null } = {}) {
+export function openProductForm({ row = null, categories = [] } = {}) {
   if (!modalEl) build();
   const editing = Boolean(row);
   titleEl.textContent = editing ? `Editar · ${row.title}` : 'Nuevo producto';
@@ -64,8 +65,14 @@ export function openProductForm({ row = null } = {}) {
         el('input', { class: 'form-control', id: 'pfStock', inputmode: 'numeric', autocomplete: 'off', value: row?.stock ?? '' }),
         'Vacío = no se controla stock (digital o a pedido). 0 = agotado.'))),
     el('div', { class: 'row' },
-      el('div', { class: 'col-12 col-sm-6' }, field('pfCategory', 'Categoría', el('input', { class: 'form-control', id: 'pfCategory', maxlength: 60, value: row?.category ?? '' }))),
-      el('div', { class: 'col-12 col-sm-6' }, field('pfSort', 'Orden', el('input', { class: 'form-control', id: 'pfSort', type: 'number', step: '1', value: String(row?.sort_order ?? 0) })))),
+      el('div', { class: 'col-12 col-sm-6' }, field('pfCategory', 'Categoría',
+        el('input', { class: 'form-control', id: 'pfCategory', maxlength: 60, list: 'pfCategoryList', autocomplete: 'off', placeholder: 'Ropa', value: row?.category ?? '' }),
+        CATEGORY_HINT_PRODUCT),
+      // Categorías ya usadas: se sugieren al escribir, para no crear "ropa" y "Ropa" por separado.
+      el('datalist', { id: 'pfCategoryList' }, ...categories.map((c) => el('option', { value: c })))),
+      el('div', { class: 'col-12 col-sm-6' }, field('pfSort', 'Orden',
+        el('input', { class: 'form-control', id: 'pfSort', type: 'number', inputmode: 'numeric', step: '1', value: String(row?.sort_order ?? 0) }),
+        SORT_HINT))),
     field('pfImage', editing ? 'Reemplazar imagen (opcional)' : 'Imagen (opcional)',
       el('input', { class: 'form-control', id: 'pfImage', type: 'file', accept: 'image/jpeg,image/png,image/webp' })),
     editing && row.image_url ? el('img', { src: row.image_url, alt: '', class: 'yp-cf-thumb-preview mb-2', width: 120 }) : null,
@@ -98,7 +105,7 @@ export function openProductForm({ row = null } = {}) {
       stock: form.pfStock.value,
       sort_order: form.pfSort.value,
       is_active: form.pfActive.checked,
-    });
+    }, { previousCategory: row?.category ?? null, knownCategories: categories });
     if (parsed.error) return showError(form, parsed.error);
 
     submitBtn.disabled = true;

@@ -1,3 +1,4 @@
+import { knownCategories } from '../lib/catalog-fields.js';
 import { adminDeleteProduct, adminListProducts, adminUpdateProduct, deleteProductImageByUrl } from '../lib/api.js';
 import { messageFor } from '../lib/errors.js';
 import { formatDate, formatPrice } from '../lib/format.js';
@@ -62,7 +63,7 @@ async function removeProduct(row) {
 }
 
 async function editProduct(row) {
-  if (await openProductForm({ row })) load();
+  if (await openProductForm({ row, categories: knownCategories(products) })) load();
 }
 
 function productRow(row) {
@@ -94,7 +95,7 @@ function productRow(row) {
 function newProductButton() {
   return el('button', {
     type: 'button', class: 'btn btn-brand mb-3',
-    onclick: async () => { if (await openProductForm()) load(); },
+    onclick: async () => { if (await openProductForm({ categories: knownCategories(products) })) load(); },
   }, icon('plus-lg'), ' Nuevo producto');
 }
 
