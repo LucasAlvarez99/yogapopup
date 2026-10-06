@@ -342,7 +342,8 @@ export async function updateTeacherProfile(profileId, patch) {
 }
 
 // Alta y baja de profesores: solo developer (la base lo exige y lo audita).
-export const setUserRoleByEmail = (email, role) => rpc('set_user_role_by_email', { p_email: email, p_role: role });
+/** Alta como profesor/a SIN bajar a nadie de rango. `alsoAdmin`: además le da gestión (como Manu). Devuelve el rol resultante. */
+export const addTeacherByEmail = (email, alsoAdmin = false) => rpc('add_teacher_by_email', { p_email: email, p_also_admin: alsoAdmin });
 export const setTeacherActive = (profileId, active) => rpc('set_teacher_active', { p_target: profileId, p_active: active });
 
 // ---------------------------------------------------------------- fotos de perfil de profesores (Supabase Storage)

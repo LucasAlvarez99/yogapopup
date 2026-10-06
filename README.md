@@ -63,7 +63,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 en `classes` al `developer`, y el panel no muestra las acciones de subida al admin. Cambiar el rol de alguien (solo un
 developer): en Supabase → Table Editor → `profiles`, editar la celda `role` (`user` / `profesor` / `admin` / `developer`) — queda auditado.
 \* Un admin o developer que además da clases (Manu) tiene su perfil de profesor: el panel le muestra "Mi agenda" y "Mi perfil". Ser profesor es una fila en `teachers`, no solo un rol.
-Dar de alta a un profesor: panel → **Profesores** → correo con el que se registró (solo developer; `set_user_role_by_email`, auditado).
+Dar de alta a un profesor: panel → **Profesores** → correo con el que se registró (solo developer; `add_teacher_by_email`, auditado; con "También es admin" queda como admin + profesor; nunca baja de rango a un admin o developer).
 (`set_user_role()` solo funciona con una sesión de developer, no desde el SQL Editor.)
 
 ### Privacidad (RGPD / LOPDGDD)

@@ -1,5 +1,5 @@
 import {
-  adminListTeachers, createLiveSession, deleteLiveSession, deleteTeacherPhotoByUrl, resizeImage, setTeacherActive, setUserRoleByEmail,
+  addTeacherByEmail, adminListTeachers, createLiveSession, deleteLiveSession, deleteTeacherPhotoByUrl, resizeImage, setTeacherActive,
   teacherAgenda, updateLiveSession, updateTeacherProfile, uploadTeacherPhoto,
 } from '../lib/api.js';
 import {
@@ -184,17 +184,27 @@ export async function showTeachersAdmin(root, { isCurrent = () => true } = {}) {
   function inviteCard() {
     const input = el('input', { class: 'form-control', id: 'inviteEmail', type: 'email', placeholder: 'correo@ejemplo.com', autocomplete: 'off' });
     const btn = el('button', { type: 'submit', class: 'btn btn-brand' }, icon('person-plus'), ' Dar de alta como profesor/a');
+    const alsoAdmin = el('input', { class: 'form-check-input', type: 'checkbox', id: 'inviteAdmin' });
     const form = el('form', { class: 'yp-card mb-4', novalidate: true },
       el('h2', { class: 'yp-block-title' }, 'Dar de alta un profesor'),
-      el('p', { class: 'text-muted small' }, 'La persona tiene que haberse registrado antes en el sitio. Al darla de alta pasa a tener rol profesor: gestiona su agenda y su perfil, y nada más.'),
-      field('inviteEmail', 'Correo con el que se registró', input), btn);
+      el('p', { class: 'text-muted small' }, 'La persona tiene que haberse registrado antes en el sitio. Por defecto gestiona su agenda y su perfil, y nada más. Nunca se le baja el rango a quien ya es admin o developer.'),
+      field('inviteEmail', 'Correo con el que se registró', input),
+      el('div', { class: 'form-check mb-3' }, alsoAdmin,
+        el('label', { class: 'form-check-label', for: 'inviteAdmin' }, 'También es admin (gestiona productos, clases y el equipo, como Manu)')),
+      btn);
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = input.value.trim();
       if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Escribí un correo válido.', { type: 'error' });
       btn.disabled = true;
-      try { await setUserRoleByEmail(email, 'profesor'); toast('Listo: ya es profesor/a. Puede completar su perfil desde el panel.', { type: 'success' }); await load(); }
-      catch (err) { toast(messageFor(err), { type: 'error' }); btn.disabled = false; }
+      try {
+        const role = await addTeacherByEmail(email, alsoAdmin.checked);
+        toast(`Listo: ya es profesor/a (rol ${role}). Puede completar su perfil desde el panel.`, { type: 'success' });
+        input.value = '';
+        await load();
+      }
+      catch (err) { toast(messageFor(err), { type: 'error' }); }
+      btn.disabled = false;
     });
     return form;
   }

@@ -265,3 +265,54 @@ do $$ declare lucia uuid; begin
   perform t.raises(format($q$ select public.book_live_session(%L) $q$, lucia), 'P0002');
   reset role;
 end $$;
+
+-- 11. Alta por correo SIN pisar el rol: Manuela es profesora Y admin; un admin nunca baja de rango.
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-4000-8000-000000000c07', 'prof-manuela@test.dev', '{"display_name":"Manuela"}'),
+  ('00000000-0000-4000-8000-000000000c08', 'prof-nueva@test.dev',   '{"display_name":"Nueva"}'),
+  ('00000000-0000-4000-8000-000000000c09', 'prof-adm@test.dev',     '{"display_name":"Admin Previa"}');
+update public.profiles set display_name = 'Manuela' where id = '00000000-0000-4000-8000-000000000c07';
+update public.profiles set display_name = 'Nueva' where id = '00000000-0000-4000-8000-000000000c08';
+update public.profiles set display_name = 'Admin Previa', role = 'admin' where id = '00000000-0000-4000-8000-000000000c09';
+update public.profiles set role = 'profesor' where id = '00000000-0000-4000-8000-000000000c07';   -- el estado en que quedó antes: solo profesora
+
+do $$ declare r text; begin
+  -- solo developer
+  perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c04', true);
+  set local role authenticated;
+  perform t.raises($q$ select public.add_teacher_by_email('prof-manuela@test.dev', true) $q$, '42501');
+  reset role;
+  perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c05', true);
+  set local role authenticated;
+  perform t.raises($q$ select public.add_teacher_by_email('nadie@test.dev', true) $q$, 'P0002');
+
+  -- Manuela: profesora + admin
+  assert public.add_teacher_by_email('PROF-MANUELA@test.dev', true) = 'admin';
+  -- una persona nueva, solo profesora
+  assert public.add_teacher_by_email('prof-nueva@test.dev', false) = 'profesor';
+  -- un admin que ya existe: alta como profesor SIN que baje de rango (el descuido original)
+  assert public.add_teacher_by_email('prof-adm@test.dev', false) = 'admin', 'un admin no baja a profesor';
+  -- un developer tampoco baja, ni con también_admin
+  assert public.add_teacher_by_email('prof-dev@test.dev', true) = 'developer';
+  -- repetir no rompe nada
+  assert public.add_teacher_by_email('prof-manuela@test.dev', true) = 'admin';
+  reset role;
+
+  assert (select role from public.profiles where id = '00000000-0000-4000-8000-000000000c07') = 'admin';
+  assert (select role from public.profiles where id = '00000000-0000-4000-8000-000000000c08') = 'profesor';
+  assert (select role from public.profiles where id = '00000000-0000-4000-8000-000000000c09') = 'admin';
+  assert (select role from public.profiles where id = '00000000-0000-4000-8000-000000000c05') = 'developer';
+  assert (select count(*) from public.teachers where is_active and profile_id in (
+            '00000000-0000-4000-8000-000000000c07','00000000-0000-4000-8000-000000000c08',
+            '00000000-0000-4000-8000-000000000c09','00000000-0000-4000-8000-000000000c05')) = 4, 'las cuatro quedan como profesoras activas';
+
+  -- Manuela ahora SÍ es gestión Y profesora: ve el panel completo y su agenda, y puede editar el perfil de otra profesora.
+  perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c07', true);
+  set local role authenticated;
+  assert public.is_staff() and public.is_teacher(), 'admin + profesora';
+  insert into public.live_sessions (teacher_id, title, starts_at) values ('00000000-0000-4000-8000-000000000c07', 'Hatha Yoga', now() + interval '5 days');
+  update public.teachers set bio = 'editada por Manuela' where profile_id = '00000000-0000-4000-8000-000000000c08';
+  get diagnostics r = row_count; assert r::int = 1, 'como admin edita el perfil de otra profesora';
+  reset role;
+  assert exists (select 1 from public.audit_log where action = 'role.change' and entity_id = '00000000-0000-4000-8000-000000000c07' and details->>'to' = 'admin');
+end $$;
