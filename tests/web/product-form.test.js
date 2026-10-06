@@ -93,7 +93,9 @@ Deno.test("buildProductInput: arma el producto normalizado", () => {
     stock: 8,
     sort_order: 3,
     is_active: true,
+    tax_rate_bps: 2100, // sin elegir, el IVA general
   });
+  assert.deepEqual(r.sizes, [], "sin talles");
 });
 
 Deno.test("buildProductInput: opcionales vacíos van como null / 0 y el producto nace inactivo por defecto", () => {
@@ -113,6 +115,7 @@ Deno.test("buildProductInput: opcionales vacíos van como null / 0 y el producto
     stock: null,
     sort_order: 0,
     is_active: false,
+    tax_rate_bps: 2100,
   });
 });
 
@@ -156,4 +159,30 @@ Deno.test("storagePathFromPublicUrl: nunca devuelve algo ajeno o con salida de c
   for (const url of bad) {
     assert.equal(storagePathFromPublicUrl(url, "product-images"), null, `debería rechazar ${JSON.stringify(url)}`);
   }
+});
+
+Deno.test("buildProductInput: IVA incluido — por defecto 21 %, acepta los tipos válidos y rechaza lo demás", () => {
+  const base = { title: "Mat", price: "10", stock: "", sort_order: "" };
+  assert.equal(buildProductInput(base).value.tax_rate_bps, 2100);
+  assert.equal(buildProductInput({ ...base, tax_rate_bps: "" }).value.tax_rate_bps, 2100);
+  for (const [text, bps] of [["2100", 2100], ["1000", 1000], ["400", 400], ["0", 0], [" 0 ", 0], [1000, 1000]]) {
+    assert.equal(buildProductInput({ ...base, tax_rate_bps: text }).value.tax_rate_bps, bps, String(text));
+  }
+  for (const bad of ["2501", "-1", "21%", "10,5", "abc", "99999", "1e3"]) {
+    assert.match(buildProductInput({ ...base, tax_rate_bps: bad }).error, /IVA/, bad);
+  }
+});
+
+Deno.test("buildProductInput: con talles el stock del producto se descarta y se devuelven los talles ya validados", () => {
+  const base = { title: "Remera", price: "35", stock: "8", sort_order: "" };
+  const r = buildProductInput({ ...base, sizes: [{ size: " S ", stock: "3" }, { size: "M", stock: "" }] });
+  assert.equal(r.value.stock, null, "el stock del producto se ignora cuando hay talles");
+  assert.deepEqual(r.sizes, [{ size: "S", stock: 3 }, { size: "M", stock: null }]);
+  assert.equal(buildProductInput({ ...base, sizes: [] }).value.stock, 8, "sin talles, el stock del producto manda");
+  assert.match(
+    buildProductInput({ ...base, sizes: [{ size: "S" }, { size: "s" }] }).error,
+    /repetido/,
+    "un talle inválido impide guardar",
+  );
+  assert.match(buildProductInput({ ...base, sizes: [{ size: "S", stock: "-1" }] }).error, /entero/);
 });

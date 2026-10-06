@@ -1333,6 +1333,213 @@ await test('panel · Clases: Categoría y Orden explican qué son, sugieren las 
   assert.equal((await be.state()).classes.find((c) => c.title === 'Yoga para principiantes').category, 'Vinyasa');
 });
 
+// ====================================================================== Talles e IVA incluido
+const clickText = (page, selector, label) => page.evaluate((sel, l) => {
+  const b = [...document.querySelectorAll(sel)].find((n) => n.textContent.trim() === l || n.textContent.includes(l));
+  if (!b) throw new Error(`no hay ${sel} con "${l}"`);
+  b.click();
+}, selector, label);
+
+await test('talles: la tarjeta los muestra, la ficha exige elegir uno y cada talle respeta su propio stock (con IVA incluido a la vista)', async (page) => {
+  await be.setVariants(PRODUCT_IDS.mat, [{ size: 'S', stock: 2 }, { size: 'M', stock: 1 }, { size: 'L', stock: 0 }, { size: 'XL', stock: null }]);
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  const card = await page.evaluate(() => {
+    const c = [...document.querySelectorAll('#shopGrid .shop-card')].find((x) => x.textContent.includes('Mat de yoga Premium')); // textContent: innerText aplicaría el text-transform del título
+    const cta = c.querySelector('a.btn');
+    return {
+      chips: [...c.querySelectorAll('.size-chip')].map((n) => [n.textContent, n.classList.contains('is-out')]),
+      cta: cta?.textContent.trim(), ctaHref: cta?.getAttribute('href'),
+      hasAddButton: [...c.querySelectorAll('button')].some((b) => b.textContent.includes('Agregar')),
+      text: c.textContent,
+    };
+  });
+  assert.deepEqual(card.chips, [['S', false], ['M', false], ['L', true], ['XL', false]], 'talles en orden, el agotado tachado');
+  assert.match(card.cta, /Elegir talle/);
+  assert.match(card.ctaHref, new RegExp(`producto\\.html\\?id=${PRODUCT_IDS.mat}`));
+  assert.equal(card.hasAddButton, false, 'con talles no se agrega desde la tarjeta: hay que elegir uno');
+  assert.match(norm(card.text), /18,99 €/, 'el precio con IVA incluido, grande');
+  assert.match(norm(card.text), /15,69 € sin IVA/, 'y al lado, más chico, el precio sin IVA');
+  await page.screenshot({ path: tmp('yp-talles-tarjeta.png') });
+
+  // Ficha
+  await page.goto(`${S}/producto.html?id=${PRODUCT_IDS.mat}`);
+  await waitFor(page, () => document.querySelectorAll('.size-btn').length === 4);
+  const lBtn = await page.evaluate(() => { const b = [...document.querySelectorAll('.size-btn')].find((x) => x.textContent === 'L'); return { disabled: b.disabled, out: b.classList.contains('is-out') }; });
+  assert.deepEqual(lBtn, { disabled: true, out: true }, 'un talle agotado no se puede elegir');
+
+  // sin elegir talle no se agrega nada y se explica
+  await clickText(page, 'button', 'Agregar al carrito');
+  await waitFor(page, () => document.querySelector('.size-error')?.textContent.includes('Elige un talle'));
+  assert.equal(await cartBadge(page), '', 'no se agregó nada');
+
+  // M tiene 1 unidad: se agrega una vez y ya no más
+  await clickText(page, '.size-btn', 'M');
+  await waitFor(page, () => document.querySelector('.size-btn.is-selected')?.textContent === 'M');
+  assert.equal(await page.$eval('.size-btn.is-selected', (b) => b.getAttribute('aria-pressed')), 'true');
+  await clickText(page, 'button', 'Agregar al carrito');
+  await toastHas(page, 'talle M');
+  assert.equal(await cartBadge(page), '1');
+  await clickText(page, 'button', 'Agregar al carrito');
+  await toastHas(page, 'máximo disponible');
+  assert.equal(await cartBadge(page), '1', 'el stock de M es 1');
+
+  // S tiene 2: el aviso de "últimas unidades" es del TALLE elegido
+  await clickText(page, '.size-btn', 'S');
+  await waitFor(page, () => document.querySelector('.size-btn.is-selected')?.textContent === 'S');
+  assert.match(await page.evaluate(() => document.body.innerText), /Últimas 2 unidades/);
+  await page.screenshot({ path: tmp('yp-talles-ficha.png') });
+  await clickText(page, 'button', 'Agregar al carrito');
+  await clickText(page, 'button', 'Agregar al carrito');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '3');
+  await clickText(page, 'button', 'Agregar al carrito');
+  assert.equal(await cartBadge(page), '3', 'S tenía 2: no pasa de ahí aunque el producto sume más talles');
+
+  // Cajón: dos líneas (M y S), subtotal e IVA incluido
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 2);
+  const lines = await page.$$eval('#cartList .cart-item', (rows) => rows.map((r) => ({ size: r.querySelector('.cart-size')?.textContent, plus: r.querySelector('[aria-label="Una unidad más"]')?.disabled })));
+  assert.deepEqual(lines, [{ size: 'Talle: M', plus: true }, { size: 'Talle: S', plus: true }], 'cada línea con su talle, y el "+" bloqueado en el tope de CADA talle');
+  assert.equal(norm(await text(page, '#cartSubtotal')), '56,97 €'); // 3 × 18,99
+  assert.match(norm(await text(page, '#cartTax')), /IVA incluido: 9,89 € · sin IVA: 47,08 €/);
+
+  // Sobrevive a recargar
+  await page.reload();
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '3');
+});
+
+await test('carrito: una línea de antes de los talles pide elegir uno, y un talle que se quitó se avisa', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  // carrito guardado ANTES de que el producto tuviera talles
+  await page.evaluate((id) => localStorage.setItem('yp.cart', JSON.stringify({ v: 1, items: [{ id, qty: 1 }] })), PRODUCT_IDS.mat);
+  await be.setVariants(PRODUCT_IDS.mat, [{ size: 'S', stock: 3 }, { size: 'M', stock: 3 }]);
+  await page.reload();
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '1');
+
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  assert.match(await text(page, '#cartList .cart-item'), /Elige un talle/);
+  assert.equal(await page.$('#cartList .qty'), null, 'no se puede cambiar la cantidad de lo que no tiene talle');
+  assert.match(await text(page, '.cart-alert'), /cambiaron desde que los agregaste/, 'el cajón avisa que hay que corregir el carrito');
+  assert.equal(await page.$eval('.cart-footer button[title="El pago online llega pronto"]', (b) => b.disabled), true, 'no se puede pagar con una línea sin talle');
+  assert.match(await page.$eval('#cartList .cart-item a', (a) => a.getAttribute('href')), new RegExp(PRODUCT_IDS.mat), 'el título lleva a la ficha para elegir');
+  await page.click('#cartList .cart-remove');
+  await waitFor(page, () => document.querySelector('.cart-empty'));
+
+  // un talle elegido que el equipo quita después
+  await page.evaluate((id) => localStorage.setItem('yp.cart', JSON.stringify({ v: 1, items: [{ id, variant: null, qty: 1 }] })), PRODUCT_IDS.mat);
+  const st = await be.state();
+  const m = st.variants.find((v) => v.product_id === PRODUCT_IDS.mat && v.size === 'M');
+  await page.evaluate((id, variant) => localStorage.setItem('yp.cart', JSON.stringify({ v: 1, items: [{ id, variant, qty: 1 }] })), PRODUCT_IDS.mat, m.id);
+  await be.setVariants(PRODUCT_IDS.mat, [{ size: 'S', stock: 3 }]); // M ya no existe
+  await page.reload();
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '1');
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  assert.match(await text(page, '#cartList .cart-item'), /Ese talle ya no está disponible/);
+  assert.match(await text(page, '.cart-alert'), /cambiaron/, 'y se ofrece actualizar el carrito');
+});
+
+await test('panel · Productos: crear con talles e IVA, editar su stock conservando los demás, y validar antes de guardar', async (page) => {
+  await loginAsAdmin(page);
+  await page.waitForSelector('.nav-tabs');
+  await clickTab(page, 'Productos');
+  await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });
+  await page.evaluate(() => [...document.querySelectorAll('#panelContent button')].find((b) => b.textContent.includes('Nuevo producto')).click());
+  await page.waitForSelector('#pfTitle', { visible: true });
+  await productModalReady(page);
+
+  assert.equal(await page.$eval('#pfTax', (s) => s.value), '2100', 'IVA general por defecto');
+  await page.type('#pfTitle', 'Remera con talles');
+  await page.type('#pfPrice', '35');
+  await page.type('#pfStock', '9');
+  for (const size of ['S', 'M', 'L']) await page.click(`.size-presets [data-preset="${size}"]`);
+  const stocks = await page.$$('[data-size-stock]');
+  await stocks[0].type('3');
+  await stocks[1].type('5'); // L queda vacío = sin control
+  assert.equal(await page.$eval('#pfStock', (i) => i.disabled), true, 'con talles el stock general se deshabilita');
+  await page.select('#pfTax', '1000');
+  await page.evaluate(() => document.querySelector('#productFormModal .modal-body, #productFormModal form')?.scrollTo?.(0, 400));
+  await page.screenshot({ path: tmp('yp-talles-panel.png') });
+  await page.click('#productFormModal button[type=submit]');
+  await productModalClosed(page);
+
+  let st = await be.state();
+  const product = st.products.find((p) => p.title === 'Remera con talles');
+  const rows = st.variants.filter((v) => v.product_id === product.id);
+  assert.deepEqual(rows.map((v) => [v.size, v.stock]), [['S', 3], ['M', 5], ['L', null]]);
+  assert.equal(product.stock, null, 'el stock general se descartó: manda el de cada talle');
+  assert.equal(product.tax_rate_bps, 1000, 'IVA reducido elegido');
+  const listText = await page.evaluate(() => [...document.querySelectorAll('#panelContent tbody tr')].find((r) => r.innerText.includes('Remera con talles')).innerText);
+  assert.match(norm(listText), /S 3.*M 5.*L ∞/, 'la lista muestra el stock de cada talle');
+
+  // Editar: M agotado, quitar L, agregar 2XL. Los talles que siguen conservan su id (los carritos los usan).
+  const idsBefore = Object.fromEntries(rows.map((v) => [v.size, v.id]));
+  await page.evaluate(() => [...document.querySelectorAll('#panelContent tbody tr')].find((r) => r.innerText.includes('Remera con talles')).querySelector('button[title="Editar producto"]').click());
+  await page.waitForSelector('#pfTitle', { visible: true });
+  await productModalReady(page);
+  assert.equal(await page.$eval('#pfTax', (s) => s.value), '1000', 'recuerda el IVA guardado');
+  assert.equal((await page.$$('.size-row')).length, 3, 'carga los talles guardados');
+
+  // un talle repetido se rechaza ANTES de mandar nada
+  const writesBefore = (await be.state()).log.products.length;
+  await page.click('.size-presets [data-preset="S"]').catch(() => {});
+  await clickText(page, '.size-presets button', 'Otro talle');
+  const names = await page.$$('[data-size-name]');
+  await names[names.length - 1].type('m');
+  await page.click('#productFormModal button[type=submit]');
+  await page.waitForSelector('#productFormModal .yp-form-error');
+  assert.match(await page.$eval('#productFormModal .yp-form-error', (e) => e.textContent), /repetido/);
+  assert.equal((await be.state()).log.products.length, writesBefore, 'un talle repetido no escribe nada');
+
+  // ahora sí: M a 0, L fuera, 2XL nuevo
+  await names[names.length - 1].evaluate((i) => { i.value = ''; });
+  await names[names.length - 1].type('2XL');
+  const stockInputs = await page.$$('[data-size-stock]');
+  await stockInputs[1].evaluate((i) => { i.value = ''; });
+  await stockInputs[1].type('0');
+  await page.evaluate(() => [...document.querySelectorAll('.size-row')].find((r) => r.querySelector('[data-size-name]').value === 'L').querySelector('[aria-label="Quitar este talle"]').click());
+  await page.click('#productFormModal button[type=submit]');
+  await productModalClosed(page);
+
+  st = await be.state();
+  const after = st.variants.filter((v) => v.product_id === product.id);
+  assert.deepEqual(after.map((v) => [v.size, v.stock]), [['S', 3], ['M', 0], ['2XL', null]]);
+  assert.equal(after.find((v) => v.size === 'S').id, idsBefore.S, 'S conserva su id');
+  assert.equal(after.find((v) => v.size === 'M').id, idsBefore.M, 'M conserva su id');
+  assert.ok(!after.some((v) => v.size === 'L'), 'L se quitó');
+});
+
+await test('despliegue: si la web sale antes que la migración (base sin talles ni IVA), la tienda y el panel siguen funcionando', async (page) => {
+  await be.behavior({ schemaBehind: true });
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  assert.equal(await page.$('.shop-error, .yp-error, [role="alert"]'), null, 'sin pantalla de error');
+  assert.equal(await page.$('.size-chip'), null, 'sin talles todavía');
+  assert.match(await text(page, '#shopGrid'), /Mat de yoga Premium/i);
+  // la ficha también
+  await page.goto(`${S}/producto.html?id=${PRODUCT_IDS.mat}`);
+  await waitFor(page, () => document.querySelector('h1')?.textContent.includes('Mat de yoga'));
+  assert.ok(await page.$$eval('button', (bs) => bs.some((b) => b.textContent.includes('Agregar al carrito'))), 'se puede agregar como siempre');
+  // y el panel lista los productos
+  await loginAsAdmin(page);
+  await page.waitForSelector('.nav-tabs');
+  await clickTab(page, 'Productos');
+  await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });
+  assert.equal((await page.$$('#panelContent tbody tr')).length, 4, 'el panel carga los 4 productos con las columnas anteriores');
+});
+
+await test('IVA: la tienda muestra el precio con IVA y al lado el precio sin IVA, según el tipo de cada producto', async (page) => {
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  const prices = await page.$$eval('#shopGrid .shop-card', (cards) => Object.fromEntries(cards.map((c) => [c.querySelector('h3, .shop-title, h2')?.textContent.trim() ?? c.innerText.split('\n')[0], c.querySelector('.price-row')?.innerText.replace(/\s+/g, ' ').trim()])));
+  const mat = Object.entries(prices).find(([k]) => k.includes('Mat de yoga'))[1];
+  assert.match(mat, /18,99 € 15,69 € sin IVA/, 'precio y, más chico, sin IVA (21 %)');
+  const pageText = await page.evaluate(() => document.body.innerText.replace(/\s+/g, ' '));
+  assert.match(pageText, /14,99 € 12,39 € sin IVA/, 'la botella: 14,99 con IVA = 12,39 sin IVA');
+});
+
 await test('panel · Productos: un usuario común no puede escribir productos ni subir imágenes (la base lo rechaza)', async () => {
   await signup('intruso@test.dev');
   const tok = await (await fetch(`${be.origin.api}/auth/v1/token?grant_type=password`, { method: 'POST', body: JSON.stringify({ email: 'intruso@test.dev', password: PASS }) })).json();

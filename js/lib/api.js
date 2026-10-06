@@ -3,6 +3,7 @@ import { supabase } from './supabase.js';
 import { accessToken } from './session.js';
 import { AppError } from './errors.js';
 import { fitImage, storageUploadError } from './image.js';
+import { isSchemaBehind } from './catalog.js';
 import { storagePathFromPublicUrl } from './product-form.js';
 
 /**
@@ -25,17 +26,30 @@ function unwrap({ data, error }) {
 }
 
 // ---------------------------------------------------------------- tienda (público)
-export const PRODUCT_COLUMNS = 'id,title,description,image_url,price_cents,stock,category,sort_order,created_at';
+// Incluye el IVA incluido (tax_rate_bps) y los talles del producto (tabla product_variants, lectura pública).
+export const PRODUCT_COLUMNS = 'id,title,description,image_url,price_cents,stock,category,sort_order,created_at,tax_rate_bps,product_variants(id,size,stock,sort_order)';
 
 /** Productos activos (la base solo deja ver esos a quien no es admin ni developer). */
+// Columnas de antes de los talles y el IVA: se usan solo si la base todavía no tiene esas migraciones (ver isSchemaBehind).
+const LEGACY_PRODUCT_COLUMNS = 'id,title,description,image_url,price_cents,stock,category,sort_order,created_at';
+const LEGACY_PRODUCT_ADMIN_COLUMNS = `${LEGACY_PRODUCT_COLUMNS},is_active,updated_at`;
+
+/** Lee productos; si la base va atrasada (sin talles/IVA), repite la consulta con las columnas anteriores en vez de romper la tienda. */
+async function selectProducts(columns, legacyColumns, build) {
+  const first = await build(db().from('products').select(columns));
+  if (!isSchemaBehind(first.error)) return first;
+  console.warn('[catalog] La base no tiene aún los talles/IVA: se usan las columnas anteriores. Aplica las migraciones (npm run sb:db-push).');
+  return build(db().from('products').select(legacyColumns));
+}
+
 export async function listActiveProducts() {
-  return unwrap(await db().from('products').select(PRODUCT_COLUMNS).eq('is_active', true)
-    .order('sort_order', { ascending: true }).order('created_at', { ascending: false })) ?? [];
+  return unwrap(await selectProducts(PRODUCT_COLUMNS, LEGACY_PRODUCT_COLUMNS, (q) => q.eq('is_active', true)
+    .order('sort_order', { ascending: true }).order('created_at', { ascending: false }))) ?? [];
 }
 
 /** null si no existe o no está activo (para el público son lo mismo: no se revela que existe). */
 export async function getProduct(id) {
-  return unwrap(await db().from('products').select(PRODUCT_COLUMNS).eq('id', id).eq('is_active', true).maybeSingle());
+  return unwrap(await selectProducts(PRODUCT_COLUMNS, LEGACY_PRODUCT_COLUMNS, (q) => q.eq('id', id).eq('is_active', true).maybeSingle()));
 }
 
 // ---------------------------------------------------------------- catálogo (público) y progreso
@@ -161,7 +175,7 @@ export async function deleteThumbnailByUrl(url) {
 // ---------------------------------------------------------------- administración de productos (Fase 14)
 // Mismo patrón que las clases: la base (RLS + privilegio por columna) decide quién escribe; esto solo arma las consultas.
 export const PRODUCT_ADMIN_COLUMNS = `${PRODUCT_COLUMNS},is_active,updated_at`;
-const PRODUCT_EDITABLE = ['title', 'description', 'image_url', 'price_cents', 'stock', 'category', 'sort_order', 'is_active'];
+const PRODUCT_EDITABLE = ['title', 'description', 'image_url', 'price_cents', 'stock', 'category', 'sort_order', 'is_active', 'tax_rate_bps'];
 
 const pickProductFields = (obj) => Object.fromEntries(Object.entries(obj).filter(([k]) => PRODUCT_EDITABLE.includes(k)));
 
@@ -169,12 +183,13 @@ function productError(error) {
   if (error.code === '42501') return new AppError('admin_only');
   if (error.code === '23514') return new AppError('invalid_input', 'Revisá los datos: hay un valor fuera de rango (precio, stock o largo de un texto).');
   if (error.code === 'PGRST116') return new AppError('product_not_found');
+  if (error.code === '22023') return new AppError('sizes_invalid', error.message);
   return new AppError('internal_error', error.message);
 }
 
 /** Todos los productos, activos e inactivos (la base solo deja ver los inactivos a admin y developer). */
 export async function adminListProducts() {
-  return unwrap(await db().from('products').select(PRODUCT_ADMIN_COLUMNS).order('created_at', { ascending: false })) ?? [];
+  return unwrap(await selectProducts(PRODUCT_ADMIN_COLUMNS, LEGACY_PRODUCT_ADMIN_COLUMNS, (q) => q.order('created_at', { ascending: false }))) ?? [];
 }
 
 export async function adminCreateProduct(input) {
@@ -187,6 +202,16 @@ export async function adminUpdateProduct(id, patch) {
   const { data, error } = await db().from('products').update(pickProductFields(patch)).eq('id', id).select(PRODUCT_ADMIN_COLUMNS).single();
   if (error) throw productError(error);
   return data;
+}
+
+/**
+ * Guarda los talles de un producto (reemplaza el conjunto, de forma atómica; los que siguen conservan su id).
+ * `rows`: [{ size, stock }] ya validadas con validateSizeRows(). Lista vacía = el producto queda sin talles.
+ */
+export async function adminSaveProductVariants(productId, rows) {
+  const { data, error } = await db().rpc('save_product_variants', { p_product_id: productId, p_variants: rows });
+  if (error) throw productError(error);
+  return data ?? [];
 }
 
 /** Borra el producto. Si no se borró ninguna fila (no existe o no hay permiso), avisa en vez de simular éxito. */

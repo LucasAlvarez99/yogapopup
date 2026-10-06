@@ -2,7 +2,7 @@
  * Carrito (Fase 15): estado, persistencia en el navegador y validación de stock.
  *
  * Decisiones:
- *  - El carrito guarda SOLO `{ id, qty }` por línea. Nunca precios ni títulos: el navegador no es de fiar
+ *  - El carrito guarda SOLO `{ id, qty }` por línea (y `variant`, el id del talle, si el producto tiene talles). Nunca precios ni títulos: el navegador no es de fiar
  *    (cualquiera puede editar `localStorage`), así que el precio y el stock se leen siempre de la base al
  *    mostrar o validar el carrito. Un precio viejo guardado no puede llegar a cobrarse.
  *  - La lógica es pura (sin DOM ni `window`): recibe el almacenamiento por parámetro, así se prueba en tests/web.
@@ -11,6 +11,8 @@
  *    la Edge Function del checkout (Fase 18) vuelve a validar precio y stock antes de crear la orden.
  */
 import { isUuid } from "./format.js";
+import { findVariant, sortedVariants } from "./sizes.js";
+import { normalizeRate, splitTax } from "./tax.js";
 
 export const CART_KEY = "yp.cart";
 export const CART_VERSION = 1;
@@ -22,6 +24,11 @@ export const MAX_LINES = 30;
 export const emptyCart = () => ({ items: [] });
 
 const isQty = (n) => Number.isInteger(n) && n >= 1;
+
+/** Clave de una línea: producto + talle (o solo el producto si no tiene talles). */
+const keyOf = (id, variant) => `${id}|${variant ?? ""}`;
+/** Forma guardada de una línea: `variant` solo aparece si hay talle (los carritos viejos no lo tienen). */
+const lineOf = ({ id, variant = null, qty }) => (variant ? { id, variant, qty } : { id, qty });
 
 /** Máximo de unidades permitido para un producto según su stock (`null` = no se controla). */
 export function limitFor(stock) {
@@ -48,19 +55,25 @@ export function parseCart(raw) {
   }
   if (!data || typeof data !== "object" || data.v !== CART_VERSION || !Array.isArray(data.items)) return emptyCart();
 
-  const byId = new Map();
+  // Una línea es (producto, talle): el mismo producto en dos talles son dos líneas.
+  const byKey = new Map();
   for (const it of data.items) {
     if (!it || typeof it !== "object" || !isUuid(it.id) || !isQty(it.qty)) continue;
+    const hasVariant = it.variant !== undefined && it.variant !== null;
+    if (hasVariant && !isUuid(it.variant)) continue; // un talle manipulado descarta la línea
     const id = it.id.toLowerCase();
-    byId.set(id, Math.min(MAX_QTY_PER_ITEM, (byId.get(id) ?? 0) + it.qty)); // duplicados: se suman
-    if (byId.size >= MAX_LINES) break;
+    const variant = hasVariant ? it.variant.toLowerCase() : null;
+    const key = keyOf(id, variant);
+    const prev = byKey.get(key);
+    byKey.set(key, { id, variant, qty: Math.min(MAX_QTY_PER_ITEM, (prev?.qty ?? 0) + it.qty) }); // duplicados: se suman
+    if (byKey.size >= MAX_LINES) break;
   }
-  // Se reconstruye cada línea con solo id y qty: cualquier otro campo (un `price_cents` inyectado) se tira.
-  return { items: [...byId].map(([id, qty]) => ({ id, qty })) };
+  // Se reconstruye cada línea solo con sus campos conocidos: cualquier otro (un `price_cents` inyectado) se tira.
+  return { items: [...byKey.values()].map(lineOf) };
 }
 
-/** Texto para guardar. Solo versión + líneas `{id, qty}`. */
-export const serializeCart = (cart) => JSON.stringify({ v: CART_VERSION, items: cart.items.map(({ id, qty }) => ({ id, qty })) });
+/** Texto para guardar. Solo versión + líneas `{id, qty}` (con `variant` cuando hay talle). */
+export const serializeCart = (cart) => JSON.stringify({ v: CART_VERSION, items: cart.items.map(lineOf) });
 
 // ------------------------------------------------------------------ operaciones puras (devuelven un carrito nuevo)
 
@@ -70,48 +83,59 @@ const assertId = (id) => {
 const assertQty = (qty) => {
   if (!isQty(qty)) throw new TypeError("cart: la cantidad debe ser un entero mayor o igual a 1");
 };
+/** El talle es opcional, pero si se indica tiene que ser un id válido. */
+const normVariant = (variant) => {
+  if (variant === null || variant === undefined) return null;
+  if (!isUuid(variant)) throw new TypeError("cart: id de talle inválido");
+  return variant.toLowerCase();
+};
+const same = (id, variant) => (i) => i.id === id && (i.variant ?? null) === variant;
 
-/** Unidades de un producto en el carrito (0 si no está). */
-export const qtyOf = (cart, id) => cart.items.find((i) => i.id === String(id).toLowerCase())?.qty ?? 0;
+/** Unidades de un producto (en un talle, si se indica) en el carrito (0 si no está). */
+export const qtyOf = (cart, id, variant = null) =>
+  cart.items.find(same(String(id).toLowerCase(), variant ? String(variant).toLowerCase() : null))?.qty ?? 0;
 
 /** Total de unidades (lo que muestra el ícono del carrito). */
 export const cartCount = (cart) => cart.items.reduce((sum, i) => sum + i.qty, 0);
 
 /**
- * Suma unidades. Con `stock` no deja pasar de lo disponible; siempre respeta MAX_QTY_PER_ITEM.
+ * Suma unidades. Con `stock` no deja pasar de lo disponible (el del talle, si hay talle); siempre respeta MAX_QTY_PER_ITEM.
  * Si ya no se puede sumar más (tope o agotado), el carrito queda igual.
  */
-export function addItem(cart, id, qty = 1, { stock = null } = {}) {
+export function addItem(cart, id, qty = 1, { stock = null, variant = null } = {}) {
   assertId(id);
   assertQty(qty);
   id = id.toLowerCase();
+  variant = normVariant(variant);
   const limit = limitFor(stock);
-  const current = qtyOf(cart, id);
+  const current = qtyOf(cart, id, variant);
   const next = Math.min(limit, current + qty);
   if (next <= 0 || next === current) return cart;
   if (current === 0) {
     if (cart.items.length >= MAX_LINES) return cart;
-    return { items: [...cart.items, { id, qty: next }] };
+    return { items: [...cart.items, lineOf({ id, variant, qty: next })] };
   }
-  return { items: cart.items.map((i) => (i.id === id ? { id, qty: next } : i)) };
+  return { items: cart.items.map((i) => (same(id, variant)(i) ? lineOf({ id, variant, qty: next }) : i)) };
 }
 
 /** Fija la cantidad exacta. 0 quita la línea. Con `stock` la limita a lo disponible. */
-export function setQty(cart, id, qty, { stock = null } = {}) {
+export function setQty(cart, id, qty, { stock = null, variant = null } = {}) {
   assertId(id);
   if (qty !== 0) assertQty(qty);
   id = id.toLowerCase();
-  if (qty === 0) return removeItem(cart, id);
+  variant = normVariant(variant);
+  if (qty === 0) return removeItem(cart, id, variant);
   const next = Math.min(limitFor(stock), qty);
-  if (next <= 0) return removeItem(cart, id);
-  if (qtyOf(cart, id) === 0) return addItem(cart, id, next, { stock });
-  return { items: cart.items.map((i) => (i.id === id ? { id, qty: next } : i)) };
+  if (next <= 0) return removeItem(cart, id, variant);
+  if (qtyOf(cart, id, variant) === 0) return addItem(cart, id, next, { stock, variant });
+  return { items: cart.items.map((i) => (same(id, variant)(i) ? lineOf({ id, variant, qty: next }) : i)) };
 }
 
-export function removeItem(cart, id) {
+export function removeItem(cart, id, variant = null) {
   assertId(id);
   id = id.toLowerCase();
-  return cart.items.some((i) => i.id === id) ? { items: cart.items.filter((i) => i.id !== id) } : cart;
+  variant = normVariant(variant);
+  return cart.items.some(same(id, variant)) ? { items: cart.items.filter((i) => !same(id, variant)(i)) } : cart;
 }
 
 export const clearCart = () => emptyCart();
@@ -193,7 +217,7 @@ export function createCartStore({ storage = browserStorage(), key = CART_KEY, ta
     },
     add: (id, qty = 1, opts) => commit(addItem(cart, id, qty, opts)),
     setQty: (id, qty, opts) => commit(setQty(cart, id, qty, opts)),
-    remove: (id) => commit(removeItem(cart, id)),
+    remove: (id, variant = null) => commit(removeItem(cart, id, variant)),
     /** Reemplaza el carrito (por ejemplo con el `fixedCart` de la validación). */
     replace: (next) => commit(parseCart({ v: CART_VERSION, items: next.items })),
     clear: () => commit(cart.items.length ? clearCart() : cart),
@@ -207,34 +231,52 @@ export function createCartStore({ storage = browserStorage(), key = CART_KEY, ta
 // ------------------------------------------------------------------ validación contra los productos reales
 
 /**
- * Compara el carrito con los productos ACTIVOS que devuelve la base (por ejemplo `await listActiveProducts()`).
- * Precios y stock salen de ahí, nunca del carrito guardado.
+ * Compara el carrito con los productos ACTIVOS que devuelve la base (por ejemplo `await listActiveProducts()`, que
+ * incluye sus talles). Precios, stock e IVA salen de ahí, nunca del carrito guardado.
  *
  * Cada línea tiene un `status`:
  *  - "ok":          todo bien.
  *  - "reduced":     pedías más de lo que hay; se baja a `qty` (el stock).
- *  - "soldout":     el producto existe pero está agotado.
- *  - "unavailable": ya no existe, o está oculto.
+ *  - "soldout":     el producto (o ese talle) existe pero está agotado.
+ *  - "needs_size":  el producto tiene talles y la línea no eligió ninguno (carritos anteriores a los talles).
+ *  - "unavailable": ya no existe, está oculto, o ese talle ya no existe.
+ *
+ * Con talles, el stock que cuenta es el DEL TALLE; sin talles, el del producto.
  *
  * @returns {{
- *   lines: Array<{ id: string, status: string, requestedQty: number, qty: number, product: object|null,
- *                  unitCents: number, lineCents: number }>,
- *   subtotalCents: number, issues: number, ok: boolean, fixedCart: { items: Array<{id:string, qty:number}> }
+ *   lines: Array<{ id: string, variant: string|null, size: string|null, status: string, requestedQty: number, qty: number,
+ *                  product: object|null, stock: number|null, unitCents: number, lineCents: number, taxRateBps: number }>,
+ *   subtotalCents: number, taxCents: number, netCents: number, issues: number, ok: boolean,
+ *   fixedCart: { items: Array<{id:string, variant?:string, qty:number}> }
  * }} `ok` es true solo si hay algo en el carrito y ninguna línea tiene problemas.
+ *   `taxCents` es el IVA INCLUIDO en el subtotal (informativo); `netCents` = subtotal − IVA.
  */
 export function validateCart(cart, activeProducts) {
   const byId = new Map();
   for (const p of activeProducts ?? []) if (p && isUuid(p.id)) byId.set(p.id.toLowerCase(), p);
 
-  const lines = cart.items.map(({ id, qty: requestedQty }) => {
+  const lines = cart.items.map(({ id, variant = null, qty: requestedQty }) => {
     const product = byId.get(id) ?? null;
-    const base = { id, requestedQty, product };
+    const base = { id, variant, size: null, requestedQty, product, stock: null, taxRateBps: normalizeRate(product?.tax_rate_bps) };
     // Sin `Number(...)`: Number(null) === 0 convertiría un precio ausente en "gratis".
     const price = product?.price_cents;
     if (!product || !Number.isSafeInteger(price) || price < 0) {
       return { ...base, product: null, status: "unavailable", qty: 0, unitCents: 0, lineCents: 0 };
     }
-    const limit = limitFor(product.stock);
+
+    let stock = product.stock;
+    if (sortedVariants(product).length > 0) {
+      if (!variant) return { ...base, status: "needs_size", qty: 0, unitCents: price, lineCents: 0 };
+      const chosen = findVariant(product, variant);
+      if (!chosen) return { ...base, status: "unavailable", qty: 0, unitCents: price, lineCents: 0 }; // ese talle ya no existe
+      stock = chosen.stock;
+      base.size = chosen.size;
+    } else if (variant) {
+      return { ...base, status: "unavailable", qty: 0, unitCents: price, lineCents: 0 }; // el producto ya no tiene talles
+    }
+    base.stock = stock;
+
+    const limit = limitFor(stock);
     if (limit === 0) return { ...base, status: "soldout", qty: 0, unitCents: price, lineCents: 0 };
     const qty = Math.min(requestedQty, limit);
     return {
@@ -247,11 +289,15 @@ export function validateCart(cart, activeProducts) {
   });
 
   const issues = lines.filter((l) => l.status !== "ok").length;
+  const subtotalCents = lines.reduce((sum, l) => sum + l.lineCents, 0);
+  const taxCents = lines.reduce((sum, l) => sum + (splitTax(l.lineCents, l.taxRateBps)?.taxCents ?? 0), 0);
   return {
     lines,
-    subtotalCents: lines.reduce((sum, l) => sum + l.lineCents, 0),
+    subtotalCents,
+    taxCents,
+    netCents: subtotalCents - taxCents,
     issues,
     ok: lines.length > 0 && issues === 0,
-    fixedCart: { items: lines.filter((l) => l.qty > 0).map((l) => ({ id: l.id, qty: l.qty })) },
+    fixedCart: { items: lines.filter((l) => l.qty > 0).map((l) => lineOf({ id: l.id, variant: l.variant, qty: l.qty })) },
   };
 }

@@ -12,7 +12,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 >
 > **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 87 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
-> verificadas rompiendo la migración a propósito) · **52 pruebas E2E** en Chromium real, todas en verde (02/10/2026, incluidas las 2 de la
+> verificadas rompiendo la migración a propósito) · **57 pruebas E2E** en Chromium real, todas en verde (02/10/2026, incluidas las 2 de la
 > tienda de la Fase 13, las del panel —acceso por rol, lista de clases, CRUD completo de productos con imagen y 4 del ciclo de vida de las clases— y 8 del carrito de la Fase 16).
 >
 > **Roles hechos:** `user` / `admin` / `developer` (el developer es superconjunto del admin; la diferencia: **solo el developer sube videos**), historial de
@@ -36,7 +36,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > npm run verify                                 # formato + lint + tipos + pruebas de backend y frontend
 > npm run test:db                                # base de datos (requiere PostgreSQL y bash)
 > npm run doctor                                 # ¿la configuración está lista para producción?
-> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 52 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
+> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 57 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
 > npm run test:e2e:csp                          # las mismas, contra el sitio construido y con la CSP de producción
 > npm run dev                                    # sitio en http://localhost:3000 (o Live Server: index.html → botón "Go Live")
 > npm run build                                  # arma dist/ (lo único que se sube a Hostinger)
@@ -565,6 +565,24 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       borrarlo): todo se guarda en la base y se puede modificar sin errores
 
 - [x] **FASE 14 CUMPLIDA**
+
+### Fase 14 bis · Talles e IVA incluido
+
+- **Talles con stock por talle** (S, M, L, XL, 2XL…): tabla `product_variants` (migración `20261004120000`). Si un producto
+  tiene talles, **manda el stock de cada talle** y el del producto se ignora (`null` = sin control, `0` = agotado).
+  Se escriben solo con `save_product_variants()`: atómica, solo admin/developer, un talle que sigue **conserva su id**
+  (los carritos y, más adelante, los pedidos lo usan).
+- **Tienda:** la tarjeta muestra los talles (el agotado, tachado) y manda a la ficha; la ficha tiene los talles como
+  botones, exige elegir uno y avisa «Últimas N unidades» del talle elegido. El carrito guarda `(producto, talle)` y limita
+  la cantidad al stock de ese talle; un carrito de antes de los talles pide elegir uno, y un talle quitado se avisa.
+- **Panel:** editor de talles con atajos (XS…3XL, Única) y «Otro talle»; la lista muestra el stock de cada talle.
+- **IVA incluido en el precio:** `products.tax_rate_bps` (2100 = 21 %, general en España incluida Ibiza; 10 %, 4 %, 0 %
+  configurables por producto). Se muestra el precio y, al lado y más chico, el **precio sin IVA**; el carrito suma el IVA
+  incluido. Lo que se cobra es siempre el precio con IVA; **los tipos de cada producto los confirma la gestoría**.
+  Los cambios de IVA quedan en `audit_log` (`product.tax_change`).
+- **Orden de despliegue:** aplicar la migración (`npm run sb:db-push`) **antes** de publicar la web. Si la web sale primero,
+  el catálogo cae a las columnas anteriores (sin talles ni IVA) en vez de romperse, y avisa en la consola.
+- **Pendiente a propósito:** colores (más adelante) y varias fotos por producto (cuando haya almacenamiento de pago).
 
 ### Fase 15 · Carrito — estado y persistencia
 

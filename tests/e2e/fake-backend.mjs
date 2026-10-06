@@ -47,7 +47,8 @@ function seed() {
       { id: '10000000-0000-4000-8000-000000000003', title: 'Remera Pop Up', description: 'Algodón orgánico.', image_url: null, price_cents: 1999, stock: 0, category: 'Ropa', sort_order: 2, is_active: true, created_at: now },
       { id: '10000000-0000-4000-8000-000000000004', title: 'Producto borrador', description: null, image_url: null, price_cents: 500, stock: null, category: 'Ropa', sort_order: 3, is_active: false, created_at: now },
     ],
-    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null },
+    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null, schemaBehind: false },
+    variants: [], // talles: { id, product_id, size, stock, sort_order, created_at }
     log: { saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [] },
     storage: new Map(), // Storage simulado: '<bucket>/<ruta>' -> { type, data }
     r2objects: new Map(), // R2 simulado: key -> bytes subidos por PUT (las clases de la semilla ya tienen su video)
@@ -159,6 +160,30 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
   const pick = (row, cols) => Object.fromEntries(cols.map((c) => [c, row[c]]));
   const classPublic = (c) => { const { r2_object_key, ...rest } = c; return rest; };
 
+  /** Separa el `select` de PostgREST por comas de PRIMER nivel ("a,b,product_variants(id,size)" -> 3 partes). */
+  const splitSelect = (select) => {
+    const out = []; let depth = 0; let cur = '';
+    for (const ch of select) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { out.push(cur); cur = ''; } else cur += ch;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  const variantsOf = (productId) => db.variants.filter((v) => v.product_id === productId).sort((a, b) => a.sort_order - b.sort_order);
+  /** Arma un producto como lo devolvería PostgREST: columnas pedidas + talles embebidos (product_variants(...)). */
+  const shapeProduct = (row, select) => {
+    const full = { updated_at: row.created_at, tax_rate_bps: 2100, ...row };
+    const out = {};
+    for (const token of splitSelect(select || '*')) {
+      const m = token.match(/^([a-z_]+)\((.*)\)$/);
+      if (m && m[1] === 'product_variants') out.product_variants = variantsOf(row.id).map((v) => pick(v, m[2].split(',')));
+      else out[token] = full[token];
+    }
+    return out;
+  };
+
   async function rest(req, res, url) {
     const table = url.pathname.replace('/rest/v1/', '');
     const p = url.searchParams;
@@ -215,29 +240,59 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       return reply(targets.map((c) => pick(classPublic(c), cols)));
     }
 
+    // Misma regla que la base (save_product_variants): solo admin/developer, todo o nada, el id de un talle que sigue se conserva.
+    if (table === 'rpc/save_product_variants' && req.method === 'POST') {
+      if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
+      if (!isStaff(user)) return send(res, 403, { code: '42501', message: 'staff role required' });
+      const { p_product_id: productId, p_variants: list } = await readBody(req);
+      const bad = (message) => send(res, 400, { code: '22023', message });
+      if (!db.products.some((x) => x.id === productId)) return send(res, 404, { code: 'P0002', message: 'product not found' });
+      if (!Array.isArray(list)) return bad('variants must be a json array');
+      if (list.length > 20) return bad('too many sizes (max 20)');
+      const seen = new Set(); const clean = [];
+      for (const e of list) {
+        if (!e || typeof e !== 'object' || typeof e.size !== 'string') return bad('each size needs a text "size"');
+        const size = e.size.trim();
+        if (size.length < 1 || size.length > 20) return bad('size must have 1 to 20 characters');
+        if (seen.has(size.toLowerCase())) return bad(`duplicated size: ${size}`);
+        seen.add(size.toLowerCase());
+        const st = e.stock ?? null;
+        if (st !== null && (typeof st !== 'number' || !Number.isInteger(st) || st < 0 || st > 1000000)) return bad('stock must be an integer between 0 and 1000000');
+        clean.push({ size, stock: st });
+      }
+      const existing = new Map(variantsOf(productId).map((v) => [v.size.toLowerCase(), v]));
+      db.variants = db.variants.filter((v) => v.product_id !== productId);
+      clean.forEach((c, i) => db.variants.push({ id: existing.get(c.size.toLowerCase())?.id ?? randomUUID(), product_id: productId, size: c.size, stock: c.stock, sort_order: i, created_at: new Date().toISOString() }));
+      db.log.products.push({ op: 'variants', id: productId, count: clean.length });
+      return send(res, 200, variantsOf(productId));
+    }
+
     if (table === 'products' && req.method === 'GET') {
+      // schemaBehind: la base aún no tiene las migraciones de talles/IVA (lo que pasaría si la web se publica antes que sb:db-push)
+      if (db.behavior.schemaBehind && /product_variants|tax_rate_bps/.test(p.get('select') || '')) {
+        return send(res, 400, { code: 'PGRST200', message: "Could not find a relationship between 'products' and 'product_variants' in the schema cache" });
+      }
       if (db.behavior.catalogFail) return send(res, 503, { message: 'Service Unavailable' });
-      const cols = (p.get('select') || '*').split(',');
       const visible = db.products.filter((x) => x.is_active || isStaff(user)).map((x) => ({ updated_at: x.created_at, ...x })); // RLS: el público solo ve los activos
-      return reply(applyFilters(visible, p).map((r) => pick(r, cols)));
+      return reply(applyFilters(visible, p).map((r) => shapeProduct(r, p.get('select'))));
     }
 
     // Escrituras de products: solo admin/developer (RLS de la Fase 12) + los CHECK de la tabla.
     if (table === 'products' && ['POST', 'PATCH', 'DELETE'].includes(req.method)) {
       if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
       if (!isStaff(user)) return send(res, 403, { code: '42501', message: 'new row violates row-level security policy for table "products"' });
-      const EDITABLE = ['title', 'description', 'image_url', 'price_cents', 'stock', 'category', 'sort_order', 'is_active'];
+      const EDITABLE = ['title', 'description', 'image_url', 'price_cents', 'stock', 'category', 'sort_order', 'is_active', 'tax_rate_bps'];
       const checkFail = () => send(res, 400, { code: '23514', message: 'new row for relation "products" violates check constraint' });
       const valid = (v) => (!('title' in v) || (typeof v.title === 'string' && v.title.trim() !== '' && v.title.length <= 150))
         && (!('price_cents' in v) || (Number.isInteger(v.price_cents) && v.price_cents >= 0))
-        && (!('stock' in v) || v.stock === null || (Number.isInteger(v.stock) && v.stock >= 0));
-      const cols = (p.get('select') || '*').split(',');
-      const out = (rows) => reply(rows.map((r) => pick({ updated_at: r.created_at, ...r }, cols)));
+        && (!('stock' in v) || v.stock === null || (Number.isInteger(v.stock) && v.stock >= 0))
+        && (!('tax_rate_bps' in v) || (Number.isInteger(v.tax_rate_bps) && v.tax_rate_bps >= 0 && v.tax_rate_bps <= 2500));
+      const out = (rows) => reply(rows.map((r) => shapeProduct(r, p.get('select'))));
       if (req.method === 'POST') {
         const body = await readBody(req);
         const fields = Object.fromEntries(Object.entries(body).filter(([k]) => EDITABLE.includes(k)));
         if (!valid(fields) || !('title' in fields) || !('price_cents' in fields)) return checkFail();
-        const row = { description: null, image_url: null, stock: null, category: null, sort_order: 0, is_active: false, ...fields, id: randomUUID(), created_at: new Date().toISOString() };
+        const row = { description: null, image_url: null, stock: null, category: null, sort_order: 0, is_active: false, tax_rate_bps: 2100, ...fields, id: randomUUID(), created_at: new Date().toISOString() };
         db.products.push(row);
         db.log.products.push({ op: 'insert', id: row.id });
         return out([row]);
@@ -252,6 +307,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
         return out(targets);
       }
       db.products = db.products.filter((r) => !targets.includes(r));
+      db.variants = db.variants.filter((v) => !targets.some((t) => t.id === v.product_id)); // ON DELETE CASCADE
       if (targets.length) db.log.products.push({ op: 'delete', id: targets[0].id });
       return out(targets);
     }
@@ -444,9 +500,15 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     try {
       if (url.pathname === '/__test/reset') { db = seed(); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
-      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata })), products: db.products, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
+      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata })), products: db.products, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
+      if (url.pathname === '/__test/variants') { // prepara talles directamente: { productId, rows:[{size, stock}] }
+        const b = await readBody(req);
+        db.variants = db.variants.filter((v) => v.product_id !== b.productId);
+        b.rows.forEach((r, i) => db.variants.push({ id: randomUUID(), product_id: b.productId, size: r.size, stock: r.stock ?? null, sort_order: i, created_at: new Date().toISOString() }));
+        return send(res, 200, variantsOf(b.productId));
+      }
       if (url.pathname === '/__test/promote') { const b = await readBody(req); const u = [...db.users.values()].find((u) => u.email === b.email); if (u) u.role = b.role; return send(res, 200, { ok: true }); }
       if (url.pathname.startsWith('/auth/v1/')) return await auth(req, res, url);
       if (url.pathname.startsWith('/rest/v1/')) return await rest(req, res, url);
@@ -517,6 +579,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
   });
 
   await Promise.all([[site, ports.site], [api, ports.api], [cdn, ports.cdn]].map(([s, port]) => new Promise((r) => s.listen(port, '127.0.0.1', r))));
+  const setVariants = (productId, rows) => control('variants', { productId, rows });
   const control = (path, body) => fetch(`${origin.api}/__test/${path}`, { method: 'POST', body: JSON.stringify(body || {}) }).then((r) => r.json());
   return {
     origin, IDS, PRODUCT_IDS,
@@ -525,6 +588,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     behavior: (b) => control('behavior', b),
     entitle: (email, classId) => control('entitle', { email, classId }),
     promote: (email, role) => control('promote', { email, role }),
+    setVariants,
     patchProduct: (id, patch) => control('product', { id, patch }),
     state: () => fetch(`${origin.api}/__test/state`).then((r) => r.json()),
     close: () => Promise.all([site, api, cdn].map((s) => new Promise((r) => { s.closeAllConnections?.(); s.close(r); }))),

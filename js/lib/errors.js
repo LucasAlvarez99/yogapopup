@@ -19,6 +19,7 @@ const MESSAGES = {
   video_already_attached: 'Esta clase ya tiene un video en uso.',
   video_provider_error: 'El servicio de video no responde. Probá de nuevo en un momento.',
   invalid_input: 'Revisá los datos ingresados.',
+  sizes_invalid: 'Revisa los talles: hay un valor no válido (nombre repetido, vacío o stock fuera de rango).',
   image_too_large: 'La imagen pesa demasiado, incluso reducida. Prueba con otra más pequeña.',
   image_forbidden: 'Tu cuenta no tiene permiso para subir imágenes. Avisa al equipo técnico.',
   storage_missing: 'Falta el almacenamiento de imágenes en Supabase (bucket). Avisa al equipo técnico.',

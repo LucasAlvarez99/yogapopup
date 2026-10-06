@@ -214,3 +214,41 @@
 .legal ul { padding-left: 1.2rem; }
 .legal .legal-meta { color: var(--color-text-muted); font-size: .9rem; }
 .legal .yp-pending { background: #fff3cd; color: #664d03; padding: 0 .35em; border-radius: .3em; font-style: normal; }
+
+/* ---- Precio con IVA incluido y, al lado más chico, el precio sin IVA ---- */
+.price-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .55rem; }
+.shop-body .price-row { margin-bottom: .6rem; }
+.shop-body .price-row .price { margin-bottom: 0; }
+.price-net { color: var(--color-text-muted); font-size: .72rem; font-weight: 400; white-space: nowrap; }
+.price-row-lg { margin: 0 0 .1rem; }
+.price-row-lg .producto-price { margin: 0; }
+.price-row-lg .price-net { font-size: .85rem; }
+.price-note { color: var(--color-text-muted); font-size: .78rem; margin: 0 0 .9rem; }
+
+/* ---- Talles ---- */
+.size-chips { list-style: none; display: flex; flex-wrap: wrap; gap: .3rem; padding: 0; margin: 0 0 .7rem; }
+.size-chip { font-size: .72rem; line-height: 1.5; padding: 0 .45rem; border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); }
+.size-chip.is-out { color: var(--color-text-muted); text-decoration: line-through; }
+.size-picker { margin: 1.1rem 0 .4rem; }
+.size-label { margin: 0 0 .5rem; font-size: .95rem; }
+.size-options { display: flex; flex-wrap: wrap; gap: .5rem; }
+.size-btn {
+  min-width: 3.4rem; padding: .6rem .9rem; font-weight: 600; font-size: .95rem; font-family: inherit;
+  color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); cursor: pointer; transition: border-color .15s, background-color .15s;
+}
+.size-btn:hover:not(:disabled) { border-color: var(--color-primary); }
+.size-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.size-btn.is-selected { color: var(--blanco-calido); background: var(--color-primary); border-color: var(--color-primary); }
+.size-btn.is-out { color: var(--color-text-muted); text-decoration: line-through; background: transparent; cursor: not-allowed; opacity: .6; }
+.size-error { color: #b42318; font-size: .85rem; font-weight: 600; margin: .6rem 0 0; }
+.cart-size { color: var(--color-text-muted); font-size: .75rem; }
+.cart-tax { color: var(--color-text-muted); font-size: .75rem; text-align: right; margin: -.6rem 0 1rem; }
+.size-presets { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .6rem; }
+.size-rows { display: grid; gap: .4rem; margin-bottom: .4rem; }
+.size-row { display: grid; grid-template-columns: 7rem 1fr auto; gap: .4rem; align-items: center; }
+
+/* ---- Stock por talle en la lista del panel ---- */
+.size-stock { display: flex; flex-wrap: wrap; gap: .25rem .4rem; font-size: .8rem; }
+.size-stock-item { white-space: nowrap; }
+.size-stock-item.is-out { color: var(--color-text-muted); text-decoration: line-through; }

@@ -5,6 +5,8 @@
  * Quien edita escribe euros ("19,99"); acá se convierte con aritmética de enteros, sin pasar por decimales.
  */
 import { canonicalCategory, categoryProblem, cleanCategory, parseSortOrder } from './catalog-fields.js';
+import { validateSizeRows } from './sizes.js';
+import { DEFAULT_TAX_BPS, MAX_TAX_BPS } from './tax.js';
 
 /** Tope: `price_cents` es integer en Postgres (máx. 2 147 483 647). Se deja un margen amplio. */
 export const MAX_PRICE_CENTS = 99_999_999; // 999.999,99 €
@@ -71,16 +73,27 @@ export function buildProductInput(raw, { previousCategory = null, knownCategorie
   const sort = parseSortOrder(raw.sort_order);
   if (sort.error) return { error: sort.error };
 
+  // IVA incluido en el precio: vacío = el general (21 %); si no, un entero de 0 a 2500 puntos básicos.
+  const taxText = String(raw.tax_rate_bps ?? '').trim();
+  if (taxText !== '' && (!/^\d{1,4}$/.test(taxText) || Number(taxText) > MAX_TAX_BPS)) return { error: 'El tipo de IVA no es válido.' };
+  const tax_rate_bps = taxText === '' ? DEFAULT_TAX_BPS : Number(taxText);
+
+  // Talles: si hay, el stock se controla en cada talle y el del producto se descarta (la base lo ignora igual).
+  const sizes = validateSizeRows(raw.sizes ?? []);
+  if (sizes.error) return { error: sizes.error };
+
   return {
     value: {
       title,
       description: description || null,
       category: canonicalCategory(category, known) || null,
       price_cents,
-      stock,
+      stock: sizes.value.length > 0 ? null : stock,
       sort_order: sort.value,
       is_active: Boolean(raw.is_active),
+      tax_rate_bps,
     },
+    sizes: sizes.value,
   };
 }
 

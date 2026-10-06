@@ -19,7 +19,9 @@ export function lineNotice(line) {
     case "soldout":
       return "Agotado";
     case "unavailable":
-      return "Ya no está disponible";
+      return line.variant ? "Ese talle ya no está disponible" : "Ya no está disponible";
+    case "needs_size":
+      return "Elige un talle";
     case "reduced":
       return line.qty === 1 ? "Solo queda 1 unidad" : `Solo quedan ${line.qty} unidades`;
     default:
@@ -30,21 +32,23 @@ export function lineNotice(line) {
 /** ¿Se puede subir la cantidad de esta línea? Nunca por encima del stock ni del tope por producto. */
 export function canIncrease(line) {
   if (!line.product || (line.status !== "ok" && line.status !== "reduced")) return false;
-  return line.qty < limitFor(line.product.stock);
+  // Con talles el límite es el stock del talle (`line.stock`); las líneas armadas a mano sin ese dato usan el del producto.
+  return line.qty < limitFor("stock" in line ? line.stock : line.product.stock);
 }
 
 /** Las líneas agotadas o que ya no existen solo se pueden quitar. */
-export const isRemovableOnly = (line) => line.status === "soldout" || line.status === "unavailable";
+export const isRemovableOnly = (line) => line.status === "soldout" || line.status === "unavailable" || line.status === "needs_size";
 
 /**
  * Qué pasó al tocar "Agregar al carrito", para avisar con el texto correcto.
  * @returns {{ kind: "success" | "info", text: string }}
  */
-export function addFeedback(before, after, product) {
-  const had = qtyOf(before, product.id);
-  const now = qtyOf(after, product.id);
-  if (now > had) return { kind: "success", text: `«${product.title}» se agregó al carrito.` };
-  if (limitFor(product.stock) === 0) return { kind: "info", text: "Este producto está agotado." };
+export function addFeedback(before, after, product, { variant = null, size = null, stock = product.stock } = {}) {
+  const had = qtyOf(before, product.id, variant);
+  const now = qtyOf(after, product.id, variant);
+  const name = size ? `${product.title} (talle ${size})` : product.title;
+  if (now > had) return { kind: "success", text: `«${name}» se agregó al carrito.` };
+  if (limitFor(stock) === 0) return { kind: "info", text: size ? "Ese talle está agotado." : "Este producto está agotado." };
   if (had === 0) return { kind: "info", text: "El carrito no admite más productos distintos. Quita alguno para agregar este." };
-  return { kind: "info", text: `Ya tienes el máximo disponible de «${product.title}» en el carrito.` };
+  return { kind: "info", text: `Ya tienes el máximo disponible de «${name}» en el carrito.` };
 }

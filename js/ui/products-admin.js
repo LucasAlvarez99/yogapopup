@@ -3,6 +3,7 @@ import { adminDeleteProduct, adminListProducts, adminUpdateProduct, deleteProduc
 import { messageFor } from '../lib/errors.js';
 import { formatDate, formatPrice } from '../lib/format.js';
 import { el, icon, mount } from '../lib/dom.js';
+import { hasSizes, productAvailability, sortedVariants, variantInfo } from '../lib/sizes.js';
 import { openProductForm } from './product-form-modal.js';
 import { toast } from './toast.js';
 import { emptyState, errorState, skeletonGrid } from './states.js';
@@ -20,7 +21,8 @@ let isCurrent = () => true;
 let products = [];
 let filter = 'all'; // 'all' | 'active' | 'hidden' | 'soldout'
 
-const isSoldOut = (p) => p.stock !== null && p.stock !== undefined && p.stock <= 0;
+// Con talles manda el stock de cada talle: el producto está agotado solo si TODOS lo están.
+const isSoldOut = (p) => !productAvailability(p).available;
 
 const FILTERS = [
   ['all', 'Todos', () => true],
@@ -30,6 +32,12 @@ const FILTERS = [
 ];
 
 function stockCell(p) {
+  if (hasSizes(p)) {
+    if (isSoldOut(p)) return el('span', { class: 'badge text-bg-danger' }, 'Agotado');
+    // Un chip por talle con su stock ("∞" = no se controla); los agotados van tachados.
+    return el('span', { class: 'size-stock', title: 'Stock por talle (∞ = sin control)' },
+      ...sortedVariants(p).map((v) => el('span', { class: `size-stock-item${variantInfo(v).available ? '' : ' is-out'}` }, `${v.size} ${v.stock ?? '∞'}`)));
+  }
   if (p.stock === null || p.stock === undefined) return el('span', { class: 'text-muted small' }, 'Sin control');
   if (p.stock <= 0) return el('span', { class: 'badge text-bg-danger' }, 'Agotado');
   return el('span', {}, String(p.stock));

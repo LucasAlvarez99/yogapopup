@@ -2,6 +2,7 @@ import { el, icon, mount } from '../lib/dom.js';
 import { cartCount, createCartStore, limitFor, validateCart } from '../lib/cart.js';
 import { addFeedback, badgeText, canIncrease, isRemovableOnly, lineNotice } from '../lib/cart-view.js';
 import { formatPrice } from '../lib/format.js';
+import { cartOptionsFor } from '../lib/sizes.js';
 import { listActiveProducts } from '../lib/api.js';
 import { messageFor } from '../lib/errors.js';
 import { page } from '../lib/env.js';
@@ -29,11 +30,15 @@ let loading = false;
 let failure = null;
 let generation = 0; // para descartar respuestas viejas si se pide de nuevo
 
-/** Agrega una unidad de `product` al carrito y avisa con un mensaje (o el motivo por el que no se pudo). */
-export function addToCart(product) {
+/**
+ * Agrega una unidad de `product` al carrito y avisa con un mensaje (o el motivo por el que no se pudo).
+ * Si el producto tiene talles, `variant` es el talle elegido: su stock es el que limita la cantidad.
+ */
+export function addToCart(product, variant = null) {
   const before = cartStore.get();
-  const after = cartStore.add(product.id, 1, { stock: product.stock });
-  const { kind, text } = addFeedback(before, after, product);
+  const options = variant ? cartOptionsFor(variant) : { stock: product.stock };
+  const after = cartStore.add(product.id, 1, options);
+  const { kind, text } = addFeedback(before, after, product, { variant: variant?.id ?? null, size: variant?.size ?? null, stock: options.stock });
   toast(text, { type: kind });
   if (kind === 'success' && !cartStore.persistent) {
     toast('Este navegador no permite guardar el carrito: se perderá al cerrar la pestaña.', { type: 'info', ms: 7000 });
@@ -69,25 +74,27 @@ function lineItem(line) {
     : title;
   const info = el('div', { class: 'cart-info' },
     el('h3', {}, heading),
+    line.size ? el('small', { class: 'cart-size' }, `Talle: ${line.size}`) : null,
     notice ? el('small', { class: 'cart-issue' }, notice) : null,
     removableOnly ? null : el('strong', {}, formatPrice(line.lineCents)));
+  const label = line.size ? `${title} (talle ${line.size})` : title;
   const remove = el('button', {
-    type: 'button', class: 'cart-remove', 'aria-label': `Quitar ${title}`, onclick: () => cartStore.remove(line.id),
+    type: 'button', class: 'cart-remove', 'aria-label': `Quitar ${label}`, onclick: () => cartStore.remove(line.id, line.variant),
   }, icon('x-lg'));
 
-  const qty = removableOnly ? null : el('div', { class: 'qty', role: 'group', 'aria-label': `Cantidad de ${title}` },
+  const qty = removableOnly ? null : el('div', { class: 'qty', role: 'group', 'aria-label': `Cantidad de ${label}` },
     el('button', {
       type: 'button', 'aria-label': 'Una unidad menos', disabled: line.qty <= 1,
-      onclick: () => cartStore.setQty(line.id, line.qty - 1, { stock: p.stock }),
+      onclick: () => cartStore.setQty(line.id, line.qty - 1, { stock: line.stock, variant: line.variant }),
     }, icon('dash')),
     el('span', { 'aria-live': 'polite' }, String(line.qty)),
     el('button', {
       type: 'button', 'aria-label': 'Una unidad más', disabled: !canIncrease(line),
-      title: canIncrease(line) ? null : (limitFor(p.stock) > 0 ? 'Ya tienes el máximo disponible' : null),
-      onclick: () => cartStore.setQty(line.id, line.qty + 1, { stock: p.stock }),
+      title: canIncrease(line) ? null : (limitFor(line.stock) > 0 ? 'Ya tienes el máximo disponible' : null),
+      onclick: () => cartStore.setQty(line.id, line.qty + 1, { stock: line.stock, variant: line.variant }),
     }, icon('plus')));
 
-  return el('li', { class: `cart-item${removableOnly ? ' is-broken' : ''}`, 'data-product-id': line.id }, thumb, info, remove, qty);
+  return el('li', { class: `cart-item${removableOnly ? ' is-broken' : ''}`, 'data-product-id': line.id, 'data-variant-id': line.variant ?? null }, thumb, info, remove, qty);
 }
 
 function emptyView() {
@@ -106,6 +113,9 @@ function footer(validation) {
   return el('div', { class: 'cart-footer mt-auto' },
     fix,
     el('div', { class: 'subtotal' }, el('span', {}, 'Subtotal'), el('strong', { id: 'cartSubtotal' }, formatPrice(validation.subtotalCents))),
+    validation.taxCents > 0
+      ? el('p', { class: 'cart-tax', id: 'cartTax' }, `IVA incluido: ${formatPrice(validation.taxCents)} · sin IVA: ${formatPrice(validation.netCents)}`)
+      : null,
     // El pago online llega en las Fases 17-18: hasta entonces no se simula una compra que no existe.
     el('button', { type: 'button', class: 'btn btn-brand w-100 mb-2', disabled: true, title: 'El pago online llega pronto' },
       'Finalizar compra ', icon('arrow-right')),
