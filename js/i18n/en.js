@@ -5,6 +5,11 @@
  * Alcance: sitio público (home, videoteca, clase, tienda, producto, cuenta, carrito, acceso). No incluye el panel de
  * gestión ni la política de privacidad (ver js/lib/i18n.js).
  */
+const MONTHS_EN = {
+  Enero: 'January', Febrero: 'February', Marzo: 'March', Abril: 'April', Mayo: 'May', Junio: 'June', Julio: 'July',
+  Agosto: 'August', Septiembre: 'September', Octubre: 'October', Noviembre: 'November', Diciembre: 'December',
+};
+
 const exact = {
   // ---- Encabezado, pie y navegación
   'Yoga Pop Up · Yoga & Conexión': 'Yoga Pop Up · Yoga & Connection',
@@ -171,12 +176,40 @@ const exact = {
   'Demasiados intentos. Esperá un momento e intentá de nuevo.': 'Too many attempts. Wait a moment and try again.',
   'Elegí una contraseña más segura.': 'Choose a stronger password.', 'No pudimos conectar. Revisá tu conexión.': "We couldn't connect. Check your connection.",
   'No pudimos completar la acción. Probá de nuevo.': "We couldn't complete the action. Try again.",
-  'Panel de negocio': 'Business panel',
+  'Panel de negocio': 'Business panel', 'Mi agenda de clases': 'My class schedule',
+
+  // ---- Profesores y agenda de clases en vivo
+  'Muy pronto, nuestras clases en vivo': 'Coming soon: our live classes',
+  'Estamos sumando profesores y horarios. Volvé en unos días.': "We're adding teachers and schedules. Check back in a few days.",
+  'Activa JavaScript para ver las clases en vivo.': 'Turn on JavaScript to see the live classes.',
+  'Clases en vivo en preparación': 'Live classes coming soon',
+  'Profesor anterior': 'Previous teacher', 'Profesor siguiente': 'Next teacher', 'Profesores': 'Teachers', 'Profesor': 'Teacher',
+  'Profesor/a de yoga': 'Yoga teacher', 'Agendar clase en vivo': 'Book a live class',
+  'Mes anterior': 'Previous month', 'Mes siguiente': 'Next month', 'Horarios disponibles': 'Available times',
+  'Clase en vivo': 'Live class', 'Clase virtual': 'Virtual class', 'Reservada': 'Booked', 'Completa': 'Full',
+  'Cancelar mi reserva': 'Cancel my booking', 'Clase completa': 'Class full',
+  'Elegí un día marcado en el calendario.': 'Pick a highlighted day on the calendar.',
+  'Las clases en vivo se dictan en horario de Argentina (GMT-3).': 'Live classes are held on Argentina time (GMT-3).',
+  'Avanzado': 'Advanced',
+  'Lu': 'Mo', 'Ma': 'Tu', 'Mi': 'We', 'Ju': 'Th', 'Vi': 'Fr', 'Sá': 'Sa', 'Do': 'Su',
+  '¡Listo! Tu lugar está reservado.': 'Done! Your spot is booked.', 'Cancelaste tu reserva.': 'You cancelled your booking.',
+  'Esta clase ya no tiene lugares.': 'This class has no spots left.', 'Esta clase ya empezó.': 'This class has already started.',
+  'No encontramos esta clase en vivo (quizá ya no está disponible).': "We couldn't find this live class (it may no longer be available).",
+  'No tenés permiso para hacer esto.': "You don't have permission to do this.",
+  'Mis próximas clases en vivo': 'My upcoming live classes', 'Cargando…': 'Loading…',
+  'Todavía no reservaste ninguna clase.': "You haven't booked any class yet.", 'Ver clases en vivo': 'See live classes',
+  'Cancelar': 'Cancel', '(hora de Argentina)': '(Argentina time)',
 };
 
 /** Textos con datos: [expresión sobre el texto en español, reemplazo con $1, $2…]. Van anclados (^…$). */
 const patterns = [
   [/^(\d+) semanas?$/, '$1 weeks'],
+  [new RegExp(`^(${Object.keys(MONTHS_EN).join('|')}) (\\d{4})$`), (_all, month, year) => `${MONTHS_EN[month]} ${year}`],
+  [/^(\d+), con clases$/, '$1, has classes'],
+  [/^(\d+) lugar(?:es)?$/, (_all, n) => `${n} ${n === '1' ? 'spot' : 'spots'} left`],
+  [/^(.+) hora local$/, '$1 local time'],
+  [/^Duración: (\d+) minutos$/, 'Duration: $1 minutes'],
+  [/^Todavía no hay clases agendadas este mes con (.+)\.$/, 'There are no classes scheduled this month with $1.'],
   [/^(.+) · Yoga Pop Up$/, '$1 · Yoga Pop Up'],
   [/^Continuar · (.+)$/, 'Resume · $1'],
   [/^(\d+)% visto$/, '$1% watched'],

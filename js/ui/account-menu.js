@@ -28,7 +28,9 @@ function open(anchor) {
     // ningún enlace a una página que todavía no está.
     session.isStaff()
       ? el('a', { class: 'yp-account-item', href: page('panel.html'), role: 'menuitem' }, icon('kanban'), 'Panel de negocio')
-      : null,
+      : session.isTeacher()
+        ? el('a', { class: 'yp-account-item', href: page('panel.html'), role: 'menuitem' }, icon('calendar3'), 'Mi agenda de clases')
+        : null,
     el('button', {
       type: 'button', class: 'yp-account-item', role: 'menuitem',
       onclick: async () => {

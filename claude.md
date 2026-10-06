@@ -147,7 +147,7 @@ Estado a 29/09/2026 (la hoja de ruta completa, Fases 0-39, está en el `README.m
   (periódico, al pausar, al salir, al terminar, retomar y empezar de cero)
 - [~] README con comandos de instalación y pruebas; faltan los pasos de despliegue definitivos con cuentas reales
 
-- [x] **Roles y auditoría** (`user`/`admin`/`developer`, historial inmutable; subir videos solo `developer`): base de datos con `npm run test:db` y guardas
+- [x] **Roles y auditoría** (`user`/`profesor`/`admin`/`developer`, historial inmutable; subir videos y dar de alta profesores solo `developer`): base de datos con `npm run test:db` y guardas
   con pruebas de "acceso denegado" por nivel
 - [~] **Puesta en marcha con cuentas reales**: guía (`docs/PUESTA-EN-MARCHA.md`), `npm run doctor[:online]` y
   `npm run test:integration` listos; **falta que el cliente cree las cuentas**

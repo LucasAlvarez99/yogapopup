@@ -29,7 +29,7 @@ export const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
 /**
  * Traduce un texto con un diccionario. Conserva los espacios de los extremos. Devuelve `null` si no hay traducción.
  * @param {string} source
- * @param {{ exact: Record<string,string>, patterns?: Array<[RegExp, string]> }} dict
+ * @param {{ exact: Record<string,string>, patterns?: Array<[RegExp, string | ((...m: string[]) => string)]> }} dict
  */
 export function translateWith(source, dict) {
   const key = norm(source);

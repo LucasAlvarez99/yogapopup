@@ -1,7 +1,7 @@
 import { cfg } from './env.js';
 import { supabase } from './supabase.js';
 import { accessToken } from './session.js';
-import { AppError } from './errors.js';
+import { AppError, agendaError } from './errors.js';
 import { fitImage, storageUploadError } from './image.js';
 import { isSchemaBehind } from './catalog.js';
 import { storagePathFromPublicUrl } from './product-form.js';
@@ -298,4 +298,68 @@ export async function resizeImage(file) {
   } finally {
     bitmap.close?.();
   }
+}
+
+// ---------------------------------------------------------------- profesores y agenda de clases en vivo (Fases 28-30)
+// Lo público (perfil de profesores activos y agenda con cupos) se lee sin sesión. Reservar y la agenda del profesor
+// van por funciones de la base (RPC) que validan cupo, horario y permisos: acá solo se arman las llamadas.
+export const TEACHER_COLUMNS = 'profile_id,public_name,bio,photo_url,specialties,is_active,created_at';
+
+async function rpc(name, args = {}) {
+  const { data, error } = await db().rpc(name, args);
+  if (error) throw agendaError(error);
+  return data;
+}
+
+/** Profesores activos (lo que ve cualquier visitante). */
+export async function listTeachers() {
+  return unwrap(await db().from('teachers').select(TEACHER_COLUMNS).eq('is_active', true).order('created_at', { ascending: true })) ?? [];
+}
+/** Todos, también los dados de baja (la base solo deja verlos a la gestión). */
+export async function adminListTeachers() {
+  return unwrap(await db().from('teachers').select(TEACHER_COLUMNS).order('created_at', { ascending: true })) ?? [];
+}
+/** Clases en vivo publicadas entre `from` y `to` (ISO), con cupos ocupados y si yo ya estoy anotado/a. */
+export const liveAgenda = ({ teacher = null, from, to }) => rpc('live_agenda', { p_teacher: teacher, p_from: from, p_to: to }).then((r) => r ?? []);
+export const bookLiveSession = (sessionId) => rpc('book_live_session', { p_session: sessionId });
+export const cancelLiveBooking = (sessionId) => rpc('cancel_live_booking', { p_session: sessionId });
+export const myLiveBookings = () => rpc('my_live_bookings').then((r) => r ?? []);
+/** Clases de un profesor con los alumnos anotados (solo nombres). El propio profesor o la gestión. */
+export const teacherAgenda = (teacherId, from, to) => rpc('teacher_agenda', { p_teacher: teacherId, p_from: from, p_to: to }).then((r) => r ?? []);
+
+export async function createLiveSession(teacherId, input) {
+  return unwrap(await db().from('live_sessions').insert({ teacher_id: teacherId, ...input }).select('id').single());
+}
+export async function updateLiveSession(id, input) {
+  return unwrap(await db().from('live_sessions').update(input).eq('id', id).select('id').single());
+}
+export async function deleteLiveSession(id) {
+  unwrap(await db().from('live_sessions').delete().eq('id', id));
+}
+
+export async function updateTeacherProfile(profileId, patch) {
+  return unwrap(await db().from('teachers').update(patch).eq('profile_id', profileId).select(TEACHER_COLUMNS).single());
+}
+
+// Alta y baja de profesores: solo developer (la base lo exige y lo audita).
+export const setUserRoleByEmail = (email, role) => rpc('set_user_role_by_email', { p_email: email, p_role: role });
+export const setTeacherActive = (profileId, active) => rpc('set_teacher_active', { p_target: profileId, p_active: active });
+
+// ---------------------------------------------------------------- fotos de perfil de profesores (Supabase Storage)
+export const TEACHER_PHOTO_BUCKET = 'teacher-photos';
+
+/** Sube la foto (ya reducida) a la carpeta del profesor y devuelve su URL pública. */
+export async function uploadTeacherPhoto(profileId, blob) {
+  const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+  const path = `${profileId}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await db().storage.from(TEACHER_PHOTO_BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: '31536000' });
+  if (error) { console.warn('[storage] teacher-photos upload:', error); throw storageUploadError(error, 'No se pudo subir la foto.'); }
+  return db().storage.from(TEACHER_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/** Borra la foto SOLO si la URL es de nuestro bucket. Se llama DESPUÉS de guardar la nueva (ver claude.md, trampas). */
+export async function deleteTeacherPhotoByUrl(url) {
+  const path = storagePathFromPublicUrl(url, TEACHER_PHOTO_BUCKET);
+  if (!path) return;
+  await db().storage.from(TEACHER_PHOTO_BUCKET).remove([path]);
 }

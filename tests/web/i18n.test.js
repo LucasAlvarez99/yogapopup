@@ -50,7 +50,7 @@ Deno.test("diccionario en: claves normalizadas, valores no vacíos y patrones an
   }
   for (const [re, out] of en.patterns) {
     assert.ok(re.source.startsWith("^") && re.source.endsWith("$"), `patrón sin anclar: ${re}`);
-    assert.equal(typeof out, "string");
+    assert.ok(typeof out === "string" || typeof out === "function");
   }
 });
 
@@ -62,6 +62,15 @@ Deno.test("diccionario en: patrones de ejemplo", () => {
   assert.equal(t("Contraseña nueva (mínimo 8 caracteres)"), "New password (minimum 8 characters)");
   assert.equal(t("IVA incluido: 1,00 € · sin IVA: 8,00 €"), "VAT included: 1,00 € · excl. VAT: 8,00 €");
   assert.equal(t("Con Manu"), "With Manu");
+  assert.equal(t("Septiembre 2026"), "September 2026");
+  assert.equal(t("1 lugar"), "1 spot left");
+  assert.equal(t("3 lugares"), "3 spots left");
+  assert.equal(t("21:30 hora local"), "21:30 local time");
+  assert.equal(t("Duración: 60 minutos"), "Duration: 60 minutes");
+  assert.equal(
+    t("Todavía no hay clases agendadas este mes con Lucía."),
+    "There are no classes scheduled this month with Lucía.",
+  );
 });
 
 Deno.test("diccionario en: un título escrito por el equipo no se traduce por accidente", () => {

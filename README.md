@@ -15,7 +15,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > verificadas rompiendo la migración a propósito) · **57 pruebas E2E** en Chromium real, todas en verde (02/10/2026, incluidas las 2 de la
 > tienda de la Fase 13, las del panel —acceso por rol, lista de clases, CRUD completo de productos con imagen y 4 del ciclo de vida de las clases— y 8 del carrito de la Fase 16).
 >
-> **Roles hechos:** `user` / `admin` / `developer` (el developer es superconjunto del admin; la diferencia: **solo el developer sube videos**), historial de
+> **Roles hechos:** `user` / `profesor` / `admin` / `developer` (el developer es superconjunto del admin; la diferencia: **solo el developer sube videos y da de alta profesores**; el `profesor` da clases pero no es gestión), historial de
 > auditoría que nadie puede editar ni borrar, cambios de rol solo por desarrolladores y protección del último desarrollador.
 > **Cuentas reales preparadas:** guía, `npm run doctor[:online]` y una prueba de integración real que se ejecuta
 > sola cuando existan las credenciales (`npm run test:integration`). **Falta que el cliente cree las cuentas** (ver
@@ -44,21 +44,26 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 
 ### Roles y permisos
 
-| Acción | `user` | `admin` | `developer` |
-|---|:-:|:-:|:-:|
-| Ver catálogo, reproducir lo permitido, guardar progreso, comprar | ✅ | ✅ | ✅ |
-| Editar clases (título, nivel, miniatura…) | ❌ | ✅ | ✅ |
-| Publicar / despublicar clases | ❌ | ✅ | ✅ |
-| **Borrar** clases (borra también su video en R2) | ❌ | ✅ | ✅ |
-| Productos: crear, editar, activar/ocultar, borrar (con imagen) | ❌ | ✅ | ✅ |
-| Ver borradores y clases no publicadas | ❌ | ✅ | ✅ |
-| **Subir videos** (clase nueva, reintentar o reemplazar el video) | ❌ | ❌ | ✅ |
-| Cambiar el rol de otras personas | ❌ | ❌ | ✅ |
-| Leer el historial interno (`audit_log`) | ❌ | ❌ | ✅ |
+| Acción | `user` | `profesor` | `admin` | `developer` |
+|---|:-:|:-:|:-:|:-:|
+| Ver catálogo, reproducir lo permitido, guardar progreso, comprar, **reservar clases en vivo** | ✅ | ✅ | ✅ | ✅ |
+| Editar SU perfil público (foto, presentación) y gestionar SU agenda de clases en vivo con sus alumnos | ❌ | ✅ | ✅\* | ✅\* |
+| Editar el perfil o la agenda de **cualquier** profesor | ❌ | ❌ | ✅ | ✅ |
+| **Dar de alta / baja profesores** | ❌ | ❌ | ❌ | ✅ |
+| Editar clases (título, nivel, miniatura…) | ❌ | ❌ | ✅ | ✅ |
+| Publicar / despublicar clases | ❌ | ❌ | ✅ | ✅ |
+| **Borrar** clases (borra también su video en R2) | ❌ | ❌ | ✅ | ✅ |
+| Productos: crear, editar, activar/ocultar, borrar (con imagen) | ❌ | ❌ | ✅ | ✅ |
+| Ver borradores y clases no publicadas | ❌ | ❌ | ✅ | ✅ |
+| **Subir videos** (clase nueva, reintentar o reemplazar el video) | ❌ | ❌ | ❌ | ✅ |
+| Cambiar el rol de otras personas | ❌ | ❌ | ❌ | ✅ |
+| Leer el historial interno (`audit_log`) | ❌ | ❌ | ❌ | ✅ |
 
 "Subir" se impide en **tres capas**: la Edge Function `admin-create-upload` exige `developer`, la base solo deja insertar
 en `classes` al `developer`, y el panel no muestra las acciones de subida al admin. Cambiar el rol de alguien (solo un
-developer): en Supabase → Table Editor → `profiles`, editar la celda `role` (`user` / `admin` / `developer`) — queda auditado.
+developer): en Supabase → Table Editor → `profiles`, editar la celda `role` (`user` / `profesor` / `admin` / `developer`) — queda auditado.
+\* Un admin o developer que además da clases (Manu) tiene su perfil de profesor: el panel le muestra "Mi agenda" y "Mi perfil". Ser profesor es una fila en `teachers`, no solo un rol.
+Dar de alta a un profesor: panel → **Profesores** → correo con el que se registró (solo developer; `set_user_role_by_email`, auditado).
 (`set_user_role()` solo funciona con una sesión de developer, no desde el SQL Editor.)
 
 ### Privacidad (RGPD / LOPDGDD)
@@ -726,24 +731,28 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 
 ### Fase 28 · Súper-admin — modelo de datos de la agenda
 
-- [ ] Tablas `live_sessions` (fecha, hora, cupo, presencial/virtual) y `live_bookings` (quién se anotó a cuál)
-- [ ] La agenda es del rol `admin`/`developer` que ya existe (Fase 0); no hace falta un rol nuevo
+- [x] Tablas `teachers`, `live_sessions` (fecha, hora, cupo, en vivo/virtual) y `live_bookings` (migración `20261005120000`)
+- [x] Rol nuevo `profesor` (escala: user · profesor · admin · developer): NO es gestión; alta solo por developer, auditada
+- [x] RLS + `supabase/tests/profesores_agenda.test.sql`: cada profesor solo toca lo suyo, cupo con bloqueo, sin correos de alumnos
+- [x] Foto de perfil: bucket `teacher-photos` (cada profesor en su carpeta; la gestión en cualquiera)
 
-- [ ] **FASE 28 CUMPLIDA**
+- [x] **FASE 28 CUMPLIDA**
 
 ### Fase 29 · Súper-admin — vista de agenda
 
-- [ ] Vista por día: cuántos alumnos anotados, en qué horario, presencial o virtual
-- [ ] Alta rápida de una clase en vivo desde el panel (fecha, hora, cupo)
+- [~] Pestañas del panel: "Mi agenda" (crear/editar/borrar clases y ver alumnos anotados), "Mi perfil" (foto, presentación) y "Profesores" (gestión)
+- [~] Home: carrusel de profesores + calendario y horarios (reemplaza las tarjetas fijas). Probado con jsdom; **falta probarlo en un navegador real**
+- [x] Lógica pura probada (`tests/web/agenda.test.js`): hora argentina GMT-3, calendario, validación del formulario
 
-- [ ] **FASE 29 CUMPLIDA**
+- [ ] **FASE 29 CUMPLIDA** (falta E2E en navegador)
 
 ### Fase 30 · Agenda — inscripción de alumnos
 
-- [ ] El alumno se anota a una clase en vivo desde su cuenta, respetando el cupo
-- [ ] "Mis próximas clases" en el perfil del usuario
+- [x] El alumno reserva desde la home respetando el cupo (`book_live_session`, con bloqueo); cancela hasta que empiece la clase
+- [~] "Mis próximas clases en vivo" en la cuenta del usuario (falta probar en navegador real)
+- [ ] Decidir si reservar es gratis o con pago (hoy es gratis)
 
-- [ ] **FASE 30 CUMPLIDA**
+- [ ] **FASE 30 CUMPLIDA** (falta E2E en navegador y decidir el cobro)
 
 ### Fase 31 · Notificaciones — aviso de clase en vivo el mismo día
 

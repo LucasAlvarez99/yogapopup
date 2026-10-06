@@ -1,18 +1,55 @@
 import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
+import { cancelLiveBooking, myLiveBookings } from '../lib/api.js';
+import { arDay, arTime, MODE_LABELS } from '../lib/agenda.js';
+import { levelLabel } from '../lib/format.js';
+import { messageFor } from '../lib/errors.js';
 import { el, mount } from '../lib/dom.js';
 import { boot } from '../ui/boot.js';
 import { openAuth } from '../ui/auth-modal.js';
 import { toast } from '../ui/toast.js';
 import { emptyState } from '../ui/states.js';
 
-/** Mi cuenta: editar el nombre, cambiar la contraseña y cerrar sesión. */
+/** Mi cuenta: editar el nombre, mis próximas clases en vivo, cambiar la contraseña y cerrar sesión. */
 const root = document.getElementById('account');
 
 async function saveName(name) {
   const { user } = session.getState();
   const { error } = await supabase.from('profiles').update({ display_name: name || null }).eq('id', user.id);
   if (error) throw error;
+}
+
+/** "Mis próximas clases en vivo": las reservas de la persona, con opción de cancelar antes de que empiecen. */
+function bookingsCard() {
+  const body = el('div', { 'aria-busy': 'true' }, el('p', { class: 'text-muted small' }, 'Cargando…'));
+  const card = el('section', { class: 'yp-card' }, el('h2', { class: 'yp-block-title' }, 'Mis próximas clases en vivo'), body);
+  async function load() {
+    let rows;
+    try { rows = await myLiveBookings(); }
+    catch (err) { return mount(body, el('p', { class: 'text-danger small', role: 'alert' }, messageFor(err))); }
+    if (rows.length === 0) {
+      return mount(body, el('p', { class: 'text-muted' }, 'Todavía no reservaste ninguna clase.'),
+        el('a', { class: 'btn btn-outline-brand btn-sm', href: 'index.html#clases' }, 'Ver clases en vivo'));
+    }
+    mount(body, el('ul', { class: 'list-unstyled mb-0' }, ...rows.map((r) => el('li', { class: 'd-flex justify-content-between align-items-center gap-2 py-2 border-bottom' },
+      el('div', {},
+        el('strong', { translate: 'no' }, r.title),
+        el('div', { class: 'small text-muted' },
+          `${arDay(r.starts_at).split('-').reverse().join('/')} · ${arTime(r.starts_at)} `, el('span', {}, '(hora de Argentina)'),
+          ' · ', el('span', {}, levelLabel(r.level)), ' · ', el('span', {}, MODE_LABELS[r.mode])),
+        el('div', { class: 'small text-muted', translate: 'no' }, r.teacher_name)),
+      new Date(r.starts_at) > new Date()
+        ? el('button', {
+          type: 'button', class: 'btn btn-sm btn-outline-secondary',
+          onclick: async (e) => {
+            e.currentTarget.disabled = true;
+            try { await cancelLiveBooking(r.session_id); toast('Cancelaste tu reserva.', { type: 'info' }); await load(); }
+            catch (err) { toast(messageFor(err), { type: 'error' }); e.currentTarget.disabled = false; }
+          },
+        }, 'Cancelar') : null))));
+  }
+  load();
+  return card;
 }
 
 function render() {
@@ -50,7 +87,8 @@ function render() {
     catch (err) { toast(session.authMessage(err), { type: 'error' }); }
   });
 
-  mount(root, el('div', { class: 'row g-4' }, el('div', { class: 'col-lg-6' }, nameForm), el('div', { class: 'col-lg-6' }, passForm)),
+  mount(root, el('div', { class: 'row g-4' }, el('div', { class: 'col-lg-6' }, nameForm), el('div', { class: 'col-lg-6' }, passForm),
+    el('div', { class: 'col-12' }, bookingsCard())),
     el('button', { type: 'button', class: 'btn btn-soft mt-4', onclick: async () => { await session.signOut(); location.href = 'index.html'; } }, 'Cerrar sesión'));
 }
 

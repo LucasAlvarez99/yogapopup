@@ -3,9 +3,12 @@ import { supabase } from '../lib/supabase.js';
 import { listActiveProducts, listPublishedClasses } from '../lib/api.js';
 import { messageFor } from '../lib/errors.js';
 import { mount } from '../lib/dom.js';
-import { initAuthUi } from '../ui/auth-modal.js';
+import { initAuthUi, openAuth } from '../ui/auth-modal.js';
 import { initAccountMenu } from '../ui/account-menu.js';
 import { initLanguage } from '../ui/lang-switcher.js';
+import * as api from '../lib/api.js';
+import { toast } from '../ui/toast.js';
+import { mountTeachersAgenda } from '../components/teachers-agenda.js';
 import { classCard } from '../components/class-card.js';
 import { productCard } from '../components/product-card.js';
 import { addToCart, initCartUi } from '../ui/cart-drawer.js';
@@ -69,3 +72,23 @@ async function loadProducts() {
   shopBox.setAttribute('aria-busy', 'false');
 }
 loadProducts();
+
+// Practicá acompañado: carrusel de profesores + agenda de clases en vivo (datos reales; sin tarjetas de ejemplo).
+const agendaBox = document.getElementById('homeAgenda');
+if (agendaBox) {
+  if (!supabase) {
+    mount(agendaBox, emptyState('Clases en vivo en preparación', 'Falta configurar la conexión con Supabase (js/config.js).'));
+    agendaBox.setAttribute('aria-busy', 'false');
+  } else {
+    mountTeachersAgenda(agendaBox, {
+      api,
+      auth: {
+        isLoggedIn: session.isLoggedIn,
+        openLogin: () => openAuth(),
+        // Al iniciar o cerrar sesión se vuelve a pedir la agenda (para marcar "Reservada"); un refresco de token no.
+        onChange: (fn) => session.onChange((_s, event) => { if (event !== 'SESSION_REFRESHED') fn(); }),
+      },
+      notify: toast,
+    });
+  }
+}

@@ -31,6 +31,11 @@ const MESSAGES = {
   db_unavailable: 'El servicio no está disponible. Probá de nuevo en un momento.',
   network: 'No pudimos conectar. Revisá tu conexión e intentá de nuevo.',
   not_configured: 'Falta configurar la conexión con Supabase (js/config.js).',
+  session_full: 'Esta clase ya no tiene lugares.',
+  session_started: 'Esta clase ya empezó.',
+  session_not_found: 'No encontramos esta clase en vivo (quizá ya no está disponible).',
+  user_not_found: 'No encontramos a nadie con ese correo. La persona tiene que haberse registrado primero.',
+  forbidden: 'No tenés permiso para hacer esto.',
   internal_error: 'Ocurrió un error inesperado. Probá de nuevo.',
 };
 
@@ -38,4 +43,20 @@ export function messageFor(err) {
   if (err instanceof AppError && MESSAGES[err.code]) return MESSAGES[err.code];
   if (err instanceof AppError && err.message && err.message !== err.code) return err.message;
   return MESSAGES.internal_error;
+}
+
+/**
+ * Traduce el error de una función de la base (RPC) de la agenda a un AppError con mensaje claro.
+ * Los códigos son los SQLSTATE que levantan las funciones de la migración 20261005120000.
+ */
+export function agendaError(error) {
+  const code = String(error?.code ?? '');
+  if (code === '23514') return new AppError('session_full');
+  if (code === '22023') return new AppError('session_started');
+  if (code === 'P0002') {
+    return new AppError(/user not found/i.test(String(error?.message)) ? 'user_not_found' : 'session_not_found');
+  }
+  if (code === '42501' || code === 'PGRST301') return new AppError(code === 'PGRST301' ? 'unauthenticated' : 'forbidden');
+  if (/failed to fetch|network/i.test(String(error?.message))) return new AppError('network');
+  return new AppError('internal_error', error?.message);
 }

@@ -8,9 +8,10 @@ import { canUploadRole, isDeveloperRole, isStaffRole } from './roles.js';
  * Estado de sesión compartido por todas las páginas.
  *   state.user     usuario de Supabase Auth (o null)
  *   state.profile  { display_name, role } de public.profiles (o null)
+ *   state.teacher  su perfil de profesor (public.teachers) si da clases, o null. Independiente del rol: Manu es admin Y profesor.
  * Los permisos reales SIEMPRE los decide el servidor (RLS + Edge Functions); esto solo ordena la interfaz.
  */
-const state = { ready: false, session: null, user: null, profile: null };
+const state = { ready: false, session: null, user: null, profile: null, teacher: null };
 const listeners = new Set();
 let initPromise = null;
 
@@ -20,6 +21,10 @@ export const isLoggedIn = () => !!state.user;
 export const isStaff = () => isStaffRole(state.profile?.role);
 export const isDeveloper = () => isDeveloperRole(state.profile?.role);
 export const canUpload = () => canUploadRole(state.profile?.role);
+/** Da clases (perfil de profesor activo). Solo ordena la interfaz: la base lo vuelve a decidir (is_teacher()). */
+export const isTeacher = () => state.teacher?.is_active === true;
+/** Puede entrar al panel: gestión o profesor. Qué pestañas ve cada uno lo ordena panel.js; el permiso real es de la base. */
+export const canUsePanel = () => isStaff() || isTeacher();
 export const accessToken = () => state.session?.access_token ?? null;
 
 /** Suscribe un callback (state, event). Devuelve la función para cancelar. */
@@ -35,11 +40,20 @@ async function loadProfile(userId) {
   return data ?? null;
 }
 
+async function loadTeacher(userId) {
+  const { data, error } = await supabase.from('teachers')
+    .select('profile_id,public_name,bio,photo_url,specialties,is_active').eq('profile_id', userId).maybeSingle();
+  // Si la base todavía no tiene la migración de profesores, simplemente no hay perfil (no rompe el resto del sitio).
+  if (error) console.warn('No se pudo cargar el perfil de profesor:', error.message);
+  return data ?? null;
+}
+
 async function applySession(session, event) {
   const previousUserId = state.user?.id ?? null;
   state.session = session ?? null;
   state.user = session?.user ?? null;
   state.profile = state.user ? await loadProfile(state.user.id) : null;
+  state.teacher = state.user ? await loadTeacher(state.user.id) : null;
   state.ready = true;
   // supabase-js puede repetir SIGNED_IN al volver el foco a la pestaña: si el usuario no cambió,
   // no es un inicio de sesión nuevo y no debe reiniciar lo que la página esté haciendo (p. ej. el video).

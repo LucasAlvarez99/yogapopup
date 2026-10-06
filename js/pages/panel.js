@@ -9,6 +9,7 @@ import { boot } from '../ui/boot.js';
 import { openAuth } from '../ui/auth-modal.js';
 import { openClassForm } from '../ui/class-form-modal.js';
 import { showProductsAdmin } from '../ui/products-admin.js';
+import { showAgenda, showProfile, showTeachersAdmin } from '../ui/teacher-panel.js';
 import { toast } from '../ui/toast.js';
 import { emptyState, errorState, skeletonGrid } from '../ui/states.js';
 
@@ -21,13 +22,16 @@ import { emptyState, errorState, skeletonGrid } from '../ui/states.js';
  * Fase 14: pestaña "Productos" (alta, edición, imagen, publicar/ocultar y borrado de la tienda),
  * en ui/products-admin.js. Cada pestaña se dibuja en `root`; `outer` guarda las pestañas y los avisos de acceso.
  *
+ * Fases 28-30: pestañas de profesores. Gestión (admin/developer): "Profesores" (equipo docente). Cualquiera que dé clases
+ * (rol profesor, o Manu siendo admin): "Mi agenda" y "Mi perfil". Un profesor NO ve Clases ni Productos.
+ *
  * Pendiente para más adelante: borrado lógico (hoy adminDeleteClass borra físico, ver
  * docs/AUDITORIA-Y-PLAN.md punto 9), usuarios y entitlements.
  */
 const outer = document.getElementById('panel');
 const tabsHost = el('div');
 const root = el('div', { id: 'panelContent' });
-let activeTab = 'classes'; // 'classes' | 'products'
+let activeTab = null; // 'classes' | 'products' | 'teachers' | 'agenda' | 'profile'
 let classes = [];
 let statusFilter = 'all'; // 'all' | 'published' | 'draft' | 'failed'
 
@@ -200,11 +204,19 @@ async function loadClasses() {
   renderTable();
 }
 
-const TABS = [['classes', 'Clases'], ['products', 'Productos']];
+const ALL_TABS = [
+  ['classes', 'Clases', () => session.isStaff()],
+  ['products', 'Productos', () => session.isStaff()],
+  ['teachers', 'Profesores', () => session.isStaff()],
+  ['agenda', 'Mi agenda', () => session.isTeacher()],
+  ['profile', 'Mi perfil', () => session.isTeacher()],
+];
+/** Pestañas que le corresponden a quien está mirando (solo ordena la interfaz: la base decide los permisos). */
+const availableTabs = () => ALL_TABS.filter(([, , allowed]) => allowed());
 
 function renderTabs() {
   mount(tabsHost, el('ul', { class: 'nav nav-tabs mb-4', role: 'tablist' },
-    ...TABS.map(([key, label]) => el('li', { class: 'nav-item', role: 'presentation' },
+    ...availableTabs().map(([key, label]) => el('li', { class: 'nav-item', role: 'presentation' },
       el('button', {
         type: 'button', role: 'tab', class: `nav-link${activeTab === key ? ' active' : ''}`,
         'aria-selected': String(activeTab === key),
@@ -213,7 +225,13 @@ function renderTabs() {
 }
 
 function loadActiveTab() {
-  if (activeTab === 'products') showProductsAdmin(root, { isCurrent: () => activeTab === 'products' });
+  const tab = activeTab;
+  const isCurrent = () => activeTab === tab;
+  const { teacher } = session.getState();
+  if (tab === 'products') showProductsAdmin(root, { isCurrent });
+  else if (tab === 'teachers') showTeachersAdmin(root, { isCurrent });
+  else if (tab === 'agenda') showAgenda(root, { teacherId: teacher.profile_id, isCurrent });
+  else if (tab === 'profile') showProfile(root, { teacher, isCurrent });
   else loadClasses();
 }
 
@@ -231,9 +249,11 @@ function render() {
     return mount(outer, emptyState('Iniciá sesión para ver el panel', '',
       el('button', { type: 'button', class: 'btn btn-brand', onclick: () => openAuth() }, 'Iniciar sesión')));
   }
-  if (!session.isStaff()) {
-    return mount(outer, emptyState('Acceso restringido', 'Esta sección es solo para el equipo de gestión.'));
+  if (!session.canUsePanel()) {
+    return mount(outer, emptyState('Acceso restringido', 'Esta sección es solo para el equipo de gestión y los profesores.'));
   }
+  // Primera pestaña disponible si la actual no le corresponde (p. ej. un profesor nunca ve "Clases").
+  if (!availableTabs().some(([key]) => key === activeTab)) activeTab = availableTabs()[0][0];
   mount(outer, tabsHost, root);
   renderTabs();
   loadActiveTab();

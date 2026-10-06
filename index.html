@@ -192,43 +192,10 @@
     <div class="container-xl">
       <div class="section-head reveal">
         <h2>Practicá acompañado</h2>
-        <a href="#" class="link-brand">Ver agenda completa <i class="bi bi-arrow-right"></i></a>
       </div>
-      <div class="row g-4">
-        <article class="col-lg-4 col-md-6 reveal">
-          <div class="class-card">
-            <div class="class-media"><img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=800&q=70" alt="Hatha Yoga" loading="lazy" data-hide-on-error><span class="tag tag-live"><i class="bi bi-broadcast"></i> En vivo</span></div>
-            <div class="class-body">
-              <h3>Hatha Yoga</h3>
-              <p class="teacher"><i class="bi bi-person-circle"></i> Con Manu</p>
-              <ul class="meta"><li><i class="bi bi-calendar3"></i> Lunes</li><li><i class="bi bi-clock"></i> 19:00</li><li><i class="bi bi-bar-chart"></i> Principiante</li></ul>
-              <button class="btn btn-outline-brand w-100" type="button">Reservar clase</button>
-            </div>
-          </div>
-        </article>
-        <article class="col-lg-4 col-md-6 reveal">
-          <div class="class-card">
-            <div class="class-media"><img src="https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?auto=format&fit=crop&w=800&q=70" alt="Vinyasa Flow" loading="lazy" data-hide-on-error><span class="tag tag-live"><i class="bi bi-camera-video"></i> Virtual</span></div>
-            <div class="class-body">
-              <h3>Vinyasa Flow</h3>
-              <p class="teacher"><i class="bi bi-person-circle"></i> Con Lucía</p>
-              <ul class="meta"><li><i class="bi bi-calendar3"></i> Miércoles</li><li><i class="bi bi-clock"></i> 20:00</li><li><i class="bi bi-bar-chart"></i> Intermedio</li></ul>
-              <button class="btn btn-outline-brand w-100" type="button">Reservar clase</button>
-            </div>
-          </div>
-        </article>
-        <article class="col-lg-4 col-md-12 reveal">
-          <div class="class-card">
-            <div class="class-media"><img src="https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=70" alt="Yoga Relax" loading="lazy" data-hide-on-error><span class="tag tag-live"><i class="bi bi-broadcast"></i> En vivo</span></div>
-            <div class="class-body">
-              <h3>Yoga Relax</h3>
-              <p class="teacher"><i class="bi bi-person-circle"></i> Con Sofía</p>
-              <ul class="meta"><li><i class="bi bi-calendar3"></i> Viernes</li><li><i class="bi bi-clock"></i> 18:30</li><li><i class="bi bi-bar-chart"></i> Todos los niveles</li></ul>
-              <button class="btn btn-outline-brand w-100" type="button">Reservar clase</button>
-            </div>
-          </div>
-        </article>
-      </div>
+      <!-- Carrusel de profesores + agenda: js/components/teachers-agenda.js (datos reales de Supabase) -->
+      <div id="homeAgenda" aria-live="polite" aria-busy="true"><div class="yp-skeleton"></div></div>
+      <noscript><p class="text-muted">Activa JavaScript para ver las clases en vivo.</p></noscript>
     </div>
   </section>
 
