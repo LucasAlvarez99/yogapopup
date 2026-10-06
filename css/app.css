@@ -252,3 +252,12 @@
 .size-stock { display: flex; flex-wrap: wrap; gap: .25rem .4rem; font-size: .8rem; }
 .size-stock-item { white-space: nowrap; }
 .size-stock-item.is-out { color: var(--color-text-muted); text-decoration: line-through; }
+
+/* ===== Selector de idioma (encabezado) ===== */
+.lang-picker { display: inline-flex; align-items: center; gap: .3rem; color: var(--color-primary); }
+.lang-select {
+  appearance: none; -webkit-appearance: none; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface);
+  color: var(--color-text); font-size: .85rem; font-weight: 600; padding: .3rem .8rem; cursor: pointer;
+}
+.lang-select:hover { border-color: var(--color-primary); }
+.lang-select:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

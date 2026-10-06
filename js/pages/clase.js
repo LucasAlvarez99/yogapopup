@@ -47,11 +47,11 @@ function renderInfo(c, resume) {
     c.duration_seconds ? el('span', { class: 'tag tag-light', style: 'position:static' }, formatMinutes(c.duration_seconds)) : null,
   ];
   mount(info,
-    el('h1', { class: 'clase-title' }, c.title),
+    el('h1', { class: 'clase-title', translate: 'no' }, c.title),
     el('div', { class: 'clase-meta' }, ...tags),
     resume > 0 && c.duration_seconds
       ? el('p', { class: 'text-muted' }, icon('clock-history'), ` Llevas ${percent(resume, c.duration_seconds)} % · retomas en ${formatClock(resume)}`) : null,
-    c.description ? el('p', { class: 'clase-desc' }, c.description) : null);
+    c.description ? el('p', { class: 'clase-desc', translate: 'no' }, c.description) : null);
 }
 
 async function renderMore() {

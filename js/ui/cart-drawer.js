@@ -116,6 +116,7 @@ function footer(validation) {
     validation.taxCents > 0
       ? el('p', { class: 'cart-tax', id: 'cartTax' }, `IVA incluido: ${formatPrice(validation.taxCents)} · sin IVA: ${formatPrice(validation.netCents)}`)
       : null,
+    el('p', { class: 'cart-note' }, icon('truck'), ' Todos nuestros productos se envían a domicilio.'),
     // El pago online llega en las Fases 17-18: hasta entonces no se simula una compra que no existe.
     el('button', { type: 'button', class: 'btn btn-brand w-100 mb-2', disabled: true, title: 'El pago online llega pronto' },
       'Finalizar compra ', icon('arrow-right')),

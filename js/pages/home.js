@@ -5,6 +5,7 @@ import { messageFor } from '../lib/errors.js';
 import { mount } from '../lib/dom.js';
 import { initAuthUi } from '../ui/auth-modal.js';
 import { initAccountMenu } from '../ui/account-menu.js';
+import { initLanguage } from '../ui/lang-switcher.js';
 import { classCard } from '../components/class-card.js';
 import { productCard } from '../components/product-card.js';
 import { addToCart, initCartUi } from '../ui/cart-drawer.js';
@@ -16,6 +17,7 @@ import { el } from '../lib/dom.js';
 initAuthUi();
 initAccountMenu();
 initCartUi();
+initLanguage();
 session.init();
 
 const box = document.getElementById('homeVideos');

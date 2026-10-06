@@ -22,7 +22,7 @@ export function classCard(c, { progress, cont = false, col = 'col-lg-4 col-md-6'
     c.access_level === 'restricted' ? el('span', { class: 'video-lock', title: 'Contenido restringido' }, icon('lock-fill')) : null,
     el('span', { class: 'play' }, icon('play-fill')),
     c.duration_seconds ? el('span', { class: 'duration' }, formatMinutes(c.duration_seconds)) : null,
-    el('div', { class: 'video-info' }, el('small', {}, label), el('h3', {}, c.title)),
+    el('div', { class: 'video-info' }, el('small', {}, label), el('h3', { translate: 'no' }, c.title)),
     pct > 0 && !progress?.completed ? el('span', { class: 'video-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': `${pct}% visto` },
       Object.assign(el('span', {}), { style: `width:${pct}%` })) : null);
   return el('article', { class: col }, link);

@@ -101,16 +101,17 @@ function renderProduct(p) {
       el(
         "div",
         { class: "col-md-6" },
-        p.category ? el("span", { class: "product-cat" }, p.category) : null,
-        el("h1", { class: "producto-title" }, p.title),
+        p.category ? el("span", { class: "product-cat", translate: "no" }, p.category) : null,
+        el("h1", { class: "producto-title", translate: "no" }, p.title),
         priceBlock(p.price_cents, p.tax_rate_bps, { large: true }),
         el("p", { class: "price-note" }, "IVA incluido"),
+        el("p", { class: "price-note" }, icon("truck"), " Todos nuestros productos se envían a domicilio."),
         !overall.available
           ? el("p", { class: "text-danger fw-semibold" }, "Agotado")
           : label
           ? el("p", { class: "text-muted", role: "status" }, label)
           : null,
-        p.description ? el("p", { class: "producto-desc" }, p.description) : null,
+        p.description ? el("p", { class: "producto-desc", translate: "no" }, p.description) : null,
         picker,
         el("div", { class: "d-flex gap-2 flex-wrap mt-3" }, addButton, backLink()),
       ),

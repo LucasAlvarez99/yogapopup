@@ -76,8 +76,8 @@ export function productCard(p, { onAdd = null, col = "col-6 col-lg-3" } = {}) {
       el(
         "div",
         { class: "shop-body" },
-        p.category ? el("span", { class: "product-cat" }, p.category) : null,
-        el("h3", {}, el("a", { href }, p.title)),
+        p.category ? el("span", { class: "product-cat", translate: "no" }, p.category) : null,
+        el("h3", { translate: "no" }, el("a", { href }, p.title)),
         priceBlock(p.price_cents, p.tax_rate_bps),
         sizeChips(p),
         label && available ? el("small", { class: "shop-stock" }, label) : null,
