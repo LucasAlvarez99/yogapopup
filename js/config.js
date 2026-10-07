@@ -18,10 +18,10 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
   // Responsable del tratamiento (lo muestra privacidad.html). COMPLETAR con los datos reales del titular del negocio:
   // mientras estén vacíos la página muestra "pendiente de completar" y `npm run doctor` lo avisa.
   LEGAL: {
-    NAME: '',     // nombre y apellidos, o razón social
-    TAX_ID: '',   // NIF / CIF
-    ADDRESS: '',  // domicilio (calle, número, código postal, localidad, provincia)
-    EMAIL: '',    // correo para ejercer derechos de privacidad
+    NAME: 'YogaPopup',     // nombre y apellidos, o razón social
+    TAX_ID: 'Tramitando',   // NIF / CIF
+    ADDRESS: 'Tramitando',  // domicilio (calle, número, código postal, localidad, provincia)
+    EMAIL: 'Tramitando',    // correo para ejercer derechos de privacidad
   },
   // Cada cuántos segundos de reproducción se guarda el progreso.
   PROGRESS_INTERVAL_SECONDS: 15,
