@@ -4,16 +4,16 @@ Sitio de yoga (cursos, clases en vivo, tienda y **videoteca**) al que se le suma
 videos: los videos viven en **Cloudflare R2**, los usuarios, clases, permisos y progreso en **Supabase**, y la
 web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos en el hosting).
 
-> ## Estado actual (30/09/2026) · Fases 0-16 cumplidas
+> ## Estado actual (06/10/2026) · Fases 0-16 y 28 cumplidas · 29-30 construidas y probadas en navegador (falta el Supabase real y decidir el cobro)
 >
 > **Poner el sitio a andar con cuentas reales:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) ·
 > Reglas del proyecto: [`claude.md`](claude.md) · Encargo original: [`docs/ENCARGO-ORIGINAL.md`](docs/ENCARGO-ORIGINAL.md) ·
 > Hoja de ruta hasta la entrega: [`Fases`](#fases) más abajo (Fase 0 = hoy, Fase 39 = día de entrega).
+> Última revisión de blindaje (profesores, agenda e idioma): [`docs/BLINDAJE-FASES-28-30.md`](docs/BLINDAJE-FASES-28-30.md).
 >
-> **Probado:** 47 pruebas de backend (roles, auditoría, contratos, firmas R2) · 87 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas) ·
+> **Probado (06/10/2026):** 66 pruebas de las funciones del servidor (roles, auditoría, contratos, firmas R2) · 189 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas, la cobertura del traductor y la agenda) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
-> verificadas rompiendo la migración a propósito) · **57 pruebas E2E** en Chromium real, todas en verde (02/10/2026, incluidas las 2 de la
-> tienda de la Fase 13, las del panel —acceso por rol, lista de clases, CRUD completo de productos con imagen y 4 del ciclo de vida de las clases— y 8 del carrito de la Fase 16).
+> verificadas rompiendo la migración a propósito; incluyen profesores, agenda y reservas) · **68 pruebas E2E** en Chromium real, todas en verde, también contra `dist/` con la CSP de producción (06/10/2026: tienda, panel —acceso por rol, clases y productos—, carrito y, nuevas, carrusel de profesores, reservas, idioma y panel del profesor).
 >
 > **Roles hechos:** `user` / `profesor` / `admin` / `developer` (el developer es superconjunto del admin; la diferencia: **solo el developer sube videos y da de alta profesores**; el `profesor` da clases pero no es gestión), historial de
 > auditoría que nadie puede editar ni borrar, cambios de rol solo por desarrolladores y protección del último desarrollador.
@@ -36,7 +36,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > npm run verify                                 # formato + lint + tipos + pruebas de backend y frontend
 > npm run test:db                                # base de datos (requiere PostgreSQL y bash)
 > npm run doctor                                 # ¿la configuración está lista para producción?
-> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 57 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
+> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 68 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
 > npm run test:e2e:csp                          # las mismas, contra el sitio construido y con la CSP de producción
 > npm run dev                                    # sitio en http://localhost:3000 (o Live Server: index.html → botón "Go Live")
 > npm run build                                  # arma dist/ (lo único que se sube a Hostinger)
@@ -129,9 +129,9 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 25 | Perfil — estado de la suscripción | ⬜ |
 | 26 | Comentarios — modelo de datos y formulario | ⬜ |
 | 27 | Comentarios — moderación | ⬜ |
-| 28 | Súper-admin — modelo de datos de la agenda | ⬜ |
-| 29 | Súper-admin — vista de agenda | ⬜ |
-| 30 | Agenda — inscripción de alumnos | ⬜ |
+| 28 | Agenda — profesores, clases en vivo y reservas (modelo de datos) | ✅ |
+| 29 | Agenda — carrusel de profesores, calendario y panel del profesor | 🟡 |
+| 30 | Agenda — reservas de los alumnos (cupo, cancelar, "Mis clases") | 🟡 |
 | 31 | Notificaciones — aviso de clase en vivo | ⬜ |
 | 32 | Cuentas reales — infraestructura | ⬜ |
 | 33 | Prueba con un solo video real | ⬜ |
@@ -246,7 +246,7 @@ npm install
 | `npm run dev` | Sitio en http://localhost:3000 |
 | `npm run build` | Arma `dist/` con **solo** los archivos públicos |
 | `npm run preview` | Construye y sirve `dist/` en http://localhost:3001 |
-| `npm test` | 46 pruebas de las funciones (sin red) |
+| `npm test` | 66 pruebas de las funciones (sin red) |
 | `npm run verify` | Formato + lint + tipos + pruebas |
 | `npm run sb:login` / `sb:link` | Iniciar sesión / vincular el proyecto Supabase |
 | `npm run sb:db-push` | Aplica las migraciones a la base |
@@ -740,19 +740,20 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 
 ### Fase 29 · Súper-admin — vista de agenda
 
-- [~] Pestañas del panel: "Mi agenda" (crear/editar/borrar clases y ver alumnos anotados), "Mi perfil" (foto, presentación) y "Profesores" (gestión)
-- [~] Home: carrusel de profesores + calendario y horarios (reemplaza las tarjetas fijas). Probado con jsdom; **falta probarlo en un navegador real**
+- [x] Pestañas del panel: "Mi agenda" (crear/editar/borrar clases y ver alumnos anotados), "Mi perfil" (foto, presentación) y "Profesores" (gestión)
+- [x] Home: carrusel de profesores + calendario y horarios (reemplaza las tarjetas fijas), probado en Chromium real
 - [x] Lógica pura probada (`tests/web/agenda.test.js`): hora argentina GMT-3, calendario, validación del formulario
 
-- [ ] **FASE 29 CUMPLIDA** (falta E2E en navegador)
+- [x] E2E en Chromium real (11 pruebas: carrusel, calendario, reserva y cancelación, cupo completo, salto de mes, idioma, panel del profesor, foto, admin+profesora, alta por correo)
+- [ ] **FASE 29 CUMPLIDA** (falta validarla con el Supabase real y decidir el cobro de las reservas)
 
 ### Fase 30 · Agenda — inscripción de alumnos
 
 - [x] El alumno reserva desde la home respetando el cupo (`book_live_session`, con bloqueo); cancela hasta que empiece la clase
-- [~] "Mis próximas clases en vivo" en la cuenta del usuario (falta probar en navegador real)
+- [x] "Mis próximas clases en vivo" en la cuenta del usuario, probado en Chromium real
 - [ ] Decidir si reservar es gratis o con pago (hoy es gratis)
 
-- [ ] **FASE 30 CUMPLIDA** (falta E2E en navegador y decidir el cobro)
+- [ ] **FASE 30 CUMPLIDA** (falta validarla con el Supabase real y decidir el cobro)
 
 ### Fase 31 · Notificaciones — aviso de clase en vivo el mismo día
 

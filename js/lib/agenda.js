@@ -127,7 +127,7 @@ const intOrNull = (v) => {
  * @param {{ now?: Date, allowPast?: boolean }} [opts]
  */
 export function buildSessionInput(f, { now = new Date(), allowPast = false } = {}) {
-  const bad = (msg) => { throw new AppError('invalid_input', msg); };
+  const bad = (msg) => { throw new AppError('validation', msg); };
   const title = String(f.title ?? '').trim();
   if (!title) bad('El título es obligatorio.');
   if (title.length > 100) bad('El título admite hasta 100 caracteres.');
@@ -159,9 +159,9 @@ export function parseSpecialties(text) {
 /** Valida el perfil público del profesor. */
 export function buildTeacherProfileInput({ public_name, bio, specialties }) {
   const name = String(public_name ?? '').trim();
-  if (!name) throw new AppError('invalid_input', 'El nombre es obligatorio.');
-  if (name.length > 80) throw new AppError('invalid_input', 'El nombre admite hasta 80 caracteres.');
+  if (!name) throw new AppError('validation', 'El nombre es obligatorio.');
+  if (name.length > 80) throw new AppError('validation', 'El nombre admite hasta 80 caracteres.');
   const b = String(bio ?? '').trim();
-  if (b.length > 600) throw new AppError('invalid_input', 'La presentación admite hasta 600 caracteres.');
+  if (b.length > 600) throw new AppError('validation', 'La presentación admite hasta 600 caracteres.');
   return { public_name: name, bio: b || null, specialties: parseSpecialties(specialties) };
 }

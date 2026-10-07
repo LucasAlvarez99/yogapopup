@@ -21,7 +21,7 @@ const exact = {
   'Buscar': 'Search', 'Buscar cursos, clases, productos...': 'Search courses, classes, products...',
   'Idioma': 'Language',
   'Con Manu': 'With Manu', 'Con Lucía': 'With Lucía', 'Con Sofía': 'With Sofía', 'Cerrar': 'Close',
-  'Ayuda': 'Help', 'Preguntas frecuentes': 'FAQ', 'Medios de pago': 'Payment methods', 'Envíos': 'Shipping',
+  'Ayuda': 'Help',
   'Contacto': 'Contact', 'Seguinos': 'Follow us', 'Beneficios': 'Benefits',
   'Yoga & Conexión. Te acompañamos a habitar tu cuerpo con presencia, libertad y disfrute.':
     'Yoga & Connection. We support you in inhabiting your body with presence, freedom and enjoyment.',
@@ -199,6 +199,7 @@ const exact = {
   'Mis próximas clases en vivo': 'My upcoming live classes', 'Cargando…': 'Loading…',
   'Todavía no reservaste ninguna clase.': "You haven't booked any class yet.", 'Ver clases en vivo': 'See live classes',
   'Cancelar': 'Cancel', '(hora de Argentina)': '(Argentina time)',
+  'Tu carrito (': 'Your cart (', 'Entrar': 'Sign in', 'Nombre': 'Name', 'Volver': 'Back', 'Entendido': 'Got it', 'Todas': 'All',
 };
 
 /** Textos con datos: [expresión sobre el texto en español, reemplazo con $1, $2…]. Van anclados (^…$). */
@@ -211,6 +212,7 @@ const patterns = [
   [/^Duración: (\d+) minutos$/, 'Duration: $1 minutes'],
   [/^Todavía no hay clases agendadas este mes con (.+)\.$/, 'There are no classes scheduled this month with $1.'],
   [/^(.+) · Yoga Pop Up$/, '$1 · Yoga Pop Up'],
+  [/^© (\d{4}) Yoga Pop Up\. Todos los derechos reservados\.( ·)?$/, '© $1 Yoga Pop Up. All rights reserved.$2'],
   [/^Continuar · (.+)$/, 'Resume · $1'],
   [/^(\d+)% visto$/, '$1% watched'],
   [/^(.+) sin IVA$/, '$1 excl. VAT'],

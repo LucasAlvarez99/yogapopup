@@ -67,6 +67,8 @@ Deno.test("diccionario en: patrones de ejemplo", () => {
   assert.equal(t("3 lugares"), "3 spots left");
   assert.equal(t("21:30 hora local"), "21:30 local time");
   assert.equal(t("Duración: 60 minutos"), "Duration: 60 minutes");
+  assert.equal(t("© 2027 Yoga Pop Up. Todos los derechos reservados. ·"), "© 2027 Yoga Pop Up. All rights reserved. ·");
+  assert.equal(t("© 2026 Yoga Pop Up. Todos los derechos reservados."), "© 2026 Yoga Pop Up. All rights reserved.");
   assert.equal(
     t("Todavía no hay clases agendadas este mes con Lucía."),
     "There are no classes scheduled this month with Lucía.",

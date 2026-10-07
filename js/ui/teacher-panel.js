@@ -126,12 +126,17 @@ export async function showAgenda(root, { teacherId, isCurrent = () => true, titl
 export function showProfile(root, { teacher, isCurrent = () => true, onSaved = () => {}, title = 'Mi perfil' }) {
   let current = teacher;
   let newFile = null;
+  let previewUrl = null;
   const preview = el('div', { class: 'tp-photo' }, current.photo_url ? el('img', { src: current.photo_url, alt: '', width: 96, height: 96, class: 'tp-photo' }) : icon('person-circle'));
   const fileInput = el('input', { class: 'form-control', id: 'tpPhoto', type: 'file', accept: 'image/jpeg,image/png,image/webp' });
   fileInput.addEventListener('change', () => {
     const f = fileInput.files?.[0] ?? null;
     newFile = f;
-    if (f) mount(preview, el('img', { src: URL.createObjectURL(f), alt: '', width: 96, height: 96, class: 'tp-photo' }));
+    if (f) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl); // no acumular imágenes temporales en memoria
+      previewUrl = URL.createObjectURL(f);
+      mount(preview, el('img', { src: previewUrl, alt: '', width: 96, height: 96, class: 'tp-photo' }));
+    }
   });
   const msg = el('p', { class: 'text-danger small', role: 'alert', hidden: true });
   const form = el('form', { class: 'yp-card', novalidate: true },

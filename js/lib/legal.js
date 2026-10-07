@@ -5,7 +5,7 @@ import { cfg, page } from './env.js';
  * de fondo (nuevos datos, nuevos proveedores, nuevos fines: p. ej. al activar los pagos). Se guarda junto con la
  * aceptación de cada persona, para poder demostrar QUÉ texto aceptó y CUÁNDO (el RGPD exige poder acreditarlo).
  */
-export const PRIVACY_VERSION = '2026-10-03';
+export const PRIVACY_VERSION = '2026-10-06';
 
 /** Datos que viajan con el registro cuando la persona marcó la casilla. Fecha y hora las pone el SERVIDOR, no el navegador. */
 export function consentMetadata(accepted) {

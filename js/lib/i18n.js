@@ -84,7 +84,7 @@ function convert(src, lang) {
 function applyText(node) {
   const el = node.parentElement;
   if (!el || SKIP_TAGS.has(el.tagName) || !translatable(el)) return;
-  let rec = textRec.get(node);
+  const rec = textRec.get(node);
   if (rec && node.data === rec.out && rec.lang === current) return; // ya está al día
   // Si la página cambió el texto desde la última vez, lo nuevo es el texto original.
   const src = rec && node.data === rec.out ? rec.src : node.data;

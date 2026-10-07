@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
-import { IDS, PRODUCT_IDS, startBackend } from './fake-backend.mjs';
+import { IDS, PRODUCT_IDS, startBackend, TEACHER_IDS } from './fake-backend.mjs';
 import { ensureMedia } from './media.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -118,7 +118,9 @@ async function test(name, fn) {
   } catch (err) {
     results.push({ name, ok: false, err });
     console.log(`  ✗ ${name}\n      ${String(err.message).split('\n').join('\n      ')}`);
-    const where = String(err.stack || '').split('\n').find((l) => l.includes('run.mjs'));
+    // La línea que importa es la del TEST que llamó a la ayuda (waitFor, toastHas…), no la de la ayuda misma.
+    const frames = String(err.stack || '').split('\n').filter((l) => l.includes('run.mjs'));
+    const where = frames.find((l) => !/at (waitFor|toastHas|modalReady|productModalReady|productModalClosed) /.test(l)) ?? frames[0];
     if (where) console.log(`      en ${where.trim().replace(/^at /, '').replace(root, '')}`);
     if (page.errors.length) console.log(`      (errores de la página: ${page.errors.join(' | ').slice(0, 400)})`);
     await page.screenshot({ path: tmp(`e2e-fail-${results.length}.png`) }).catch(() => {});
@@ -178,7 +180,6 @@ const openCart = async (page) => {
   await page.click('[data-cart-toggle]');
   await page.waitForSelector('#cartDrawer.show:not(.showing)'); // espera a que termine la animación
 };
-const cartRows = (page) => count(page, '#cartList .cart-item');
 const rowSel = (id) => `#cartList li[data-product-id="${id}"]`;
 const storedCart = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('yp.cart')));
 const toastHas = (page, part) => waitFor(page, (t) => [...document.querySelectorAll('.yp-toast')].some((n) => n.textContent.includes(t)), part, 5000);
@@ -895,6 +896,256 @@ async function loginAsRole(page, role, email, name) {
 const loginAsDeveloper = (page, email = 'equipo@test.dev') => loginAsRole(page, 'developer', email, 'Equipo Test');
 const loginAsAdmin = (page, email = 'admin@test.dev') => loginAsRole(page, 'admin', email, 'Admin Test');
 
+// ---------------------------------------------------------------------------------------------- profesores, agenda e idioma (Fases 28-30)
+const agendaReady = (page) => waitFor(page, () => document.querySelectorAll('#homeAgenda .ag-layout').length === 1 && document.getElementById('homeAgenda').getAttribute('aria-busy') === 'false', null, 15000);
+const slotTitles = (page) => page.$$eval('#homeAgenda .ag-slot-title', (n) => n.map((x) => x.textContent));
+const slotTimes = (page) => page.$$eval('#homeAgenda .ag-slot-time', (n) => n.map((x) => x.textContent));
+const reserveLabel = (page) => text(page, '#homeAgenda .ag-reserve');
+const bookingLog = async () => (await be.state()).log.bookings;
+/** Elige un profesor en el selector de la agenda por su nombre visible. */
+const pickTeacherByName = (page, name) => page.evaluate((n) => {
+  const s = document.querySelector('#homeAgenda .ag-select');
+  s.value = String([...s.options].findIndex((o) => o.textContent === n));
+  s.dispatchEvent(new Event('change', { bubbles: true }));
+}, name);
+
+await test('home · agenda: carrusel con profesores reales, calendario con clases, borradores ocultos y bio como TEXTO', async (page) => {
+  await page.goto(S);
+  await agendaReady(page);
+  assert.equal(await text(page, '.ag-teacher-info h3'), 'Manu');
+  // La bio trae una etiqueta HTML a propósito: se muestra como texto, nunca se interpreta.
+  assert.match(await text(page, '.ag-bio'), /<b>sin html<\/b>/);
+  assert.equal(await count(page, '.ag-bio b'), 0, 'el HTML de la bio no debe interpretarse');
+  assert.deepEqual(await page.$$eval('.ag-chips li', (n) => n.map((x) => x.textContent)), ['Hatha', 'Pranayama']);
+  assert.ok((await count(page, '.ag-day.has-sessions')) >= 1, 'el calendario marca el día con clases');
+  assert.deepEqual(await slotTitles(page), ['Hatha Yoga', 'Hatha nocturno'], 'sin el borrador de Manu');
+  assert.deepEqual(await slotTimes(page), ['18:00', '20:00'], 'horas en horario de Argentina (21:00 y 23:00 UTC)');
+  assert.match(await text(page, '.ag-tz'), /Argentina \(GMT-3\)/);
+  assert.equal(await count(page, '.ag-slot.is-full'), 1, 'la clase con el cupo completo se marca');
+  assert.equal(await page.$eval('.ag-slot.is-full', (b) => b.disabled), true, 'y no se puede elegir');
+  // Cambiar de profesor: otra bio, otra clase (virtual, sin cupo → no muestra lugares)
+  await pickTeacherByName(page, 'Lucía');
+  await waitFor(page, () => document.querySelector('.ag-teacher-info h3')?.textContent === 'Lucía');
+  await waitFor(page, () => [...document.querySelectorAll('#homeAgenda .ag-slot-title')].some((n) => n.textContent === 'Vinyasa Flow'));
+  assert.match(await text(page, '.ag-info'), /Clase virtual/);
+  assert.ok(!/lugar/.test(await text(page, '.ag-slot-meta small')), 'sin cupo no se muestran lugares');
+  // Flechas del carrusel: vuelven al primer profesor
+  await page.click('.ag-next');
+  await waitFor(page, () => document.querySelector('.ag-teacher-info h3')?.textContent === 'Manu');
+  await page.screenshot({ path: tmp('yp-home-agenda.png') });
+});
+
+await test('home · agenda: sin sesión, "Reservar" abre el acceso y NO reserva', async (page) => {
+  await page.goto(S);
+  await agendaReady(page);
+  await page.click('#homeAgenda .ag-reserve');
+  await page.waitForSelector('#authEmail', { visible: true });
+  assert.deepEqual(await bookingLog(), [], 'no se reservó nada');
+});
+
+await test('home · agenda: reservar, ver "Reservada", verla en Mi cuenta y cancelar', async (page) => {
+  await signup('alumna@test.dev', 'Alumna Test');
+  await page.goto(S);
+  await agendaReady(page);
+  await loginViaModal(page, 'alumna@test.dev');
+  await agendaReady(page);
+  assert.match(await reserveLabel(page), /Reservar clase/);
+  await page.click('#homeAgenda .ag-reserve');
+  await toastHas(page, 'Tu lugar está reservado');
+  await waitFor(page, () => /Cancelar mi reserva/.test(document.querySelector('#homeAgenda .ag-reserve')?.textContent), null, 8000);
+  assert.equal(await count(page, '#homeAgenda .ag-badge:not(.is-full)'), 1, 'la clase aparece como Reservada');
+  assert.equal((await bookingLog()).filter((b) => b.op === 'book').length, 1);
+  // En Mi cuenta aparece la reserva y se puede cancelar desde ahí
+  await page.goto(`${S}/cuenta.html`);
+  await waitFor(page, () => /Hatha Yoga/.test(document.body.textContent), null, 10000);
+  assert.match(await page.$eval('main', (n) => n.textContent), /\(hora de Argentina\)/);
+  await page.evaluate(() => [...document.querySelectorAll('main button')].find((b) => b.textContent.trim() === 'Cancelar').click());
+  await waitFor(page, () => /Todavía no reservaste ninguna clase/.test(document.body.textContent), null, 10000);
+  assert.equal((await bookingLog()).filter((b) => b.op === 'cancel').length, 1);
+});
+
+await test('home · agenda: una clase con cupo completo no se puede reservar; sin clases este mes salta al primer mes con clases', async (page) => {
+  await signup('otra@test.dev', 'Otra Test');
+  // Una clase a ~40 días: si este mes no tiene clases, el calendario debe abrirse en el mes que sí.
+  await be.addSession({ teacher_id: TEACHER_IDS.lucia, title: 'Clase lejana', starts_at: new Date(Date.now() + 40 * 24 * 3600 * 1000).toISOString() });
+  await page.goto(S);
+  await agendaReady(page);
+  await pickTeacherByName(page, 'Lucía');
+  await waitFor(page, () => document.querySelector('.ag-teacher-info h3')?.textContent === 'Lucía');
+  // Lucía tiene clases cerca (Vinyasa Flow) y una lejana: el calendario muestra las cercanas, sin saltar.
+  await waitFor(page, () => [...document.querySelectorAll('#homeAgenda .ag-slot-title')].length >= 1);
+  // Un profesor nuevo SIN clases cercanas: solo la lejana → salta de mes
+  await be.promote('otra@test.dev', 'user');
+  const lonely = await be.makeTeacher('otra@test.dev', { name: 'Solitaria' });
+  assert.ok(lonely.id);
+  await be.addSession({ teacher_id: lonely.id, title: 'Única clase lejana', starts_at: new Date(Date.now() + 40 * 24 * 3600 * 1000).toISOString() });
+  await page.goto(S);
+  await agendaReady(page);
+  await pickTeacherByName(page, 'Solitaria');
+  await waitFor(page, () => document.querySelector('.ag-teacher-info h3')?.textContent === 'Solitaria');
+  await waitFor(page, () => [...document.querySelectorAll('#homeAgenda .ag-slot-title')].some((n) => n.textContent === 'Única clase lejana'), null, 10000);
+  assert.ok((await count(page, '.ag-day.has-sessions')) >= 1, 'el calendario se abrió en el mes de la clase, no vacío');
+});
+
+await test('idioma: el selector traduce la página, se recuerda al recargar y vuelve a español', async (page) => {
+  await page.goto(S);
+  await agendaReady(page);
+  assert.equal(await page.$eval('html', (h) => h.lang), 'es');
+  assert.equal(await text(page, '.ag-schedule-head h3'), 'Agendar clase en vivo');
+  await page.select('.lang-select', 'en');
+  await waitFor(page, () => document.querySelector('.ag-schedule-head h3')?.textContent.trim() === 'Book a live class');
+  assert.equal(await page.$eval('html', (h) => h.lang), 'en');
+  assert.match(await text(page, 'h1'), /Yoga for a more mindful life/);
+  assert.equal(await text(page, '.ag-teacher-info h3'), 'Manu', 'los nombres propios no se traducen');
+  assert.deepEqual(await slotTitles(page), ['Hatha Yoga', 'Hatha nocturno'], 'lo que escribe el equipo no se traduce');
+  // El idioma dibujado DESPUÉS (modal de acceso) también se traduce
+  await page.click('[data-account-toggle]');
+  await page.waitForSelector('#authEmail', { visible: true });
+  assert.match(await page.$eval('.yp-auth', (n) => n.textContent), /Sign in/);
+  await page.keyboard.press('Escape');
+  // Se recuerda al recargar y en otras páginas
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.documentElement.lang === 'en' && /Shop/.test(document.querySelector('h1')?.textContent ?? ''), null, 10000);
+  await page.select('.lang-select', 'es');
+  await waitFor(page, () => document.documentElement.lang === 'es' && /Tienda/.test(document.querySelector('h1').textContent));
+  // ?lang=en sirve para compartir un enlace
+  await page.goto(`${S}/tienda.html?lang=en`);
+  await waitFor(page, () => document.documentElement.lang === 'en', null, 10000);
+});
+
+await test('idioma: la política de privacidad (texto legal) se queda en español aunque el sitio esté en inglés', async (page) => {
+  await page.goto(`${S}/privacidad.html?lang=en`);
+  await waitFor(page, () => document.documentElement.lang === 'en', null, 10000);
+  assert.match(await text(page, 'main'), /Qué datos tratamos/, 'el cuerpo legal sigue en español');
+  assert.equal(await page.$eval('main', (m) => m.lang), 'es');
+});
+
+await test('panel · profesor (solo rol profesor): ve SOLO "Mi agenda" y "Mi perfil", agenda una clase y se ve en la home', async (page) => {
+  await signup('prof@test.dev', 'Profe Test');
+  await be.promote('prof@test.dev', 'profesor');
+  await be.makeTeacher('prof@test.dev', { name: 'Profe Test' });
+  await page.goto(`${S}/panel.html`);
+  await loginViaModal(page, 'prof@test.dev');
+  await page.waitForSelector('.nav-tabs .nav-link', { timeout: 10000 });
+  const tabs = await page.$$eval('.nav-tabs .nav-link', (n) => n.map((x) => x.textContent));
+  assert.deepEqual(tabs, ['Mi agenda', 'Mi perfil'], 'un profesor no ve Clases, Productos ni Profesores');
+  await page.waitForSelector('#sfTitle');
+  assert.match(await text(page, '#panelContent'), /Todavía no tenés clases agendadas/);
+  // Validación: sin título no guarda y explica
+  await page.click('#panelContent form button[type=submit]');
+  await waitFor(page, () => /título es obligatorio/.test(document.querySelector('#panelContent form [role=alert]')?.textContent ?? ''));
+  // Una clase en el pasado se rechaza con un mensaje claro
+  await page.type('#sfTitle', 'Clase del pasado');
+  await page.$eval('#sfDate', (i) => { i.value = '2020-01-10'; });
+  await page.$eval('#sfTime', (i) => { i.value = '10:00'; });
+  await page.click('#panelContent form button[type=submit]');
+  await waitFor(page, () => /en el futuro/.test(document.querySelector('#panelContent form [role=alert]')?.textContent ?? ''));
+  // Clase válida (fecha futura en formato ISO, hora argentina)
+  const day = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  await page.$eval('#sfTitle', (i) => { i.value = ''; });
+  await page.type('#sfTitle', 'Yoga de prueba');
+  await page.$eval('#sfDate', (i, d) => { i.value = d; }, day);
+  await page.$eval('#sfTime', (i) => { i.value = '19:30'; });
+  await page.type('#sfCap', '5');
+  await page.click('#panelContent form button[type=submit]');
+  await toastHas(page, 'Clase agendada');
+  await waitFor(page, () => /Yoga de prueba/.test(document.getElementById('panelContent').textContent), null, 10000);
+  assert.match(await text(page, '#panelContent'), /19:30/);
+  // Aparece en la home dentro de la agenda de esa profesora
+  await page.goto(S);
+  await agendaReady(page);
+  await pickTeacherByName(page, 'Profe Test');
+  await waitFor(page, () => [...document.querySelectorAll('#homeAgenda .ag-slot-title')].some((n) => n.textContent === 'Yoga de prueba'), null, 10000);
+  assert.ok((await slotTimes(page)).includes('19:30'));
+});
+
+await test('panel · profesor: edita su perfil y sube su foto (que se ve en la home), con especialidades sin repetir', async (page) => {
+  await signup('prof2@test.dev', 'Profe Dos');
+  await be.promote('prof2@test.dev', 'profesor');
+  await be.makeTeacher('prof2@test.dev', { name: 'Profe Dos' });
+  await page.goto(`${S}/panel.html`);
+  await loginViaModal(page, 'prof2@test.dev');
+  await page.waitForSelector('.nav-tabs .nav-link');
+  await clickTab(page, 'Mi perfil');
+  await page.waitForSelector('#tpName');
+  await page.$eval('#tpBio', (i) => { i.value = ''; });
+  await page.type('#tpBio', 'Profe de Hatha y meditación.');
+  await page.$eval('#tpSpec', (i) => { i.value = ''; });
+  await page.type('#tpSpec', 'Hatha, Meditación, hatha');
+  await (await page.$('#tpPhoto')).uploadFile(await makeTestImage());
+  await page.click('#panelContent form button[type=submit]');
+  await toastHas(page, 'Perfil guardado');
+  const st = await be.state();
+  assert.ok(st.log.storage.some((x) => x.op === 'upload' && /^image\/(jpeg|png|webp)$/.test(x.type)), 'la foto se subió al almacenamiento');
+  assert.ok(st.log.teachers.some((x) => x.op === 'update' && x.fields.includes('photo_url') && x.fields.includes('specialties')));
+  // En la home: bio, especialidades sin repetir y la foto
+  await page.goto(S);
+  await agendaReady(page);
+  await pickTeacherByName(page, 'Profe Dos');
+  await waitFor(page, () => document.querySelector('.ag-teacher-info h3')?.textContent === 'Profe Dos');
+  assert.equal(await text(page, '.ag-bio'), 'Profe de Hatha y meditación.');
+  assert.deepEqual(await page.$$eval('.ag-chips li', (n) => n.map((x) => x.textContent)), ['Hatha', 'Meditación'], 'sin repetidas');
+  await waitFor(page, () => { const i = document.querySelector('.ag-photo img'); return i && i.complete && i.naturalWidth > 0; }, null, 8000);
+});
+
+await test('panel · admin que ES profesora (Manuela): ve gestión + "Mi agenda" + "Mi perfil"; el user común no entra', async (page) => {
+  await signup('manuela@test.dev', 'Manuela');
+  await be.promote('manuela@test.dev', 'admin');
+  await be.makeTeacher('manuela@test.dev', { name: 'Manuela' });
+  await page.goto(`${S}/panel.html`);
+  await loginViaModal(page, 'manuela@test.dev');
+  await page.waitForSelector('.nav-tabs .nav-link');
+  assert.deepEqual(await page.$$eval('.nav-tabs .nav-link', (n) => n.map((x) => x.textContent)), ['Clases', 'Productos', 'Profesores', 'Mi agenda', 'Mi perfil']);
+  // El admin edita el perfil de OTRA profesora desde "Profesores"
+  await clickTab(page, 'Profesores');
+  await waitFor(page, () => /Equipo docente/.test(document.getElementById('panelContent').textContent), null, 10000);
+  assert.equal(await count(page, '#inviteEmail'), 0, 'dar de alta profesores es solo del developer');
+  await page.evaluate(() => [...document.querySelectorAll('#panelContent .yp-card')].find((c) => c.textContent.includes('Lucía')).querySelector('button').click());
+  await page.waitForSelector('#tpName');
+  await page.$eval('#tpBio', (i) => { i.value = ''; });
+  await page.type('#tpBio', 'Bio corregida por la administración.');
+  await page.click('#panelContent form button[type=submit]');
+  await toastHas(page, 'Perfil guardado');
+  assert.ok((await be.state()).log.teachers.some((x) => x.ids.includes(TEACHER_IDS.lucia)), 'el admin pudo editar a otra profesora');
+});
+
+await test('panel · un usuario común (sin ser profesor) NO entra al panel', async (page) => {
+  await signup('comun@test.dev', 'Común');
+  await page.goto(`${S}/panel.html`);
+  await loginViaModal(page, 'comun@test.dev');
+  await waitFor(page, () => /Acceso restringido/.test(document.body.textContent), null, 10000);
+  assert.equal(await count(page, '.nav-tabs .nav-link'), 0);
+});
+
+await test('panel · developer: da de alta a un profesor por correo (con "También es admin") y NO baja de rango a un admin', async (page) => {
+  await signup('nuevo@test.dev', 'Nuevo Profe');
+  await signup('jefa@test.dev', 'Jefa Admin');
+  await be.promote('jefa@test.dev', 'admin');
+  await loginAsDeveloper(page);
+  await page.waitForSelector('.nav-tabs .nav-link');
+  await clickTab(page, 'Profesores');
+  await page.waitForSelector('#inviteEmail');
+  const invite = async (email, alsoAdmin = false) => {
+    await waitFor(page, () => document.querySelector('#inviteEmail') && !document.querySelector('#panelContent .yp-skeleton'), null, 10000);
+    await page.type('#inviteEmail', email);
+    if (alsoAdmin) await page.click('#inviteAdmin');
+    await page.evaluate(() => document.querySelector('#inviteEmail').form.querySelector('button[type=submit]').click());
+  };
+  const roleOf = async (email) => (await be.state()).users.find((u) => u.email === email).role;
+  await invite('nuevo@test.dev', true);
+  await toastHas(page, 'rol admin');
+  await waitFor(page, () => [...document.querySelectorAll('#panelContent .yp-card')].some((c) => c.textContent.includes('Nuevo Profe')), null, 10000);
+  assert.equal(await roleOf('nuevo@test.dev'), 'admin', 'con "También es admin" queda admin + profesor');
+  // A un admin existente: alta como profesora SIN la casilla → conserva el rol admin (el descuido que había)
+  await invite('jefa@test.dev');
+  await waitFor(page, () => [...document.querySelectorAll('#panelContent .yp-card')].some((c) => c.textContent.includes('Jefa Admin')), null, 10000);
+  assert.equal(await roleOf('jefa@test.dev'), 'admin', 'un admin NO baja de rango al darlo de alta como profesor');
+  assert.ok((await be.state()).teachers.some((t) => t.public_name === 'Jefa Admin' && t.is_active), 'y queda como profesora activa');
+  // correo inexistente → mensaje claro, sin romper
+  await invite('nadie@test.dev');
+  await toastHas(page, 'registrado');
+});
+
 await test('panel: sin sesión pide iniciar sesión y un usuario común ve "Acceso restringido"', async (page) => {
   await page.goto(`${S}/panel.html`);
   await waitFor(page, () => document.querySelector('#panel')?.innerText.includes('Iniciá sesión para ver el panel'), null, 10000);
@@ -1159,7 +1410,7 @@ await test('panel · Productos: ver todo, crear con imagen, publicar, editar el 
   await waitFor(page, () => [...document.querySelectorAll('#panelContent tbody tr')].some((r) => r.innerText.includes('Bloque de corcho')), null, 10000);
 
   let st = await be.state();
-  let created = st.products.find((p) => p.title === 'Bloque de corcho');
+  const created = st.products.find((p) => p.title === 'Bloque de corcho');
   assert.equal(created.price_cents, 1250, '12,5 € se guarda como 1250 céntimos (entero)');
   assert.equal(created.stock, 4);
   assert.equal(created.is_active, false, 'un producto nuevo nace oculto');

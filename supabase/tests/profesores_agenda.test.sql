@@ -316,3 +316,20 @@ do $$ declare r text; begin
   reset role;
   assert exists (select 1 from public.audit_log where action = 'role.change' and entity_id = '00000000-0000-4000-8000-000000000c07' and details->>'to' = 'admin');
 end $$;
+
+-- 12. Lo que un profesor escribe en su perfil público está acotado EN LA BASE (no solo en el formulario).
+do $$ declare n int; begin
+  perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c03', true);
+  set local role authenticated;
+  perform t.raises($q$ update public.teachers set photo_url = 'javascript:alert(1)' where profile_id = '00000000-0000-4000-8000-000000000c03' $q$, '23514');
+  perform t.raises($q$ update public.teachers set photo_url = 'http://sin-cifrar.test/a.jpg' where profile_id = '00000000-0000-4000-8000-000000000c03' $q$, '23514');
+  perform t.raises($q$ update public.teachers set photo_url = 'data:image/png;base64,AAAA' where profile_id = '00000000-0000-4000-8000-000000000c03' $q$, '23514');
+  perform t.raises($q$ update public.teachers set photo_url = 'https://x.test/con espacio.jpg' where profile_id = '00000000-0000-4000-8000-000000000c03' $q$, '23514');
+  update public.teachers set photo_url = 'https://x.test/ok.webp', specialties = array['Vinyasa', 'Hatha'] where profile_id = '00000000-0000-4000-8000-000000000c03';
+  get diagnostics n = row_count; assert n = 1, 'https y especialidades normales se aceptan';
+  update public.teachers set photo_url = null where profile_id = '00000000-0000-4000-8000-000000000c03';
+  get diagnostics n = row_count; assert n = 1, 'quitar la foto se puede';
+  perform t.raises($q$ update public.teachers set specialties = array[repeat('x', 31)] where profile_id = '00000000-0000-4000-8000-000000000c03' $q$, '23514');
+  perform t.raises($q$ update public.teachers set specialties = array['ok', '   '] where profile_id = '00000000-0000-4000-8000-000000000c03' $q$, '23514');
+  reset role;
+end $$;

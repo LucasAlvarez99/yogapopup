@@ -32,7 +32,7 @@ const fakeJwt = (sub, ttl = 3600) => `${b64url('{"alg":"HS256","typ":"JWT"}')}.$
 
 function seed() {
   const now = new Date().toISOString();
-  const base = { updated_at: now, description: null, thumbnail_url: null, level: 'principiante', category: null, access_level: 'free', sort_order: 0, is_published: true, published_at: now, video_status: 'ready', duration_seconds: 12, created_at: now, updated_at: now, r2_object_key: KEY_OF(IDS.free) };
+  const base = { description: null, thumbnail_url: null, level: 'principiante', category: null, access_level: 'free', sort_order: 0, is_published: true, published_at: now, video_status: 'ready', duration_seconds: 12, created_at: now, updated_at: now, r2_object_key: KEY_OF(IDS.free) };
   const seeded = {
     users: new Map(), sessions: new Map(), recoveries: [], progress: new Map(), entitlements: new Set(),
     classes: [
@@ -48,13 +48,38 @@ function seed() {
       { id: '10000000-0000-4000-8000-000000000004', title: 'Producto borrador', description: null, image_url: null, price_cents: 500, stock: null, category: 'Ropa', sort_order: 3, is_active: false, created_at: now },
     ],
     behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null, schemaBehind: false },
+    // Profesores y agenda (migración 20261005120000): `teachers` y `liveSessions` (live_sessions) los siembra seedTeachers().
+    teachers: [], liveSessions: [], bookings: [],
     variants: [], // talles: { id, product_id, size, stock, sort_order, created_at }
-    log: { saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [] },
+    log: { saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [], teachers: [], sessions: [], bookings: [] },
     storage: new Map(), // Storage simulado: '<bucket>/<ruta>' -> { type, data }
     r2objects: new Map(), // R2 simulado: key -> bytes subidos por PUT (las clases de la semilla ya tienen su video)
   };
   for (const c of seeded.classes) if (c.r2_object_key) seeded.r2objects.set(c.r2_object_key, 1);
+  seedTeachers(seeded);
   return seeded;
+}
+
+export const TEACHER_IDS = { manu: '20000000-0000-4000-8000-000000000001', lucia: '20000000-0000-4000-8000-000000000002' };
+export const SESSION_IDS = { manuFree: '30000000-0000-4000-8000-000000000001', manuFull: '30000000-0000-4000-8000-000000000002', lucia: '30000000-0000-4000-8000-000000000003', manuDraft: '30000000-0000-4000-8000-000000000004' };
+const HOUR = 3600 * 1000;
+/** Dos profesores con clases en los próximos días (18:30 hora argentina = 21:30 UTC) y un borrador que no debe verse. */
+function seedTeachers(db) {
+  const at = (days, utcHour) => { const d = new Date(Date.now() + days * 24 * HOUR); d.setUTCHours(utcHour, 0, 0, 0); return d.toISOString(); };
+  const now = new Date().toISOString();
+  db.teachers = [
+    { profile_id: TEACHER_IDS.manu, public_name: 'Manu', bio: 'Hatha yoga y respiración. <b>sin html</b>', photo_url: null, specialties: ['Hatha', 'Pranayama'], is_active: true, created_at: now },
+    { profile_id: TEACHER_IDS.lucia, public_name: 'Lucía', bio: 'Vinyasa y flow.', photo_url: null, specialties: ['Vinyasa'], is_active: true, created_at: new Date(Date.now() + 1000).toISOString() },
+  ];
+  const s = (id, teacher, title, startsAt, extra = {}) => ({ id, teacher_id: teacher, title, level: 'todos', mode: 'live', starts_at: startsAt, duration_minutes: 60, capacity: 2, is_published: true, created_at: now, ...extra });
+  db.liveSessions = [
+    s(SESSION_IDS.manuFree, TEACHER_IDS.manu, 'Hatha Yoga', at(2, 21), { level: 'principiante' }),
+    s(SESSION_IDS.manuFull, TEACHER_IDS.manu, 'Hatha nocturno', at(2, 23), { capacity: 1 }),
+    s(SESSION_IDS.lucia, TEACHER_IDS.lucia, 'Vinyasa Flow', at(3, 23), { level: 'intermedio', mode: 'virtual', capacity: null }),
+    s(SESSION_IDS.manuDraft, TEACHER_IDS.manu, 'Borrador de Manu', at(4, 21), { is_published: false }),
+  ];
+  // La clase "nocturno" ya está completa (cupo 1) con una persona que no es de las pruebas.
+  db.bookings = [{ id: randomUUID(), session_id: SESSION_IDS.manuFull, user_id: '99999999-0000-4000-8000-000000000009', created_at: now }];
 }
 
 export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, cdn: 4175 }, progressIntervalSeconds: initialInterval = 2 }) {
@@ -158,7 +183,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
   const isDeveloper = (u) => Boolean(u) && u.role === 'developer'; // subir videos: solo developer
   const readRaw = (req) => new Promise((resolve) => { const chunks = []; req.on('data', (c) => chunks.push(c)); req.on('end', () => resolve(Buffer.concat(chunks))); });
   const pick = (row, cols) => Object.fromEntries(cols.map((c) => [c, row[c]]));
-  const classPublic = (c) => { const { r2_object_key, ...rest } = c; return rest; };
+  const classPublic = (c) => { const rest = { ...c }; delete rest.r2_object_key; return rest; }; // la key de R2 nunca sale por la API
 
   /** Separa el `select` de PostgREST por comas de PRIMER nivel ("a,b,product_variants(id,size)" -> 3 partes). */
   const splitSelect = (select) => {
@@ -331,12 +356,135 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       const select = p.get('select') || '';
       const embed = /classes\(([^)]*)\)/.exec(select);
       const baseCols = select.replace(/,?classes\([^)]*\)/, '').split(',').filter(Boolean);
-      let rows = applyFilters(mine, p).map((r) => ({
+      const rows = applyFilters(mine, p).map((r) => ({
         ...pick(r, baseCols),
         ...(embed ? { classes: (() => { const c = db.classes.find((x) => x.id === r.class_id && x.is_published); return c ? pick(classPublic(c), embed[1].split(',')) : null; })() } : {}),
       }));
       return reply(rows);
     }
+
+    // ------------------------------------------------------------------ profesores y agenda (misma regla que las políticas RLS)
+    const isTeacher = (u) => Boolean(u) && db.teachers.some((t) => t.profile_id === u.id && t.is_active);
+    const rpcErr = (status, code, message) => send(res, status, { code, message });
+    // PostgREST devuelve un valor escalar (texto) como JSON con su Content-Type: "booked"
+    const scalar = (value) => send(res, 200, JSON.stringify(value), { 'Content-Type': 'application/json' });
+    const sessionView = (s, u) => ({
+      id: s.id, teacher_id: s.teacher_id, title: s.title, level: s.level, mode: s.mode, starts_at: s.starts_at, duration_minutes: s.duration_minutes, capacity: s.capacity,
+      booked: db.bookings.filter((b) => b.session_id === s.id).length, mine: Boolean(u) && db.bookings.some((b) => b.session_id === s.id && b.user_id === u.id),
+    });
+
+    if (table === 'teachers' && req.method === 'GET') {
+      const cols = (p.get('select') || 'profile_id').split(',');
+      const visible = db.teachers.filter((t) => t.is_active || (user && (t.profile_id === user.id || isStaff(user))));
+      return reply(applyFilters(visible, p).map((r) => pick(r, cols)));
+    }
+    if (table === 'teachers' && req.method === 'PATCH') {
+      if (!user) return rpcErr(401, 'PGRST301', 'JWT required');
+      const body = await readBody(req);
+      const allowed = ['public_name', 'bio', 'photo_url', 'specialties'];
+      if (Object.keys(body).some((k) => !allowed.includes(k))) return rpcErr(403, '42501', 'permission denied for table teachers');
+      const targets = applyFilters(db.teachers, p).filter((t) => t.profile_id === user.id || isStaff(user)); // RLS: solo SU fila (o la gestión)
+      for (const t of targets) Object.assign(t, body);
+      db.log.teachers.push({ op: 'update', ids: targets.map((t) => t.profile_id), fields: Object.keys(body) });
+      return reply(targets.map((t) => pick(t, (p.get('select') || 'profile_id').split(','))));
+    }
+    if (table === 'live_sessions') {
+      if (!user) return rpcErr(401, 'PGRST301', 'JWT required');
+      const mine = (row) => row.teacher_id === user.id || isStaff(user);
+      if (req.method === 'POST') {
+        const b = await readBody(req);
+        if (!((b.teacher_id === user.id && isTeacher(user)) || isStaff(user))) return rpcErr(403, '42501', 'new row violates row-level security policy for table "live_sessions"');
+        if (!db.teachers.some((t) => t.profile_id === b.teacher_id)) return rpcErr(409, '23503', 'violates foreign key constraint');
+        if (!b.title || !b.starts_at || !(b.duration_minutes >= 15 && b.duration_minutes <= 240)) return rpcErr(400, '23514', 'violates check constraint');
+        const row = { id: randomUUID(), level: 'todos', mode: 'live', capacity: null, is_published: true, created_at: new Date().toISOString(), ...b };
+        db.liveSessions.push(row); db.log.sessions.push({ op: 'insert', id: row.id });
+        return reply([pick(row, (p.get('select') || 'id').split(','))]);
+      }
+      const targets = applyFilters(db.liveSessions, p).filter(mine);
+      if (req.method === 'PATCH') {
+        const b = await readBody(req);
+        for (const t of targets) Object.assign(t, b);
+        db.log.sessions.push({ op: 'update', ids: targets.map((t) => t.id) });
+        return reply(targets.map((t) => pick(t, (p.get('select') || 'id').split(','))));
+      }
+      if (req.method === 'DELETE') {
+        db.liveSessions = db.liveSessions.filter((x) => !targets.includes(x));
+        db.bookings = db.bookings.filter((x) => !targets.some((t) => t.id === x.session_id)); // ON DELETE CASCADE
+        db.log.sessions.push({ op: 'delete', ids: targets.map((t) => t.id) });
+        return send(res, 204);
+      }
+      if (req.method === 'GET') return reply(targets.map((r) => pick(r, (p.get('select') || 'id').split(','))));
+    }
+    if (table === 'rpc/live_agenda' && req.method === 'POST') {
+      const { p_teacher: teacher, p_from: from, p_to: to } = await readBody(req);
+      const start = Math.max(new Date(from).getTime(), Date.now());
+      const end = Math.min(new Date(to).getTime(), new Date(from).getTime() + 92 * 24 * HOUR);
+      const rows = db.liveSessions
+        .filter((s) => s.is_published && db.teachers.some((t) => t.profile_id === s.teacher_id && t.is_active))
+        .filter((s) => (!teacher || s.teacher_id === teacher) && new Date(s.starts_at).getTime() >= start && new Date(s.starts_at).getTime() < end)
+        .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+      return send(res, 200, rows.map((s) => sessionView(s, user)));
+    }
+    if (table === 'rpc/book_live_session' && req.method === 'POST') {
+      if (!user) return rpcErr(401, '42501', 'permission denied for function book_live_session');
+      const { p_session: id } = await readBody(req);
+      const s = db.liveSessions.find((x) => x.id === id);
+      if (!s || !s.is_published || !db.teachers.some((t) => t.profile_id === s.teacher_id && t.is_active)) return rpcErr(404, 'P0002', 'session not found');
+      if (new Date(s.starts_at) <= new Date()) return rpcErr(400, '22023', 'session already started');
+      if (db.bookings.some((b) => b.session_id === id && b.user_id === user.id)) return scalar('already_booked');
+      if (s.capacity !== null && db.bookings.filter((b) => b.session_id === id).length >= s.capacity) return rpcErr(400, '23514', 'session full');
+      db.bookings.push({ id: randomUUID(), session_id: id, user_id: user.id, created_at: new Date().toISOString() });
+      db.log.bookings.push({ op: 'book', session: id, user: user.email });
+      return scalar('booked');
+    }
+    if (table === 'rpc/cancel_live_booking' && req.method === 'POST') {
+      if (!user) return rpcErr(401, '42501', 'permission denied for function cancel_live_booking');
+      const { p_session: id } = await readBody(req);
+      const s = db.liveSessions.find((x) => x.id === id);
+      if (s && new Date(s.starts_at) > new Date()) {
+        db.bookings = db.bookings.filter((b) => !(b.session_id === id && b.user_id === user.id));
+        db.log.bookings.push({ op: 'cancel', session: id, user: user.email });
+      }
+      return send(res, 204);
+    }
+    if (table === 'rpc/my_live_bookings' && req.method === 'POST') {
+      if (!user) return rpcErr(401, '42501', 'permission denied for function my_live_bookings');
+      const rows = db.bookings.filter((b) => b.user_id === user.id).map((b) => db.liveSessions.find((s) => s.id === b.session_id)).filter(Boolean)
+        .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))
+        .map((s) => ({ session_id: s.id, title: s.title, level: s.level, mode: s.mode, starts_at: s.starts_at, duration_minutes: s.duration_minutes, teacher_name: db.teachers.find((t) => t.profile_id === s.teacher_id)?.public_name ?? '' }));
+      return send(res, 200, rows);
+    }
+    if (table === 'rpc/teacher_agenda' && req.method === 'POST') {
+      const { p_teacher: teacher, p_from: from, p_to: to } = await readBody(req);
+      if (!user || !(teacher === user.id || isStaff(user))) return rpcErr(403, '42501', 'not allowed');
+      const rows = db.liveSessions.filter((s) => s.teacher_id === teacher && new Date(s.starts_at) >= new Date(from) && new Date(s.starts_at) < new Date(to))
+        .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))
+        .map((s) => ({
+          id: s.id, title: s.title, level: s.level, mode: s.mode, starts_at: s.starts_at, duration_minutes: s.duration_minutes, capacity: s.capacity, is_published: s.is_published,
+          students: db.bookings.filter((b) => b.session_id === s.id).map((b) => ({ id: b.user_id, name: [...db.users.values()].find((u) => u.id === b.user_id)?.name || 'Alumno/a', booked_at: b.created_at })),
+        }));
+      return send(res, 200, rows);
+    }
+    if (table === 'rpc/add_teacher_by_email' && req.method === 'POST') {
+      if (!isDeveloper(user)) return rpcErr(403, '42501', 'developer role required');
+      const { p_email: email, p_also_admin: alsoAdmin } = await readBody(req);
+      const u = [...db.users.values()].find((x) => x.email === String(email).trim().toLowerCase());
+      if (!u) return rpcErr(404, 'P0002', 'user not found');
+      u.role = u.role === 'admin' || u.role === 'developer' ? u.role : alsoAdmin ? 'admin' : u.role === 'user' || !u.role ? 'profesor' : u.role;
+      const row = db.teachers.find((t) => t.profile_id === u.id);
+      if (row) row.is_active = true;
+      else db.teachers.push({ profile_id: u.id, public_name: u.name || 'Profesor/a', bio: null, photo_url: null, specialties: [], is_active: true, created_at: new Date().toISOString() });
+      return scalar(u.role);
+    }
+    if (table === 'rpc/set_teacher_active' && req.method === 'POST') {
+      if (!isDeveloper(user)) return rpcErr(403, '42501', 'developer role required');
+      const { p_target: id, p_active: active } = await readBody(req);
+      const row = db.teachers.find((t) => t.profile_id === id);
+      if (!row) return rpcErr(404, 'P0002', 'user not found');
+      row.is_active = active;
+      return send(res, 204);
+    }
+
     return send(res, 404, { message: `relation ${table} not found` });
   }
 
@@ -400,9 +548,11 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       res.writeHead(200, { ...CORS, 'Content-Type': file.type, 'Cache-Control': 'no-store' });
       return res.end(file.data);
     }
-    const bucketOf = (pth) => ['product-images', 'class-thumbnails'].find((b) => pth === b || pth.startsWith(`${b}/`));
+    const bucketOf = (pth) => ['product-images', 'class-thumbnails', 'teacher-photos'].find((b) => pth === b || pth.startsWith(`${b}/`));
+    // teacher-photos: cada profesor escribe SOLO en su carpeta <uid>/…; la gestión en cualquiera (como las políticas de Storage).
+    const teacherPhotoOk = (pth) => isStaff(user) || (db.teachers.some((t) => t.profile_id === user?.id && t.is_active) && pth.split('/')[1] === user.id);
     if (req.method === 'DELETE' && bucketOf(path) === path) {
-      if (!isStaff(user)) return denied(res);
+      if (path === 'teacher-photos' ? !(user && db.teachers.some((t) => t.profile_id === user.id && t.is_active)) && !isStaff(user) : !isStaff(user)) return denied(res);
       const { prefixes = [] } = await readBody(req);
       for (const key of prefixes) { db.storage.delete(`${path}/${key}`); db.log.storage.push({ op: 'delete', path: key }); }
       return send(res, 200, prefixes.map((name) => ({ name })));
@@ -412,11 +562,11 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       if (db.behavior.storageReject === 'rls') { req.resume(); return denied(res); }
       if (db.behavior.storageReject === 'size') { req.resume(); return send(res, 413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' }); }
       if (db.behavior.storageReject === 'bucket') { req.resume(); return send(res, 404, { statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' }); }
-      if (!isStaff(user)) return denied(res);
+      if (bucketOf(path) === 'teacher-photos' ? !teacherPhotoOk(path) : !isStaff(user)) return denied(res);
       const file = multipartFile(await readRaw(req), req.headers['content-type']);
       if (file.data.length > 2 * 1024 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type)) return send(res, 400, { statusCode: '415', error: 'invalid_mime_type', message: 'mime type not supported or file too large' });
       db.storage.set(path, file);
-      db.log.storage.push({ op: 'upload', path: path.replace(/^(product-images|class-thumbnails)\//, ''), type: file.type, bytes: file.data.length });
+      db.log.storage.push({ op: 'upload', path: path.replace(/^(product-images|class-thumbnails|teacher-photos)\//, ''), type: file.type, bytes: file.data.length });
       return send(res, 200, { Key: path });
     }
     return send(res, 404, { message: 'not found' });
@@ -500,7 +650,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     try {
       if (url.pathname === '/__test/reset') { db = seed(); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
-      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata })), products: db.products, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
+      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata, role: u.role ?? 'user' })), teachers: db.teachers, products: db.products, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
       if (url.pathname === '/__test/variants') { // prepara talles directamente: { productId, rows:[{size, stock}] }
@@ -509,6 +659,12 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
         b.rows.forEach((r, i) => db.variants.push({ id: randomUUID(), product_id: b.productId, size: r.size, stock: r.stock ?? null, sort_order: i, created_at: new Date().toISOString() }));
         return send(res, 200, variantsOf(b.productId));
       }
+      if (url.pathname === '/__test/teacher') { // convierte a una persona registrada en profesora: { email, name?, bio? }
+        const b = await readBody(req); const u = [...db.users.values()].find((x) => x.email === b.email);
+        if (u) db.teachers.push({ profile_id: u.id, public_name: b.name || u.name || 'Profesor/a', bio: b.bio ?? null, photo_url: null, specialties: [], is_active: true, created_at: new Date().toISOString() });
+        return send(res, 200, { id: u?.id ?? null });
+      }
+      if (url.pathname === '/__test/session') { const b = await readBody(req); db.liveSessions.push({ id: randomUUID(), level: 'todos', mode: 'live', duration_minutes: 60, capacity: null, is_published: true, created_at: new Date().toISOString(), ...b }); return send(res, 200, {}); }
       if (url.pathname === '/__test/promote') { const b = await readBody(req); const u = [...db.users.values()].find((u) => u.email === b.email); if (u) u.role = b.role; return send(res, 200, { ok: true }); }
       if (url.pathname.startsWith('/auth/v1/')) return await auth(req, res, url);
       if (url.pathname.startsWith('/rest/v1/')) return await rest(req, res, url);
@@ -588,6 +744,8 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     behavior: (b) => control('behavior', b),
     entitle: (email, classId) => control('entitle', { email, classId }),
     promote: (email, role) => control('promote', { email, role }),
+    makeTeacher: (email, extra = {}) => control('teacher', { email, ...extra }),
+    addSession: (row) => control('session', row),
     setVariants,
     patchProduct: (id, patch) => control('product', { id, patch }),
     state: () => fetch(`${origin.api}/__test/state`).then((r) => r.json()),

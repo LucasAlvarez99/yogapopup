@@ -131,7 +131,7 @@ Si se añade analítica, publicidad o contenido de terceros que use cookies, hac
 > (solo lectura, para el SQL Editor) muestra en qué falla la base. La imagen se reduce a WebP y, en Safari (que no sabe
 > codificar WebP), a JPEG, siempre por debajo de los 2 MB del bucket.
 
-> **Profesores y agenda (migración `20261005120000`).** Igual orden: primero `npm run sb:db-push`, después publicar la web (la home pide `teachers` y `live_agenda`). Para dar de alta a un profesor: que se registre en el sitio y, con tu sesión de developer, panel → Profesores → su correo (tildá "También es admin" para quien además gestiona, como Manuela/Manu; la migración `20261006120000` garantiza que nunca se baja de rango a un admin).
+> **Profesores y agenda (migración `20261005120000`).** Igual orden: primero `npm run sb:db-push`, después publicar la web (la home pide `teachers` y `live_agenda`). Para dar de alta a un profesor: que se registre en el sitio y, con tu sesión de developer, panel → Profesores → su correo (tildá "También es admin" para quien además gestiona, como Manuela/Manu; la migración `20261006120000` garantiza que nunca se baja de rango a un admin). La migración `20261007120000` agrega los topes del perfil público (foto solo `https`, especialidades de 1 a 30 caracteres): si `sb:db-push` la rechaza, hay un dato viejo que no los cumple y se corrige en `teachers` antes de reintentar.
 
 > **Talles e IVA (migración `20261004120000`).** Orden: primero `npm run sb:db-push`, **después** publicar la web. Si la
 > web sale antes, la tienda sigue funcionando sin talles ni IVA hasta que se aplique la migración. Todos los productos

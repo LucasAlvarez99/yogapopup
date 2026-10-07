@@ -114,7 +114,7 @@ const ok = {
 const invalid = (patch, re, opts) =>
   assert.throws(
     () => buildSessionInput({ ...ok, ...patch }, { now: NOW, ...opts }),
-    (e) => e instanceof AppError && e.code === "invalid_input" && re.test(e.message),
+    (e) => e instanceof AppError && e.code === "validation" && re.test(e.message),
   );
 
 Deno.test("agenda: formulario de clase válido arma lo que va a la base", () => {
@@ -150,6 +150,28 @@ Deno.test("agenda: formulario de clase — cada error dice qué corregir", () =>
   invalid({ capacity: "-3" }, /cupo/);
   // Editar una clase que ya pasó no obliga a cambiar la fecha.
   assert.doesNotThrow(() => buildSessionInput({ ...ok, date: "2026-10-01" }, { now: NOW, allowPast: true }));
+});
+
+Deno.test("agenda: el mensaje de validación llega TAL CUAL a la pantalla (no el genérico 'Revisá los datos')", () => {
+  for (
+    const [patch, re] of [[{ title: " " }, /título es obligatorio/], [{ capacity: "0" }, /cupo/], [{
+      date: "2026-10-01",
+    }, /futuro/]]
+  ) {
+    try {
+      buildSessionInput({ ...ok, ...patch }, { now: NOW });
+      assert.fail("debía fallar");
+    } catch (e) {
+      assert.match(messageFor(e), re);
+      assert.notEqual(messageFor(e), "Revisá los datos ingresados.");
+    }
+  }
+  try {
+    buildTeacherProfileInput({ public_name: " ", bio: "", specialties: "" });
+    assert.fail("debía fallar");
+  } catch (e) {
+    assert.match(messageFor(e), /nombre es obligatorio/);
+  }
 });
 
 Deno.test("agenda: especialidades — sin vacías ni repetidas, tope 8 y 30 caracteres", () => {

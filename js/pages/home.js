@@ -2,7 +2,6 @@ import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
 import { listActiveProducts, listPublishedClasses } from '../lib/api.js';
 import { messageFor } from '../lib/errors.js';
-import { mount } from '../lib/dom.js';
 import { initAuthUi, openAuth } from '../ui/auth-modal.js';
 import { initAccountMenu } from '../ui/account-menu.js';
 import { initLanguage } from '../ui/lang-switcher.js';
@@ -14,7 +13,7 @@ import { productCard } from '../components/product-card.js';
 import { addToCart, initCartUi } from '../ui/cart-drawer.js';
 import { emptyState, errorState } from '../ui/states.js';
 import { page } from '../lib/env.js';
-import { el } from '../lib/dom.js';
+import { el, mount } from '../lib/dom.js';
 
 /** Home: activa la cuenta y el carrito, y carga clases y productos reales (sin tarjetas de ejemplo). */
 initAuthUi();

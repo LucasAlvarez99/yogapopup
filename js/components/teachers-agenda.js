@@ -41,11 +41,11 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
     if (st.teachers.length === 0) {
       return mount(root, emptyState('Muy pronto, nuestras clases en vivo', 'Estamos sumando profesores y horarios. Volvé en unos días.'));
     }
-    await loadMonth();
+    await loadMonth({ jump: true });
   }
 
   /** Trae el mes del profesor elegido. `token` descarta respuestas viejas si la persona ya cambió de profesor o de mes. */
-  async function loadMonth({ keepDay = false } = {}) {
+  async function loadMonth({ keepDay = false, jump = false } = {}) {
     const token = ++st.token;
     const { from, to } = monthRange(st.year, st.month);
     let rows = [];
@@ -54,6 +54,17 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
       rows = await api.liveAgenda({ teacher: teacher().profile_id, from, to });
     } catch (err) { failed = err; }
     if (token !== st.token) return;
+    // Al abrir un profesor, si este mes no tiene clases pero más adelante sí, se salta al primer mes con clases:
+    // un calendario vacío da a entender que no hay agenda cuando solo empieza el mes que viene.
+    if (jump && !failed && rows.length === 0) {
+      const ahead = await api.liveAgenda({ teacher: teacher().profile_id, from: today.toISOString(), to: new Date(today.getTime() + 90 * 86400000).toISOString() }).catch(() => []);
+      if (token !== st.token) return;
+      if (ahead[0]) {
+        const [y, m] = arDay(ahead[0].starts_at).split('-').map(Number);
+        st.year = y; st.month = m - 1;
+        return loadMonth();
+      }
+    }
     st.sessions = rows;
     const days = [...groupByDay(rows).keys()].sort();
     if (!keepDay || !days.includes(st.day)) st.day = days[0] ?? null;
@@ -64,7 +75,8 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
   function pickTeacher(i) {
     st.idx = (i + st.teachers.length) % st.teachers.length;
     st.day = null; st.sessionId = null;
-    loadMonth();
+    st.year = ty; st.month = tm - 1; // cada profesor se abre en el mes actual (y salta al primero con clases si ese está vacío)
+    loadMonth({ jump: true });
   }
 
   // ------------------------------------------------------------------ tarjeta del profesor
@@ -80,9 +92,9 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
         el('span', { class: 'tag tag-live' }, icon('broadcast'), ' En vivo'),
         many ? el('button', { type: 'button', class: 'ag-nav ag-prev', 'aria-label': 'Profesor anterior', onclick: () => pickTeacher(st.idx - 1) }, icon('chevron-left')) : null,
         many ? el('button', { type: 'button', class: 'ag-nav ag-next', 'aria-label': 'Profesor siguiente', onclick: () => pickTeacher(st.idx + 1) }, icon('chevron-right')) : null,
-        many ? el('div', { class: 'ag-dots', role: 'tablist', 'aria-label': 'Profesores' },
+        many ? el('div', { class: 'ag-dots' },
           ...st.teachers.map((x, i) => el('button', {
-            type: 'button', class: `ag-dot${i === st.idx ? ' is-active' : ''}`, role: 'tab', 'aria-selected': String(i === st.idx),
+            type: 'button', class: `ag-dot${i === st.idx ? ' is-active' : ''}`, 'aria-current': i === st.idx ? 'true' : null,
             'aria-label': x.public_name, onclick: () => pickTeacher(i),
           }))) : null),
       el('div', { class: 'ag-teacher-info' },
@@ -101,7 +113,7 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
       el('button', { type: 'button', class: 'ag-cal-nav', 'aria-label': 'Mes anterior', disabled: prevDisabled, onclick: () => goMonth(-1) }, icon('chevron-left')),
       el('strong', { 'aria-live': 'polite' }, monthLabel(st.year, st.month)),
       el('button', { type: 'button', class: 'ag-cal-nav', 'aria-label': 'Mes siguiente', onclick: () => goMonth(1) }, icon('chevron-right')));
-    const grid = el('table', { class: 'ag-cal', role: 'grid' },
+    const grid = el('table', { class: 'ag-cal' },
       el('thead', {}, el('tr', {}, ...WEEKDAYS.map((d) => el('th', { scope: 'col' }, d)))),
       el('tbody', {}, ...monthGrid(st.year, st.month).map((week) => el('tr', {}, ...week.map((c) => {
         if (!c.inMonth) return el('td', {});
@@ -122,13 +134,13 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
       return el('p', { class: 'ag-empty', role: 'status' }, st.sessions.length === 0
         ? `Todavía no hay clases agendadas este mes con ${teacher().public_name}.` : 'Elegí un día marcado en el calendario.');
     }
-    return el('ul', { class: 'ag-slots', role: 'listbox', 'aria-label': 'Horarios disponibles' }, ...list.map((s) => {
+    return el('ul', { class: 'ag-slots' }, ...list.map((s) => {
       const full = isFull(s);
       const left = seatsLeft(s);
       const local = localTimeIfDifferent(s.starts_at);
       return el('li', {}, el('button', {
-        type: 'button', role: 'option', class: `ag-slot${s.id === st.sessionId ? ' is-selected' : ''}${full ? ' is-full' : ''}`,
-        'aria-selected': String(s.id === st.sessionId), disabled: full && !s.mine,
+        type: 'button', class: `ag-slot${s.id === st.sessionId ? ' is-selected' : ''}${full ? ' is-full' : ''}`,
+        'aria-pressed': String(s.id === st.sessionId), disabled: full && !s.mine,
         onclick: () => { st.sessionId = s.id; render(); },
       },
       el('span', { class: 'ag-slot-time' }, arTime(s.starts_at)),
