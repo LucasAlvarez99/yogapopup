@@ -139,56 +139,26 @@
     </div>
   </section>
 
-  <!-- ============ CURSOS ============ -->
-  <section class="section" id="cursos">
+  <!-- ============ CURSOS ============
+       Los cursos SON los videos que se suben a Cloudflare R2 desde el panel (tabla `classes`):
+       js/pages/home.js carga acá los últimos publicados. No hay tarjetas de ejemplo. -->
+  <section class="section section-tint" id="cursos">
     <div class="container-xl">
       <div class="section-head reveal">
         <h2>Cursos para transformar tu práctica</h2>
-        <a href="#" class="link-brand">Ver todos los cursos <i class="bi bi-arrow-right"></i></a>
+        <a href="videoteca.html" class="link-brand">Ver todos los cursos <i class="bi bi-arrow-right"></i></a>
       </div>
-      <div class="row g-4">
-        <article class="col-lg-4 col-md-6 reveal">
-          <div class="product-card">
-            <div class="product-media bg-light-green"><span class="tag tag-dark">Más vendido</span><img src="https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?auto=format&fit=crop&w=800&q=70" alt="Yoga desde cero" loading="lazy" data-hide-on-error></div>
-            <div class="product-body">
-              <span class="product-cat">Cursos</span>
-              <h3>Yoga desde cero</h3>
-              <p>Fundamentos, respiración y posturas base para empezar con seguridad.</p>
-              <ul class="meta"><li><i class="bi bi-bar-chart"></i> Principiante</li><li><i class="bi bi-clock"></i> 8 semanas</li></ul>
-              <div class="product-foot"><strong class="price">24,99&nbsp;€</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
-            </div>
-          </div>
-        </article>
-        <article class="col-lg-4 col-md-6 reveal">
-          <div class="product-card">
-            <div class="product-media bg-mint"><span class="tag tag-mint">Nuevo</span><img src="https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=800&q=70" alt="Yoga para flexibilidad" loading="lazy" data-hide-on-error></div>
-            <div class="product-body">
-              <span class="product-cat">Cursos</span>
-              <h3>Yoga para flexibilidad</h3>
-              <p>Secuencias progresivas para ganar movilidad y soltar el cuerpo.</p>
-              <ul class="meta"><li><i class="bi bi-bar-chart"></i> Intermedio</li><li><i class="bi bi-clock"></i> 6 semanas</li></ul>
-              <div class="product-foot"><strong class="price">29,99&nbsp;€</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
-            </div>
-          </div>
-        </article>
-        <article class="col-lg-4 col-md-12 reveal">
-          <div class="product-card">
-            <div class="product-media bg-light-green"><span class="tag tag-light">Destacado</span><img src="https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=70" alt="Meditación y respiración" loading="lazy" data-hide-on-error></div>
-            <div class="product-body">
-              <span class="product-cat">Cursos</span>
-              <h3>Meditación y respiración</h3>
-              <p>Herramientas simples para habitar el cuerpo con presencia y calma.</p>
-              <ul class="meta"><li><i class="bi bi-bar-chart"></i> Todos los niveles</li><li><i class="bi bi-clock"></i> 4 semanas</li></ul>
-              <div class="product-foot"><strong class="price">19,99&nbsp;€</strong><button class="btn btn-brand btn-sm" type="button">Ver curso</button></div>
-            </div>
-          </div>
-        </article>
+      <div class="row g-4" id="homeVideos" aria-live="polite" aria-busy="true">
+        <div class="col-lg-4 col-md-6"><div class="yp-skeleton"></div></div>
+        <div class="col-lg-4 col-md-6 d-none d-md-block"><div class="yp-skeleton"></div></div>
+        <div class="col-lg-4 d-none d-lg-block"><div class="yp-skeleton"></div></div>
       </div>
+      <noscript><p class="text-muted">Activa JavaScript para ver los cursos.</p></noscript>
     </div>
   </section>
 
   <!-- ============ CLASES EN VIVO ============ -->
-  <section class="section section-tint" id="clases">
+  <section class="section" id="clases">
     <div class="container-xl">
       <div class="section-head reveal">
         <h2>Practicá acompañado</h2>
@@ -196,22 +166,6 @@
       <!-- Carrusel de profesores + agenda: js/components/teachers-agenda.js (datos reales de Supabase) -->
       <div id="homeAgenda" aria-live="polite" aria-busy="true"><div class="yp-skeleton"></div></div>
       <noscript><p class="text-muted">Activa JavaScript para ver las clases en vivo.</p></noscript>
-    </div>
-  </section>
-
-  <!-- ============ VIDEOTECA ============ -->
-  <section class="section" id="videos">
-    <div class="container-xl">
-      <div class="section-head reveal">
-        <h2>Tu práctica, cuando quieras</h2>
-        <a href="videoteca.html" class="link-brand">Ir a la videoteca <i class="bi bi-arrow-right"></i></a>
-      </div>
-      <div class="row g-4" id="homeVideos" aria-live="polite" aria-busy="true">
-        <div class="col-lg-4 col-md-6"><div class="yp-skeleton"></div></div>
-        <div class="col-lg-4 col-md-6 d-none d-md-block"><div class="yp-skeleton"></div></div>
-        <div class="col-lg-4 d-none d-lg-block"><div class="yp-skeleton"></div></div>
-      </div>
-      <noscript><p class="text-muted">Activa JavaScript para ver la videoteca.</p></noscript>
     </div>
   </section>
 

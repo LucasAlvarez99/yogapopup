@@ -25,8 +25,9 @@ de cada página (ids duplicados, `alt`, `rel=noopener`, `href="#"`, estilos y ha
 
 1. **Datos del responsable vacíos** (`js/config.js` → `LEGAL`): la política de privacidad muestra "pendiente de completar" y `npm run doctor` lo avisa.
    Hay que completarlos antes de abrir el registro al público, y revisar el texto de la política con un asesor legal (es redacción base).
-2. **Tarjetas de cursos de ejemplo en la home** (sección "Cursos para transformar tu práctica"): tienen precios (24,99 € / 29,99 € / 19,99 €)
-   y botones "Ver curso" que no hacen nada. Son maquetas, no productos reales. Conviene retirarlas o conectarlas cuando exista la sección de cursos.
+2. ~~**Tarjetas de cursos de ejemplo en la home**~~ **Resuelto:** los cursos son los videos que se suben a Cloudflare R2 (tabla `classes`).
+   Se retiraron las maquetas (precios inventados y botones "Ver curso" sin acción) y la sección `#cursos` de la home ahora carga los últimos
+   cursos publicados (`#homeVideos`); "Ver todos los cursos" lleva a `videoteca.html`. Cobrar un curso (precio/entitlement) queda para la fase de pagos.
 3. **"Ver clases gratis"** en el hero da por hecho que reservar es gratis. Si se va a cobrar, cambiar el texto y sumar el pago a la reserva.
 4. **Cupos y cuentas falsas**: reservar exige una cuenta con correo confirmado, pero una persona con muchas cuentas podría ocupar los lugares de una clase.
    Si pasa, el siguiente paso es un límite de reservas por persona y por semana (no se hizo: hoy no hay evidencia de abuso).

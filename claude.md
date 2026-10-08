@@ -20,6 +20,10 @@ cursos, suscripciones y tienda física.
 progreso (`save_progress`), firmas R2 (SigV4 vía `aws4fetch`), confirmación de subida sin webhooks (HEAD directo
 al bucket en `admin-sync-video`) y pruebas.
 
+**Vocabulario:** un **curso** es un video subido a Cloudflare R2 y registrado como fila de `classes` (en el código y la base
+se sigue llamando `class`/`classes`). Aparece en la home (sección `#cursos`) y en `videoteca.html`. No confundir con las
+**clases en vivo** (`#clases`, agenda de profesores). No hay cursos de ejemplo: todo sale de la base.
+
 ## 2. Tres niveles de acceso (deben estar siempre separados)
 
 | Nivel | Superficie | Puede | No puede |

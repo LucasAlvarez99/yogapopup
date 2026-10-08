@@ -15,7 +15,7 @@ import { emptyState, errorState } from '../ui/states.js';
 import { page } from '../lib/env.js';
 import { el, mount } from '../lib/dom.js';
 
-/** Home: activa la cuenta y el carrito, y carga clases y productos reales (sin tarjetas de ejemplo). */
+/** Home: activa la cuenta y el carrito, y carga cursos (= videos de R2, tabla `classes`) y productos reales (sin tarjetas de ejemplo). */
 initAuthUi();
 initAccountMenu();
 initCartUi();
@@ -28,14 +28,14 @@ async function loadVideos() {
   if (!box) return;
   box.setAttribute('aria-busy', 'true');
   if (!supabase) {
-    mount(box, el('div', { class: 'col-12' }, emptyState('Videoteca en preparación', 'Falta configurar la conexión con Supabase (js/config.js).')));
+    mount(box, el('div', { class: 'col-12' }, emptyState('Cursos en preparación', 'Falta configurar la conexión con Supabase (js/config.js).')));
     box.setAttribute('aria-busy', 'false');
     return;
   }
   try {
     const items = await listPublishedClasses({ limit: 3 });
     if (items.length === 0) {
-      mount(box, el('div', { class: 'col-12' }, emptyState('Muy pronto, nuevas clases', 'Estamos preparando la videoteca. Vuelve en unos días.',
+      mount(box, el('div', { class: 'col-12' }, emptyState('Muy pronto, nuevos cursos', 'Estamos preparando los cursos. Vuelve en unos días.',
         el('a', { class: 'btn btn-outline-brand btn-sm', href: page('videoteca.html') }, 'Ir a la videoteca'))));
     } else {
       mount(box, ...items.map((c) => classCard(c)));
