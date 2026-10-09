@@ -80,6 +80,9 @@ Orden importante: **primero la base y las funciones, después la web.**
    ```
    npm run paypal:plan -- --price 9,99
    ```
+   > **PowerShell (Windows):** si ves `"9 99" is being parsed as a normal command line argument`, es que PowerShell partió el `9,99`
+   > por la coma. Usá el punto y comillas: `npm run paypal:plan -- --price "9.99"`, o directamente
+   > `node scripts/paypal-setup.mjs plan --price "9.99"`.
    Imprime `PAYPAL_PLAN_ID=P-…`: pegalo en `supabase/.env`. (Mensual por defecto; `--interval YEAR` para anual; `--tax 21` es el IVA incluido.)
 5. **Subir secretos y desplegar**: `npm run sb:secrets` y `npm run sb:deploy`.
 6. **Registrar el webhook** (con las funciones ya desplegadas):
