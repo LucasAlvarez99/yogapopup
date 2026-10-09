@@ -124,9 +124,9 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 20 | Suscripciones con PayPal — baja | 🟡 |
 | 21 | Pagos — webhook de PayPal | 🟡 |
 | 22 | Pagos — conciliación y errores | 🟡 |
-| 23 | Perfil — progreso de videos | ⬜ |
-| 24 | Perfil — historial de compras | ⬜ |
-| 25 | Perfil — estado de la suscripción | ⬜ |
+| 23 | Perfil — progreso de videos | ✅ |
+| 24 | Perfil — historial de compras | 🟡 |
+| 25 | Perfil — estado de la suscripción | 🟡 |
 | 26 | Comentarios — modelo de datos y formulario | ⬜ |
 | 27 | Comentarios — moderación | ⬜ |
 | 28 | Agenda — profesores, clases en vivo y reservas (modelo de datos) | ✅ |
@@ -715,22 +715,32 @@ disparar el barrido con `RECONCILE_CRON_SECRET`). Libera el stock de los pedidos
 
 ### Fase 23 · Perfil — progreso de videos
 
-- [ ] Sección "Mi progreso" en `cuenta.html`: agrupa `video_progress` (ya se guarda desde la Fase 3)
+- [x] Sección "Mi progreso" en `cuenta.html`: agrupa `video_progress` (ya se guarda desde la Fase 3)
       en clases completadas y en progreso, con acceso directo a "continuar"
 
-- [ ] **FASE 23 CUMPLIDA**
+Lógica pura en `js/lib/account-view.js` (probada en `tests/web/account-view.test.js`) y tarjeta en `js/ui/account-progress.js`.
+No usa pagos, así que se ve siempre. Una clase despublicada después deja de listarse.
+
+- [x] **FASE 23 CUMPLIDA**
 
 ### Fase 24 · Perfil — historial de compras
 
-- [ ] Listado de `orders` del usuario (tienda y clases sueltas), con su estado
+- [x] Listado de `orders` del usuario (tienda y clases sueltas), con su estado
 
-- [ ] **FASE 24 CUMPLIDA**
+Tarjeta "Mis compras" (`js/ui/account-orders.js`), solo si los pagos están configurados. Muestra pagado / esperando confirmación /
+reembolsado; los intentos sin completar quedan plegados. "Ver clase" solo en una clase suelta ya pagada. Sin migración nueva
+(la RLS ya limita a los pedidos propios).
+
+- [ ] **FASE 24 CUMPLIDA** (el listado está probado con pedidos simulados; falta verlo con una compra real del sandbox, `docs/PAYPAL.md`)
 
 ### Fase 25 · Perfil — estado de la suscripción
 
-- [ ] Plan activo, próximo cobro y botón para cancelar (llama a la Fase 20)
+- [x] Plan activo, próximo cobro y botón para cancelar (llama a la Fase 20)
 
-- [ ] **FASE 25 CUMPLIDA**
+Tarjeta "Mi suscripción" (`js/ui/account-subscription.js`): activa, con el pago pendiente, cancelada (con acceso hasta el fin del
+período pagado) o sin suscripción. La fecha de próximo cobro solo se muestra si PayPal la informó.
+
+- [ ] **FASE 25 CUMPLIDA** (probada con suscripciones simuladas; falta la prueba con una suscripción real del sandbox, `docs/PAYPAL.md`)
 
 ### Fase 26 · Comentarios — modelo de datos y formulario
 

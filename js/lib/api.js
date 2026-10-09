@@ -79,6 +79,26 @@ export async function listContinueWatching(limit = 6) {
   return rows.filter((r) => r.classes); // una clase despublicada después ya no se muestra
 }
 
+/** "Mi progreso" (Fase 23): todo lo que la persona empezó o terminó, la más reciente primero. La RLS limita a las propias filas. */
+export async function listMyProgress() {
+  const rows = unwrap(await db().from('video_progress')
+    .select(`progress_seconds,completed,last_watched_at,classes(${CARD_COLUMNS})`)
+    .order('last_watched_at', { ascending: false })) ?? [];
+  return rows.filter((r) => r.classes);
+}
+
+/** "Mis compras" (Fase 24): pedidos propios (tienda y clases sueltas) con sus renglones. */
+export async function listMyOrders(limit = 50) {
+  const { data, error } = await db().from('orders')
+    .select('id,kind,status,total_cents,tax_cents,refunded_cents,created_at,paid_at,order_items(title,size,qty,item_type,class_id)')
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) {
+    if (isSchemaBehind(error)) return [];
+    throw new AppError('internal_error', error.message);
+  }
+  return data ?? [];
+}
+
 export async function saveProgress(classId, seconds) {
   const { error } = await db().rpc('save_progress', { p_class_id: classId, p_seconds: Math.floor(seconds) });
   if (error) throw new AppError(error.code === '42501' ? 'no_access' : 'internal_error', error.message);
