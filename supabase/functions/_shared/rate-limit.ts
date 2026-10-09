@@ -17,6 +17,17 @@ export const LIMITS = {
   createUpload: { max: 20, windowSeconds: 60 },
   syncVideo: { max: 60, windowSeconds: 60 },
   deleteClass: { max: 20, windowSeconds: 60 },
+  // Pagos (PayPal). Un checkout normal hace 1-2 llamadas; esto frena a una cuenta robada o a un script en bucle
+  // (cada pedido reserva stock y cada llamada gasta cuota de la API de PayPal).
+  createPayPalOrder: { max: 10, windowSeconds: 60 },
+  capturePayPalOrder: { max: 20, windowSeconds: 60 },
+  createSubscription: { max: 5, windowSeconds: 60 },
+  activateSubscription: { max: 20, windowSeconds: 60 },
+  cancelSubscription: { max: 5, windowSeconds: 60 },
+  reconcile: { max: 30, windowSeconds: 60 },
+  // El webhook no tiene usuario: un tope GLOBAL generoso (PayPal manda unos pocos eventos por compra) para que
+  // nadie pueda gastar la API de verificación de firmas inundando la URL pública.
+  webhook: { max: 600, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimit>;
 
 /**

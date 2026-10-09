@@ -1,4 +1,5 @@
 import { R2Error } from "./r2/r2.service.ts";
+import { PayPalError } from "./paypal/paypal.service.ts";
 
 /** Error "esperado" que se traduce a una respuesta HTTP con código estable. */
 export class HttpError extends Error {
@@ -63,7 +64,7 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
-async function readTextLimited(req: Request, maxBytes: number): Promise<string> {
+export async function readTextLimited(req: Request, maxBytes: number): Promise<string> {
   if (!req.body) return "";
   const reader = req.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -122,6 +123,16 @@ export function createEndpoint(opts: EndpointOptions): (req: Request) => Promise
         console.error(`[r2] ${e.operation} failed status=${e.status}: ${e.message}`);
         return json(
           { error: { code: "video_provider_error", message: "The video provider is unavailable, try again" } },
+          502,
+          cors,
+        );
+      }
+      if (e instanceof PayPalError) {
+        console.error(
+          `[paypal] ${e.operation} failed status=${e.status}${e.issue ? ` issue=${e.issue}` : ""}: ${e.message}`,
+        );
+        return json(
+          { error: { code: "payment_provider_error", message: "The payment provider is unavailable, try again" } },
           502,
           cors,
         );

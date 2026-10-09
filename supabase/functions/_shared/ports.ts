@@ -103,7 +103,8 @@ export interface AppConfig {
 
 /** Historial de auditoría (solo inserción). Las operaciones destructivas fallan si no se puede registrar. */
 export interface AuditEntry {
-  actorId: string;
+  /** null = acción del sistema (webhook de PayPal, conciliación automática). */
+  actorId: string | null;
   action: string;
   entityType?: string;
   entityId?: string;

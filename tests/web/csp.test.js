@@ -4,6 +4,7 @@ import {
   htaccessSecurityBlock,
   injectMetaCsp,
   originOf,
+  PAYPAL_HOSTS,
   R2_HOSTS,
   readFrontendConfig,
 } from "../../scripts/lib/security-headers.mjs";
@@ -52,7 +53,8 @@ Deno.test("CSP: el JS propio no usa nada que una CSP estricta (o el XSS) rompa",
     assert.doesNotMatch(src, /setTimeout\(\s*['"`]|setInterval\(\s*['"`]/, `${f}: temporizador con texto`);
     assert.doesNotMatch(src, /setAttribute\(\s*['"]style['"]/, `${f}: style por setAttribute (la CSP lo bloquea)`);
     assert.doesNotMatch(src, /createElement\(\s*['"]style['"]/, `${f}: <style> dinámico`);
-    assert.doesNotMatch(src, /createElement\(\s*['"]script['"]/, `${f}: script dinámico`);
+    // Única excepción explicada: el cargador del SDK de PayPal (ver el test "PayPal: ..." más abajo).
+    if (f !== "js/lib/paypal.js") assert.doesNotMatch(src, /createElement\(\s*['"]script['"]/, `${f}: script dinámico`);
   }
   assert.ok(n > 20, `se revisaron ${n} archivos`);
 });
@@ -148,5 +150,67 @@ Deno.test("readFrontendConfig: lee el config.js real del repo", () => {
   const cfg = readFrontendConfig(read("js/config.js"));
   assert.ok(originOf(cfg.supabaseUrl), "SUPABASE_URL válida en js/config.js");
   assert.ok(cfg.functionsUrl.startsWith(cfg.supabaseUrl));
-  assert.deepEqual(readFrontendConfig(""), { supabaseUrl: "", functionsUrl: "" });
+  assert.deepEqual(readFrontendConfig(""), { supabaseUrl: "", functionsUrl: "", paypalClientId: "" });
+});
+
+// ------------------------------------------------------------------ PayPal (Fases 17-22)
+const PP = "AbCdEfGhIjKlMnOp_123-xyz";
+
+Deno.test("PayPal: es el ÚNICO script dinámico del sitio y solo carga el SDK desde paypal.com", () => {
+  const dynamic = [...jsFiles("js/")].filter((f) => /createElement\(\s*['"]script['"]/.test(read(f)));
+  assert.deepEqual(dynamic, ["js/lib/paypal.js"], "solo el cargador del SDK crea scripts");
+  const src = read("js/lib/paypal.js");
+  const urls = [...src.matchAll(/https?:\/\/[^\s'"`)]+/g)].map((m) => m[0]);
+  assert.deepEqual(
+    urls.filter((u) => !/^https:\/\/www\.paypal\.com\/sdk\/js/.test(u)),
+    [],
+    "ninguna otra URL externa en el cargador",
+  );
+  assert.match(src, /https:\/\/www\.paypal\.com\/sdk\/js\?/);
+});
+
+Deno.test("buildCsp: sin Client ID de PayPal no se permite NADA de PayPal (el sitio sigue cerrado)", () => {
+  const csp = buildCsp(CFG);
+  assert.doesNotMatch(csp, /paypal/i);
+  assert.match(csp, /frame-src 'none'/);
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.equal(buildCsp({ ...CFG, paypalClientId: "" }), csp);
+});
+
+Deno.test("buildCsp: con Client ID agrega solo los hosts de PayPal necesarios y NO afloja scripts ni estilos del sitio", () => {
+  const csp = buildCsp({ ...CFG, paypalClientId: PP });
+  const dir = (name) => csp.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
+  for (const h of PAYPAL_HOSTS.script) assert.ok(dir("script-src").includes(h), `script-src ${h}`);
+  for (const h of PAYPAL_HOSTS.frame) assert.ok(dir("frame-src").includes(h), `frame-src ${h}`);
+  for (const h of PAYPAL_HOSTS.connect) assert.ok(dir("connect-src").includes(h), `connect-src ${h}`);
+  for (const h of PAYPAL_HOSTS.img) assert.ok(dir("img-src").includes(h), `img-src ${h}`);
+  assert.equal(dir("style-src"), "style-src 'self'", "los estilos siguen sin 'unsafe-inline'");
+  assert.doesNotMatch(csp, /unsafe-inline|unsafe-eval|\*(?!\.)/, "nada de unsafe-* ni comodines sueltos");
+  assert.match(dir("script-src"), /^script-src 'self' /);
+  assert.doesNotMatch(dir("default-src"), /paypal/);
+  assert.doesNotMatch(dir("object-src") + dir("base-uri") + dir("form-action"), /paypal/);
+  assert.match(csp, /frame-ancestors 'none'/, "el sitio sigue sin poder ser incrustado");
+  // Cada host de PayPal es https y de paypal.com / paypalobjects.com
+  for (const h of Object.values(PAYPAL_HOSTS).flat()) assert.match(h, /^https:\/\/\*\.paypal(objects)?\.com$/);
+});
+
+Deno.test("htaccess: con PayPal la ventana de pago necesita COOP same-origin-allow-popups; sin PayPal sigue same-origin", () => {
+  assert.match(htaccessSecurityBlock(CFG), /Cross-Origin-Opener-Policy "same-origin"/);
+  assert.match(
+    htaccessSecurityBlock({ ...CFG, paypalClientId: PP }),
+    /Cross-Origin-Opener-Policy "same-origin-allow-popups"/,
+  );
+});
+
+Deno.test("readFrontendConfig: el Client ID de PayPal se lee, y uno con caracteres raros se descarta (va a una cabecera)", () => {
+  const src = (id) => `SUPABASE_URL: 'https://abc.supabase.co', PAYPAL: { CLIENT_ID: '${id}', PLAN_LABEL: '' }`;
+  assert.equal(readFrontendConfig(src(PP)).paypalClientId, PP);
+  for (const bad of ["corto", "con espacios en el medio", "x;script-src *", "a'b", "😀😀😀😀😀😀😀😀😀😀😀"]) {
+    assert.equal(readFrontendConfig(src(bad)).paypalClientId, "", bad);
+  }
+  assert.equal(
+    readFrontendConfig(read("js/config.js")).paypalClientId,
+    "",
+    "el config.js del repo no trae un Client ID de ejemplo",
+  );
 });

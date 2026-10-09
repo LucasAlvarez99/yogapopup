@@ -5,9 +5,13 @@ import { formatPrice } from '../lib/format.js';
 import { cartOptionsFor } from '../lib/sizes.js';
 import { listActiveProducts } from '../lib/api.js';
 import { messageFor } from '../lib/errors.js';
-import { page } from '../lib/env.js';
+import { page, paymentsEnabled } from '../lib/env.js';
+import { canCheckout } from '../lib/checkout.js';
+import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
 import { toast } from './toast.js';
+import { openAuth } from './auth-modal.js';
+import { checkoutView, doneView } from './checkout-view.js';
 import { errorState } from './states.js';
 
 /**
@@ -15,7 +19,8 @@ import { errorState } from './states.js';
  *
  * El estado vive en `cartStore` (Fase 15: solo {id, qty} en localStorage). Los precios y el stock se piden a la base
  * cada vez que se abre el cajón y se validan con `validateCart`: lo guardado en el navegador nunca decide un precio.
- * El pago llega en las Fases 17-18, por eso "Finalizar compra" queda deshabilitado.
+ * Pago (Fases 17-18): con PayPal configurado (js/config.js > PAYPAL.CLIENT_ID), "Finalizar compra" abre dentro del cajón la
+ * pantalla de pago (ui/checkout-view.js). Sin configurar, queda deshabilitado: no se simula una compra que no existe.
  */
 export const cartStore = createCartStore({ target: window });
 
@@ -29,6 +34,7 @@ let seenIds = new Set(); // ids del carrito que ya se pidieron a la base
 let loading = false;
 let failure = null;
 let generation = 0; // para descartar respuestas viejas si se pide de nuevo
+let mode = 'cart'; // 'cart' | 'checkout' | 'done': mientras se paga, el cajón NO se redibuja (destruiría los botones de PayPal)
 
 /**
  * Agrega una unidad de `product` al carrito y avisa con un mensaje (o el motivo por el que no se pudo).
@@ -117,18 +123,50 @@ function footer(validation) {
       ? el('p', { class: 'cart-tax', id: 'cartTax' }, `IVA incluido: ${formatPrice(validation.taxCents)} · sin IVA: ${formatPrice(validation.netCents)}`)
       : null,
     el('p', { class: 'cart-note' }, icon('truck'), ' Todos nuestros productos se envían a domicilio.'),
-    // El pago online llega en las Fases 17-18: hasta entonces no se simula una compra que no existe.
-    el('button', { type: 'button', class: 'btn btn-brand w-100 mb-2', disabled: true, title: 'El pago online llega pronto' },
-      'Finalizar compra ', icon('arrow-right')),
-    el('p', { class: 'cart-note' }, 'El pago online llega muy pronto.'),
+    paymentsEnabled
+      ? el('button', {
+        type: 'button', class: 'btn btn-brand w-100 mb-2', id: 'cartCheckout', disabled: !canCheckout(validation),
+        title: canCheckout(validation) ? null : 'Actualizá tu carrito para poder pagar', onclick: () => startCheckout(validation),
+      }, 'Finalizar compra ', icon('arrow-right'))
+      // Sin PayPal configurado no se simula una compra que no existe.
+      : el('button', { type: 'button', class: 'btn btn-brand w-100 mb-2', disabled: true, title: 'El pago online llega pronto' },
+        'Finalizar compra ', icon('arrow-right')),
+    paymentsEnabled ? null : el('p', { class: 'cart-note' }, 'El pago online llega muy pronto.'),
     el('button', { type: 'button', class: 'btn btn-soft w-100', onclick: () => cartStore.clear() }, 'Vaciar carrito'),
     cartStore.persistent ? null : el('p', { class: 'cart-note' }, 'Este navegador no permite guardar el carrito: se perderá al cerrar la pestaña.'));
+}
+
+function startCheckout(validation) {
+  if (!session.isLoggedIn()) return openAuth({ message: 'Iniciá sesión para pagar tu pedido.' });
+  mode = 'checkout';
+  mount(body, checkoutView({
+    validation,
+    onBack: backToCart,
+    onStale: () => { backToCart(); refresh(); }, // el stock o un precio cambió: se vuelve a leer la base
+    onDone: finishCheckout,
+  }));
+}
+
+function backToCart() {
+  mode = 'cart';
+  renderDrawer();
+}
+
+function finishCheckout(status, kind) {
+  mode = 'done';
+  // Pagado o a la espera de PayPal: el pedido ya existe en el servidor, el carrito local se vacía.
+  if (status === 'paid' || status === 'pending') cartStore.clear();
+  mount(body, doneView(status, kind, () => {
+    window.bootstrap?.Offcanvas.getInstance(drawer)?.hide();
+    backToCart();
+  }));
 }
 
 function renderDrawer() {
   if (!drawer) return;
   const cart = cartStore.get();
   titleCount.textContent = String(cartCount(cart));
+  if (mode !== 'cart') return;
   body.setAttribute('aria-busy', String(loading));
 
   if (cart.items.length === 0) return mount(body, emptyView());
@@ -167,6 +205,7 @@ async function refresh() {
 
 function onCartChange() {
   renderBadge();
+  if (mode !== 'cart') return; // pagando: no se toca la pantalla de pago
   if (!isOpen) return renderDrawer();
   // Con el cajón abierto: si apareció un producto que todavía no se pidió, se vuelve a leer; si no, solo se redibuja.
   if (!loading && cartStore.get().items.some((i) => !seenIds.has(i.id))) return refresh();
@@ -191,10 +230,12 @@ function buildDrawer() {
     body);
   drawer.addEventListener('show.bs.offcanvas', () => {
     isOpen = true;
+    mode = 'cart';
     refresh();
   });
   drawer.addEventListener('hidden.bs.offcanvas', () => {
     isOpen = false;
+    mode = 'cart'; // al cerrar y abrir de nuevo se vuelve al carrito (un pago a medias se libera solo en el servidor)
   });
 }
 

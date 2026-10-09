@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { checkBackendEnv, checkFrontendConfig, describeAuthSettings, summarize } from './lib/doctor-checks.mjs';
+import { checkBackendEnv, checkFrontendConfig, checkPayments, describeAuthSettings, summarize } from './lib/doctor-checks.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const online = process.argv.includes('--online');
@@ -44,7 +44,10 @@ const backendEnv = readEnvFile(join(root, 'supabase', '.env'));
 const overrideOrigins = E.YP_ORIGINS ? E.YP_ORIGINS.split(',').map((s) => s.trim()) : null;
 const results = [...checkFrontendConfig(cfg)];
 // Con YP_SUPABASE_URL se está probando otro entorno: no se juzga el supabase/.env local.
-if (!E.YP_SUPABASE_URL) results.push(...checkBackendEnv(backendEnv));
+if (!E.YP_SUPABASE_URL) {
+  results.push(...checkBackendEnv(backendEnv));
+  results.push(...checkPayments({ frontend: cfg, env: backendEnv }));
+}
 const origins = overrideOrigins || String(backendEnv.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 const R = (level, name, detail = '') => results.push({ level, name, detail });
@@ -74,6 +77,29 @@ async function onlineChecks() {
 
   const auth = await get(`${fn}/playback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   auth.status === 401 ? R('ok', 'playback sin sesión', '401 (correcto)') : R('fail', 'playback sin sesión', `estado ${auth.status}: debía ser 401`);
+
+
+  // Pagos (fases 17-22): las funciones existen y exigen sesión / firma; las tablas de dinero no se leen sin sesión.
+  const pay = await get(`${fn}/paypal-create-order`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  if (pay.status === 401) R('ok', 'paypal-create-order sin sesión', '401 (correcto)');
+  else if (pay.status === 404) R('warn', 'paypal-create-order', 'no está desplegada (npm run sb:deploy); la tienda no podrá cobrar');
+  else R('fail', 'paypal-create-order sin sesión', `estado ${pay.status}: debía ser 401`);
+
+  const hook = await get(`${fn}/paypal-webhook`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'WH-DOCTOR', event_type: 'DOCTOR.TEST', resource: {} }) });
+  if (hook.status === 401) R('ok', 'paypal-webhook sin firma', '401 (rechaza lo que no viene firmado)');
+  else if (hook.status === 503) R('warn', 'paypal-webhook', 'responde 503: faltan PAYPAL_* o PAYPAL_WEBHOOK_ID en los secretos (npm run sb:secrets)');
+  else if (hook.status === 404) R('warn', 'paypal-webhook', 'no está desplegada (npm run sb:deploy)');
+  else R('fail', 'paypal-webhook sin firma', `estado ${hook.status}: debía ser 401 (¡no debe aceptar eventos sin verificar!)`);
+
+  for (const table of ['orders', 'subscriptions', 'payment_events']) {
+    const t = await get(`${base}/rest/v1/${table}?select=id&limit=1`, { headers });
+    if ([401, 403].includes(t.status)) R('ok', `Tabla ${table} (RLS)`, `denegada sin sesión (${t.status})`);
+    else if (t.status === 404) R('warn', `Tabla ${table}`, 'no existe: falta aplicar la migración de pagos (npm run sb:db-push)');
+    else if (t.status === 200) {
+      const rows = await t.json().catch(() => []);
+      rows.length === 0 ? R('ok', `Tabla ${table} (RLS)`, 'sin sesión no se ve ninguna fila') : R('fail', `Tabla ${table} (RLS)`, '¡se pueden leer filas SIN sesión!');
+    } else R('warn', `Tabla ${table}`, `estado inesperado ${t.status}`);
+  }
 
   for (const origin of origins.length ? origins : []) {
     const pre = await get(`${fn}/playback`, { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization,content-type,apikey' } });

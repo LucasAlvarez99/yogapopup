@@ -86,6 +86,50 @@ export function checkBackendEnv(env = {}) {
   return out;
 }
 
+/**
+ * Pagos con PayPal (fases 17-22). Se revisan aparte de `checkBackendEnv` porque son OPCIONALES: sin credenciales el
+ * sitio funciona igual (la tienda y las suscripciones simplemente no cobran).
+ * @param {{ frontend?: object, env?: Record<string,string> }} input  window.YOGAPOPUP_CONFIG y supabase/.env
+ */
+export function checkPayments({ frontend = {}, env = {} } = {}) {
+  const out = [];
+  const need = (k) => String(env[k] || '').trim();
+  const siteId = String(frontend.PAYPAL?.CLIENT_ID || '').trim();
+  const mode = need('PAYPAL_ENV');
+  const backendId = need('PAYPAL_CLIENT_ID');
+  const secret = need('PAYPAL_CLIENT_SECRET');
+  const anyBackend = !!(mode || backendId || secret || need('PAYPAL_WEBHOOK_ID') || need('PAYPAL_PLAN_ID'));
+
+  if (!siteId && !anyBackend) {
+    return [warn('Pagos (PayPal)', 'sin configurar: la tienda y las suscripciones no cobran todavía (ver docs/PAYPAL.md)')];
+  }
+
+  if (mode !== 'sandbox' && mode !== 'live') out.push(fail('PAYPAL_ENV', mode ? `"${mode}" no es válido: usa sandbox o live` : 'falta (sandbox o live)'));
+  else out.push(mode === 'live' ? warn('PAYPAL_ENV', 'live: se cobra DINERO REAL. Confirma que las pruebas en sandbox pasaron.') : ok('PAYPAL_ENV', 'sandbox (pruebas, sin dinero real)'));
+
+  out.push(backendId ? ok('PAYPAL_CLIENT_ID', 'presente') : fail('PAYPAL_CLIENT_ID', 'falta'));
+  out.push(secret ? ok('PAYPAL_CLIENT_SECRET', 'presente') : fail('PAYPAL_CLIENT_SECRET', 'falta (va SOLO en supabase/.env, nunca en js/config.js)'));
+  if (secret && siteId && secret === siteId) out.push(fail('js/config.js · PAYPAL', '¡el CLIENT_ID del sitio es el SECRETO! Va solo en el backend. Rota el secreto en PayPal YA.'));
+
+  if (!siteId) out.push(warn('js/config.js · PAYPAL.CLIENT_ID', 'vacío: los botones de PayPal no se muestran'));
+  else if (backendId && siteId !== backendId) {
+    out.push(fail('js/config.js · PAYPAL.CLIENT_ID', 'no coincide con PAYPAL_CLIENT_ID del backend: son apps de PayPal distintas y los cobros fallarían'));
+  } else out.push(ok('js/config.js · PAYPAL.CLIENT_ID', 'coincide con el backend'));
+
+  out.push(need('PAYPAL_WEBHOOK_ID')
+    ? ok('PAYPAL_WEBHOOK_ID', 'presente')
+    : warn('PAYPAL_WEBHOOK_ID', 'falta: sin webhook no se confirman reembolsos, renovaciones ni cobros que el navegador no alcanzó (npm run paypal:webhook)'));
+  const plan = need('PAYPAL_PLAN_ID');
+  if (!plan) out.push(warn('PAYPAL_PLAN_ID', 'falta: las suscripciones están desactivadas (npm run paypal:plan)'));
+  else out.push(/^P-[A-Za-z0-9]+$/.test(plan) ? ok('PAYPAL_PLAN_ID', plan) : warn('PAYPAL_PLAN_ID', `"${plan}" no parece un plan de PayPal (empieza con P-)`));
+
+  const origins = need('ALLOWED_ORIGINS');
+  if (mode === 'live' && /localhost|127\.0\.0\.1/.test(origins)) {
+    out.push(warn('PAYPAL_ENV=live + ALLOWED_ORIGINS', 'incluye localhost: en producción con dinero real conviene quitarlo'));
+  }
+  return out;
+}
+
 /** Resultado de GET /auth/v1/settings (información útil para el equipo). */
 export function describeAuthSettings(s = {}) {
   const out = [];

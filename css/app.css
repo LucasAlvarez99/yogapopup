@@ -324,3 +324,10 @@
 /* ===== Panel de profesores ===== */
 .tp-photo { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; background: var(--color-light); display: grid; place-items: center; color: var(--color-primary); font-size: 2.4rem; flex: none; overflow: hidden; }
 .tp-student-list { margin: .3rem 0 0; padding-left: 1.1rem; font-size: .88rem; color: var(--color-text-muted); }
+
+/* Pagos con PayPal (Fases 17-22) */
+.pp-box { max-width: 420px; margin-inline: auto; }
+.pp-options { text-align: left; }
+.pp-buttons { min-height: 46px; }
+.cart-checkout .pp-buttons { margin-top: .6rem; }
+.cart-checkout .list-unstyled li { border-bottom: 1px dashed var(--color-border); }

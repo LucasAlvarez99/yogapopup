@@ -16,3 +16,17 @@ verify_jwt = false
 verify_jwt = false
 [functions.health]
 verify_jwt = false
+[functions.paypal-create-order]
+verify_jwt = false
+[functions.paypal-capture-order]
+verify_jwt = false
+[functions.paypal-create-subscription]
+verify_jwt = false
+[functions.paypal-activate-subscription]
+verify_jwt = false
+[functions.paypal-cancel-subscription]
+verify_jwt = false
+[functions.paypal-webhook]
+verify_jwt = false
+[functions.paypal-reconcile]
+verify_jwt = false

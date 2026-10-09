@@ -24,6 +24,12 @@ al bucket en `admin-sync-video`) y pruebas.
 se sigue llamando `class`/`classes`). Aparece en la home (sección `#cursos`) y en `videoteca.html`. No confundir con las
 **clases en vivo** (`#clases`, agenda de profesores). No hay cursos de ejemplo: todo sale de la base.
 
+**Pagos (Fases 17-22):** todo se cobra con **PayPal** en EUR (guía: `docs/PAYPAL.md`). Reglas: el navegador solo manda *qué* compra
+(ids y cantidades); precio, IVA y stock salen de la base; todo pago se **verifica contra la API de PayPal** antes de darlo por bueno
+(`supabase/functions/_shared/payments/logic.ts`); las reglas que mueven dinero, stock o accesos viven en funciones SQL atómicas
+(`payments_*`, solo `service_role`); todo es idempotente. Una compra de clase crea un `entitlement` `scope='class'`, la suscripción
+`scope='all'`, ambos `source='paypal'`. Sin `PAYPAL.CLIENT_ID` en `js/config.js` no se ofrece ningún pago.
+
 ## 2. Tres niveles de acceso (deben estar siempre separados)
 
 | Nivel | Superficie | Puede | No puede |

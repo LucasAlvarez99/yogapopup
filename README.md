@@ -118,12 +118,12 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 14 | Tienda — panel administrativo de productos | ✅ |
 | 15 | Carrito — estado y persistencia | ✅ |
 | 16 | Carrito — interfaz | ✅ |
-| 17 | Pagos — modelo de datos | ⬜ |
-| 18 | Checkout — compra puntual con PayPal | ⬜ |
-| 19 | Suscripciones con PayPal — alta | ⬜ |
-| 20 | Suscripciones con PayPal — baja | ⬜ |
-| 21 | Pagos — webhook de PayPal | ⬜ |
-| 22 | Pagos — conciliación y errores | ⬜ |
+| 17 | Pagos — modelo de datos | ✅ |
+| 18 | Checkout — compra puntual con PayPal | 🟡 |
+| 19 | Suscripciones con PayPal — alta | 🟡 |
+| 20 | Suscripciones con PayPal — baja | 🟡 |
+| 21 | Pagos — webhook de PayPal | 🟡 |
+| 22 | Pagos — conciliación y errores | 🟡 |
 | 23 | Perfil — progreso de videos | ⬜ |
 | 24 | Perfil — historial de compras | ⬜ |
 | 25 | Perfil — estado de la suscripción | ⬜ |
@@ -649,51 +649,69 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
 
 ### Fase 17 · Pagos — modelo de datos
 
-- [ ] Tablas `orders` / `order_items`: compras puntuales (tienda y clases sueltas), todas por **PayPal**
-- [ ] `entitlements` (ya existe desde la Fase 0) para la suscripción: `scope='all', source='paypal'`
-- [ ] RLS: el usuario ve solo lo suyo; solo el backend escribe
+- [x] Tablas `orders` / `order_items`: compras puntuales (tienda y clases sueltas), todas por **PayPal**
+- [x] `entitlements` (ya existe desde la Fase 0) para la suscripción: `scope='all', source='paypal'`
+- [x] RLS: el usuario ve solo lo suyo; solo el backend escribe
 
-- [ ] **FASE 17 CUMPLIDA**
+Migración `20261008120000_payments_paypal.sql` (también cubre las tablas `subscriptions` y `payment_events` y las reglas
+atómicas de las Fases 18-22). Probada contra un Postgres real: `supabase/tests/payments.test.sql` (`npm run test:db`).
+
+- [x] **FASE 17 CUMPLIDA**
 
 ### Fase 18 · Checkout — compra puntual con PayPal
 
-- [ ] Botón de PayPal (PayPal Checkout SDK) en el checkout de la tienda y al comprar una clase suelta
-- [ ] Edge Function que crea la orden y la verifica contra la API de PayPal antes de confirmarla —
+- [x] Botón de PayPal (PayPal Checkout SDK) en el checkout de la tienda y al comprar una clase suelta
+- [x] Edge Function que crea la orden y la verifica contra la API de PayPal antes de confirmarla —
       nunca se confía en lo que dice el navegador, mismo criterio que ya se usa con R2
 
-- [ ] **FASE 18 CUMPLIDA**
+`paypal-create-order` (precio y stock salen de la base; reserva el stock) y `paypal-capture-order` (captura y verifica monto,
+moneda y pedido). Interfaz: carrito (`ui/checkout-view.js`) y página de la clase (`ui/pay-class.js`).
+**Falta:** probarlo con una cuenta sandbox de PayPal (ver `docs/PAYPAL.md`, sección "Prueba en sandbox").
+
+- [ ] **FASE 18 CUMPLIDA** (código y pruebas automáticas listos; falta la prueba en el sandbox)
 
 ### Fase 19 · Suscripciones con PayPal — alta
 
-- [ ] Plan de suscripción creado en PayPal (PayPal Subscriptions / Billing Plans)
-- [ ] Botón "Suscribirme" en la web con el mismo SDK de PayPal (no hace falta una segunda pasarela)
-- [ ] Al confirmarse, se crea el `entitlements` correspondiente y el usuario pasa a tener acceso premium
+- [x] Plan de suscripción creado en PayPal (PayPal Subscriptions / Billing Plans): `npm run paypal:plan -- --price 9,99`
+- [x] Botón "Suscribirme" en la web con el mismo SDK de PayPal (no hace falta una segunda pasarela)
+- [x] Al confirmarse, se crea el `entitlements` correspondiente y el usuario pasa a tener acceso premium
 
-- [ ] **FASE 19 CUMPLIDA**
+`paypal-create-subscription` (el plan lo fija el servidor) y `paypal-activate-subscription` (consulta a PayPal antes de dar acceso).
+**Falta:** probarlo en el sandbox.
+
+- [ ] **FASE 19 CUMPLIDA** (falta la prueba en el sandbox)
 
 ### Fase 20 · Suscripciones con PayPal — baja
 
-- [ ] Cancelar la suscripción desde `cuenta.html` (llama a la API de PayPal, no solo borra en la base)
-- [ ] Que el acceso premium se corte cuando vence, no al cancelar (ya pagó ese período)
+- [x] Cancelar la suscripción desde `cuenta.html` (llama a la API de PayPal, no solo borra en la base)
+- [x] Que el acceso premium se corte cuando vence, no al cancelar (ya pagó ese período)
 
-- [ ] **FASE 20 CUMPLIDA**
+`paypal-cancel-subscription`. El acceso dura hasta `subscriptions.current_period_end` (lo ya pagado). **Falta:** probarlo en el sandbox.
+
+- [ ] **FASE 20 CUMPLIDA** (falta la prueba en el sandbox)
 
 ### Fase 21 · Pagos — webhook de PayPal
 
-- [ ] `paypal-webhook`: firma verificada (PayPal Webhook Signature Verification API), nunca se procesa
+- [x] `paypal-webhook`: firma verificada (PayPal Webhook Signature Verification API), nunca se procesa
       un evento sin verificar
-- [ ] Idempotente: un mismo evento reenviado dos veces no duplica la orden ni el `entitlement`
-- [ ] Cubre tanto compras puntuales como eventos de suscripción (activada, cancelada, pago fallido)
+- [x] Idempotente: un mismo evento reenviado dos veces no duplica la orden ni el `entitlement`
+- [x] Cubre tanto compras puntuales como eventos de suscripción (activada, cancelada, pago fallido)
 
-- [ ] **FASE 21 CUMPLIDA**
+Registro con `npm run paypal:webhook -- --url https://TU-PROYECTO.supabase.co/functions/v1/paypal-webhook`. Cubre también
+reembolsos y contracargos. **Falta:** recibir eventos reales del sandbox.
+
+- [ ] **FASE 21 CUMPLIDA** (falta la prueba con eventos reales del sandbox)
 
 ### Fase 22 · Pagos — conciliación y errores
 
-- [ ] Qué pasa si el webhook no llega: PayPal reintenta solo, y además un botón "verificar de nuevo"
+- [x] Qué pasa si el webhook no llega: PayPal reintenta solo, y además un botón "verificar de nuevo"
       en el panel para forzar la conciliación a mano
 - [ ] Probado contra el sandbox de PayPal (compra y suscripción) antes de ir a producción
 
-- [ ] **FASE 22 CUMPLIDA**
+`paypal-reconcile` (botón "Verificar de nuevo" y "Conciliar pendientes" en la pestaña **Pagos** del panel; un cron externo puede
+disparar el barrido con `RECONCILE_CRON_SECRET`). Libera el stock de los pedidos abandonados.
+
+- [ ] **FASE 22 CUMPLIDA** (falta el último punto: la prueba completa en el sandbox, `docs/PAYPAL.md`)
 
 ### Fase 23 · Perfil — progreso de videos
 

@@ -23,6 +23,16 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
     ADDRESS: 'Tramitando',  // domicilio (calle, número, código postal, localidad, provincia)
     EMAIL: 'Tramitando',    // correo para ejercer derechos de privacidad
   },
+  // Pagos con PayPal (fases 17-22). Guía: docs/PAYPAL.md.
+  //   CLIENT_ID: el "Client ID" de tu app de PayPal (Sandbox para pruebas, Live para cobrar). Es PÚBLICO: el SECRETO
+  //              va solo en supabase/.env. Debe ser el mismo que PAYPAL_CLIENT_ID del backend.
+  //   Vacío = no se muestran botones de pago (la tienda y las suscripciones quedan en "pronto").
+  //   PLAN_LABEL: si lo completás se OFRECE la suscripción (requiere PAYPAL_PLAN_ID en el backend). Ej.: 'Plan mensual · 9,99 € / mes'.
+  //               Es solo el texto: el cobro real lo define el plan creado en PayPal. Vacío = no se ofrece suscripción.
+  PAYPAL: {
+    CLIENT_ID: '',
+    PLAN_LABEL: '',
+  },
   // Cada cuántos segundos de reproducción se guarda el progreso.
   PROGRESS_INTERVAL_SECONDS: 15,
 });

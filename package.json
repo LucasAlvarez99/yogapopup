@@ -28,6 +28,8 @@
     "test:e2e:csp": "node scripts/e2e-csp.mjs",
     "test:web": "deno test --allow-read --config supabase/functions/deno.json tests/web",
     "test:db": "bash supabase/tests/run.sh",
+    "paypal:plan": "node scripts/paypal-setup.mjs plan",
+    "paypal:webhook": "node scripts/paypal-setup.mjs webhook",
     "doctor": "node scripts/doctor.mjs",
     "doctor:online": "node scripts/doctor.mjs --online",
     "test:integration": "node tests/integration/real-stack.integration.mjs"

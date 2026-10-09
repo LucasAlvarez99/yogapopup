@@ -1,9 +1,9 @@
 import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
-import { getClass, getPlayback, listPublishedClasses, saveProgress, saveProgressOnUnload } from '../lib/api.js';
+import { getClass, getClassOffer, getPlayback, listPublishedClasses, saveProgress, saveProgressOnUnload } from '../lib/api.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { formatClock, formatMinutes, isUuid, levelLabel, percent } from '../lib/format.js';
-import { cfg, page } from '../lib/env.js';
+import { cfg, page, paymentsEnabled } from '../lib/env.js';
 import { el, icon, mount } from '../lib/dom.js';
 import { boot } from '../ui/boot.js';
 import { openAuth } from '../ui/auth-modal.js';
@@ -11,6 +11,8 @@ import { toast } from '../ui/toast.js';
 import { VideoPlayer } from '../components/video-player.js';
 import { ProgressReporter } from '../lib/progress-reporter.js';
 import { classCard } from '../components/class-card.js';
+import { buyClassBox } from '../ui/pay-class.js';
+import { subscribeBox, subscriptionOffered } from '../ui/subscribe-box.js';
 
 /**
  * Detalle de clase + reproductor de un video.
@@ -30,6 +32,27 @@ const $gate = ({ ico, title, text, action }) =>
   mount(stage, el('div', { class: 'clase-gate', role: 'status' }, icon(ico), el('h2', { class: 'h5 text-white m-0' }, title), text ? el('p', {}, text) : null, action));
 
 const goVideoteca = () => el('a', { class: 'btn btn-outline-light-pill btn-sm', href: page('videoteca.html') }, 'Ver otras clases');
+
+/**
+ * Sin acceso: si la clase se vende suelta y/o hay suscripción, se ofrecen las opciones de compra DEBAJO del escenario
+ * (los botones de PayPal necesitan más alto que el reproductor). El acceso lo concede el servidor al confirmar el pago.
+ */
+async function offerAccess() {
+  document.getElementById('accessOptions')?.remove();
+  let offer = null;
+  if (paymentsEnabled) {
+    try { offer = await getClassOffer(classId); } catch { /* sin precio disponible: solo queda el aviso */ }
+  }
+  const boxes = [];
+  if (offer) boxes.push(buyClassBox({ classId, offer, onPurchased: () => { toast('¡Gracias! Ya podés ver la clase.', { type: 'success' }); start(); } }));
+  if (subscriptionOffered()) boxes.push(subscribeBox({ onActive: (r) => { if (r === 'active') start(); } }));
+  if (boxes.length === 0) return false;
+  const card = el('section', { class: 'yp-card pp-options mt-3', id: 'accessOptions' },
+    el('h2', { class: 'yp-block-title' }, 'Cómo acceder a esta clase'),
+    ...boxes.flatMap((b, i) => (i === 0 ? [b] : [el('p', { class: 'text-center text-muted small my-3' }, '— o —'), b])));
+  info.append(card);
+  return true;
+}
 
 function stopPlayer() {
   clearTimeout(seekTimer);
@@ -94,6 +117,7 @@ function mountPlayer(cls, pb) {
 
 async function start() {
   stopPlayer();
+  document.getElementById('accessOptions')?.remove();
   if (!isUuid(classId)) return $gate({ ico: 'question-circle', title: 'No encontramos esta clase', action: goVideoteca() });
   if (!supabase) return $gate({ ico: 'gear', title: 'Falta configurar Supabase', text: 'Completa js/config.js para ver las clases.' });
 
@@ -121,7 +145,11 @@ async function start() {
     mountPlayer(cls, pb);
   } catch (err) {
     const code = err instanceof AppError ? err.code : '';
-    if (code === 'no_access') return $gate({ ico: 'lock-fill', title: 'Esta clase no está incluida en tu acceso', text: 'Es un contenido restringido. Explora las clases disponibles para ti.', action: goVideoteca() });
+    if (code === 'no_access') {
+      const hasOptions = await offerAccess();
+      return $gate({ ico: 'lock-fill', title: 'Esta clase no está incluida en tu acceso',
+        text: hasOptions ? 'Es un contenido restringido. Abajo podés elegir cómo acceder.' : 'Es un contenido restringido. Explora las clases disponibles para ti.', action: goVideoteca() });
+    }
     if (code === 'video_not_ready') return $gate({ ico: 'hourglass-split', title: 'Estamos preparando este video', text: 'Vuelve en unos minutos.', action: el('button', { type: 'button', class: 'btn btn-brand btn-sm', onclick: start }, 'Comprobar de nuevo') });
     if (code === 'class_not_found') return $gate({ ico: 'question-circle', title: 'No encontramos esta clase', action: goVideoteca() });
     if (code === 'unauthenticated') return $gate({ ico: 'lock', title: 'Tu sesión venció', text: 'Inicia sesión de nuevo para continuar.', action: el('button', { type: 'button', class: 'btn btn-brand btn-sm', onclick: () => openAuth() }, 'Iniciar sesión') });

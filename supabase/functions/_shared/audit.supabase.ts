@@ -8,7 +8,7 @@ export function createSupabaseAudit(url: string, serviceRoleKey: string): AuditP
   return {
     async record(entry) {
       const { error } = await db.rpc("audit_write", {
-        p_actor: entry.actorId,
+        p_actor: entry.actorId ?? null,
         p_action: entry.action,
         p_entity_type: entry.entityType ?? null,
         p_entity_id: entry.entityId ?? null,

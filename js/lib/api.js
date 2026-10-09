@@ -1,4 +1,4 @@
-import { cfg } from './env.js';
+import { cfg, page } from './env.js';
 import { supabase } from './supabase.js';
 import { accessToken } from './session.js';
 import { AppError, agendaError } from './errors.js';
@@ -151,6 +151,69 @@ export async function adminUpdateClass(id, patch) {
     throw new AppError('internal_error', error.message);
   }
   return data;
+}
+
+// ---------------------------------------------------------------- pagos con PayPal (Fases 17-22)
+// El navegador NUNCA decide un cobro: manda qué quiere comprar y el servidor (que lee precio y stock de la base y
+// verifica cada pago contra la API de PayPal) responde. Acá solo se arman las llamadas.
+
+/** Crea el pedido y la orden de PayPal. `items`: ver js/lib/checkout.js (cartToItems / classToItems). */
+export const paypalCreateOrder = (items) => callFunction('paypal-create-order', { items });
+/** Cobra una orden ya aprobada en PayPal y la verifica en el servidor. */
+export const paypalCaptureOrder = (paypalOrderId) => callFunction('paypal-capture-order', { paypal_order_id: paypalOrderId });
+export const paypalCreateSubscription = () => callFunction('paypal-create-subscription', { return_url: page('cuenta.html') });
+export const paypalActivateSubscription = (subscriptionId) => callFunction('paypal-activate-subscription', { subscription_id: subscriptionId });
+export const paypalCancelSubscription = () => callFunction('paypal-cancel-subscription', {});
+/** Conciliación (personal de gestión): { order_id } · { subscription_id } · { sweep: true }. */
+export const paypalReconcile = (body) => callFunction('paypal-reconcile', body, { timeoutMs: 60_000 });
+
+/** Precio de una clase suelta ({ price_cents, tax_rate_bps }) o null si no se vende suelta (o la base aún no tiene precios). */
+export async function getClassOffer(classId) {
+  const { data, error } = await db().from('classes').select('price_cents,tax_rate_bps').eq('id', classId).maybeSingle();
+  if (error) {
+    if (isSchemaBehind(error)) return null;
+    throw new AppError('internal_error', error.message);
+  }
+  return Number.isSafeInteger(data?.price_cents) && data.price_cents > 0 ? { price_cents: data.price_cents, tax_rate_bps: data.tax_rate_bps ?? 0 } : null;
+}
+
+/** La suscripción más reciente de la persona (activa, suspendida o cancelada), o null. La RLS limita la lectura a la propia. */
+export async function getMySubscription() {
+  const { data, error } = await db().from('subscriptions')
+    .select('paypal_subscription_id,status,current_period_end,last_payment_at,cancelled_at,created_at')
+    .in('status', ['active', 'suspended', 'cancelled']).order('created_at', { ascending: false }).limit(1);
+  if (error) {
+    if (isSchemaBehind(error)) return null;
+    throw new AppError('internal_error', error.message);
+  }
+  return data?.[0] ?? null;
+}
+
+const ORDER_ADMIN_COLUMNS = 'id,user_id,kind,status,total_cents,tax_cents,refunded_cents,needs_review,review_note,failure_reason,' +
+  'paypal_order_id,paypal_status,shipping,created_at,paid_at,profiles(display_name),order_items(title,size,qty,unit_cents)';
+const SUBSCRIPTION_ADMIN_COLUMNS = 'id,user_id,paypal_subscription_id,status,current_period_end,last_payment_at,cancelled_at,created_at,profiles(display_name)';
+
+/** Pedidos (solo personal de gestión: la RLS lo exige). Los que piden revisión van primero. */
+export async function adminListOrders(limit = 100) {
+  const rows = unwrap(await db().from('orders').select(ORDER_ADMIN_COLUMNS).order('created_at', { ascending: false }).limit(limit)) ?? [];
+  return rows.sort((a, b) => Number(b.needs_review) - Number(a.needs_review));
+}
+export async function adminListSubscriptions(limit = 100) {
+  return unwrap(await db().from('subscriptions').select(SUBSCRIPTION_ADMIN_COLUMNS).order('created_at', { ascending: false }).limit(limit)) ?? [];
+}
+/** Precio de venta suelta de cada clase ({ id: price_cents|null }); vacío si la base aún no tiene precios. */
+export async function adminClassPrices() {
+  const { data, error } = await db().from('classes').select('id,price_cents');
+  if (error) {
+    if (isSchemaBehind(error)) return {};
+    throw new AppError('internal_error', error.message);
+  }
+  return Object.fromEntries((data ?? []).map((r) => [r.id, r.price_cents]));
+}
+/** Fija (o quita con null) el precio de venta suelta de una clase. El cambio queda auditado en la base. */
+export async function adminSetClassPrice(id, priceCents) {
+  const { error } = await db().from('classes').update({ price_cents: priceCents }).eq('id', id);
+  if (error) throw new AppError(error.code === '23514' ? 'invalid_input' : 'internal_error', error.message);
 }
 
 // ---------------------------------------------------------------- miniaturas (Supabase Storage)

@@ -14,6 +14,11 @@ export const cfg = Object.freeze({
     ADDRESS: String(raw.LEGAL?.ADDRESS || '').trim().slice(0, 300),
     EMAIL: String(raw.LEGAL?.EMAIL || '').trim().slice(0, 120),
   }),
+  /** PayPal: el Client ID es público; se valida el formato porque termina en la URL del script de PayPal. */
+  PAYPAL: Object.freeze({
+    CLIENT_ID: /^[A-Za-z0-9_-]{10,200}$/.test(String(raw.PAYPAL?.CLIENT_ID || '')) ? String(raw.PAYPAL.CLIENT_ID) : '',
+    PLAN_LABEL: String(raw.PAYPAL?.PLAN_LABEL || '').trim().slice(0, 80),
+  }),
   PROGRESS_INTERVAL_SECONDS: Math.max(5, Number(raw.PROGRESS_INTERVAL_SECONDS) || 15),
 });
 
@@ -21,6 +26,9 @@ export const cfg = Object.freeze({
 export const isConfigured =
   /^https?:\/\//.test(cfg.SUPABASE_URL) && !/TU-PROYECTO/i.test(cfg.SUPABASE_URL) &&
   cfg.SUPABASE_ANON_KEY !== '' && !/TU-ANON/i.test(cfg.SUPABASE_ANON_KEY);
+
+/** true cuando hay conexión con Supabase Y un Client ID de PayPal: solo entonces se ofrecen pagos. */
+export const paymentsEnabled = isConfigured && cfg.PAYPAL.CLIENT_ID !== '';
 
 /** URL absoluta de la raíz del sitio (js/lib/ -> ../../). */
 export const ROOT = new URL('../../', import.meta.url).href;

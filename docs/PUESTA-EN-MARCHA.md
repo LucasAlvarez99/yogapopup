@@ -138,6 +138,13 @@ Si se añade analítica, publicidad o contenido de terceros que use cookies, hac
 > nacen con **IVA 21 %** incluido en el precio; **confirmar con la gestoría** si algún producto o servicio lleva otro tipo
 > (10 %, 4 % o exento) y ajustarlo en el panel (campo «IVA incluido en el precio»).
 
+## 7 ter · Pagos con PayPal (opcional, Fases 17-22)
+
+Sin esto el sitio funciona igual, pero la tienda y las suscripciones **no cobran** (el botón "Finalizar compra" queda deshabilitado).
+Para activar los cobros —primero en el sandbox de PayPal, sin dinero real— seguí **[docs/PAYPAL.md](PAYPAL.md)**: credenciales, plan de
+suscripción (`npm run paypal:plan`), webhook (`npm run paypal:webhook`), prueba completa y checklist para pasar a producción.
+Con `npm run doctor` / `npm run doctor:online` se comprueba que todo esté coherente.
+
 ## 8 · Primer video real (desarrollador)
 
 Desde el panel de negocio (con una cuenta `developer`: el `admin` no puede subir videos):

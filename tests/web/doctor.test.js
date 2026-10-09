@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   checkBackendEnv,
   checkFrontendConfig,
+  checkPayments,
   describeAuthSettings,
   jwtPayload,
   summarize,
@@ -153,4 +154,87 @@ Deno.test("doctor · frontend: los datos del responsable de la política de priv
 
   // Sin PRIVACY_URL el aviso relevante es ese; no se apila otro por LEGAL.
   assert.equal(find({ ...base, PRIVACY_URL: "" }), undefined);
+});
+
+// ------------------------------------------------------------------ pagos con PayPal (Fases 17-22)
+const lvl = (results) => Object.fromEntries(results.map((r) => [r.name, r.level]));
+const GOOD_ENV = {
+  PAYPAL_ENV: "sandbox",
+  PAYPAL_CLIENT_ID: "AbCdEfGhIjKlMnOp12",
+  PAYPAL_CLIENT_SECRET: "secreto-de-prueba",
+  PAYPAL_WEBHOOK_ID: "8PT597110X687430LKGECATA",
+  PAYPAL_PLAN_ID: "P-5ML4271244454362WXNWU5NQ",
+  ALLOWED_ORIGINS: "https://yoga.test",
+};
+const GOOD_SITE = { PAYPAL: { CLIENT_ID: "AbCdEfGhIjKlMnOp12" } };
+
+Deno.test("checkPayments: sin nada configurado es UN aviso (los pagos son opcionales), no errores", () => {
+  const r = checkPayments({ frontend: {}, env: {} });
+  assert.equal(r.length, 1);
+  assert.equal(r[0].level, "warn");
+  assert.equal(r[0].name, "Pagos (PayPal)");
+});
+
+Deno.test("checkPayments: configuración sandbox completa y coherente -> todo en verde", () => {
+  const r = checkPayments({ frontend: GOOD_SITE, env: GOOD_ENV });
+  assert.equal(r.filter((x) => x.level === "fail").length, 0);
+  assert.equal(r.filter((x) => x.level === "warn").length, 0, JSON.stringify(r.filter((x) => x.level === "warn")));
+  assert.equal(lvl(r).PAYPAL_ENV, "ok");
+});
+
+Deno.test("checkPayments: live avisa que es dinero real; PAYPAL_ENV inválido o ausente es error", () => {
+  assert.equal(
+    lvl(checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_ENV: "live" } })).PAYPAL_ENV,
+    "warn",
+  );
+  assert.equal(
+    lvl(checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_ENV: "produccion" } })).PAYPAL_ENV,
+    "fail",
+  );
+  assert.equal(lvl(checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_ENV: "" } })).PAYPAL_ENV, "fail");
+});
+
+Deno.test("checkPayments: credenciales a medias = error; el secreto nunca aparece en el resultado", () => {
+  const r = checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_CLIENT_SECRET: "" } });
+  assert.equal(lvl(r).PAYPAL_CLIENT_SECRET, "fail");
+  assert.equal(
+    lvl(checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_CLIENT_ID: "" } })).PAYPAL_CLIENT_ID,
+    "fail",
+  );
+  assert.doesNotMatch(JSON.stringify(checkPayments({ frontend: GOOD_SITE, env: GOOD_ENV })), /secreto-de-prueba/);
+});
+
+Deno.test("checkPayments: el Client ID del sitio tiene que ser el mismo que el del backend; y nunca el SECRETO", () => {
+  const distinto = checkPayments({ frontend: { PAYPAL: { CLIENT_ID: "OtraAppDePayPal99" } }, env: GOOD_ENV });
+  assert.equal(lvl(distinto)["js/config.js · PAYPAL.CLIENT_ID"], "fail");
+  const filtrado = checkPayments({ frontend: { PAYPAL: { CLIENT_ID: "secreto-de-prueba" } }, env: GOOD_ENV });
+  assert.equal(lvl(filtrado)["js/config.js · PAYPAL"], "fail");
+  assert.match(filtrado.find((x) => x.name === "js/config.js · PAYPAL").detail, /SECRETO/);
+  assert.equal(lvl(checkPayments({ frontend: {}, env: GOOD_ENV }))["js/config.js · PAYPAL.CLIENT_ID"], "warn");
+});
+
+Deno.test("checkPayments: sin webhook o sin plan son avisos con el comando para arreglarlo; plan raro avisa", () => {
+  const r = checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_WEBHOOK_ID: "", PAYPAL_PLAN_ID: "" } });
+  assert.equal(lvl(r).PAYPAL_WEBHOOK_ID, "warn");
+  assert.equal(lvl(r).PAYPAL_PLAN_ID, "warn");
+  assert.match(r.find((x) => x.name === "PAYPAL_WEBHOOK_ID").detail, /paypal:webhook/);
+  assert.match(r.find((x) => x.name === "PAYPAL_PLAN_ID").detail, /paypal:plan/);
+  assert.equal(
+    lvl(checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_PLAN_ID: "plan-sin-formato" } }))
+      .PAYPAL_PLAN_ID,
+    "warn",
+  );
+});
+
+Deno.test("checkPayments: live con localhost en ALLOWED_ORIGINS avisa", () => {
+  const r = checkPayments({
+    frontend: GOOD_SITE,
+    env: { ...GOOD_ENV, PAYPAL_ENV: "live", ALLOWED_ORIGINS: "https://yoga.test,http://localhost:5500" },
+  });
+  assert.equal(lvl(r)["PAYPAL_ENV=live + ALLOWED_ORIGINS"], "warn");
+  const sb = checkPayments({
+    frontend: GOOD_SITE,
+    env: { ...GOOD_ENV, ALLOWED_ORIGINS: "https://yoga.test,http://localhost:5500" },
+  });
+  assert.equal(lvl(sb)["PAYPAL_ENV=live + ALLOWED_ORIGINS"], undefined, "en sandbox localhost es normal");
 });
