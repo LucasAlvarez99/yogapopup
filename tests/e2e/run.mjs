@@ -964,6 +964,112 @@ await test('home · agenda: reservar, ver "Reservada", verla en Mi cuenta y canc
   assert.equal((await bookingLog()).filter((b) => b.op === 'cancel').length, 1);
 });
 
+// ---------------------------------------------------------------- Mi cuenta: progreso, compras y suscripción (Fases 23-25)
+const DAY = 24 * 3600 * 1000;
+const iso = (offsetDays) => new Date(Date.now() + offsetDays * DAY).toISOString();
+async function openAccount(page, email) {
+  await page.goto(S);
+  await loginViaModal(page, email);
+  await page.goto(`${S}/cuenta.html`);
+}
+
+await test('cuenta · Mi progreso: agrupa en progreso y completadas, con "continuar" directo a la clase', async (page) => {
+  await signup('prog@test.dev', 'Prog Test');
+  await be.account('prog@test.dev', { progress: [
+    { classId: IDS.free, seconds: 5, completed: false, at: iso(-2) }, // 5 s: empezada
+    { classId: IDS.second, seconds: 12, completed: true, at: iso(-1) },
+    { classId: IDS.restricted, seconds: 3, completed: false, at: iso(-3) }, // menos de 5 s: no se muestra
+    { classId: IDS.hidden, seconds: 8, completed: false, at: iso(-1) }, // clase no publicada: no se muestra
+  ] });
+  await openAccount(page, 'prog@test.dev');
+  await waitFor(page, () => document.querySelector('#accInProgress'), null, 10000);
+  assert.equal(await count(page, '#accInProgress .acc-row'), 1);
+  assert.match(await text(page, '#accInProgress'), /Yoga para principiantes/);
+  assert.match(await text(page, '#accInProgress'), /Continuar desde 0:05/);
+  assert.equal(await count(page, '#accCompleted .acc-row'), 1);
+  assert.match(await text(page, '#accCompleted'), /Relajación profunda/);
+  assert.match(await text(page, '#accCompleted'), /Volver a verla/);
+  assert.equal(await page.$eval('#accInProgress a.btn', (a) => new URL(a.href).searchParams.get('id')), IDS.free);
+  assert.equal(await page.$eval('#accProgress', (n) => /Curso avanzado|Borrador/.test(n.textContent)), false);
+});
+
+await test('cuenta · Mi progreso: sin nada empezado ofrece ir a la videoteca', async (page) => {
+  await signup('vacia@test.dev', 'Vacia Test');
+  await openAccount(page, 'vacia@test.dev');
+  await waitFor(page, () => /Todavía no empezaste ninguna clase/.test(document.querySelector('#accProgress')?.textContent), null, 10000);
+  assert.equal(await page.$eval('#accProgress a', (a) => a.getAttribute('href')), 'videoteca.html');
+});
+
+await test('cuenta · Mis compras: tienda y clases sueltas con su estado; los intentos sin completar quedan plegados', async (page) => {
+  await be.behavior({ payments: true });
+  await signup('compras@test.dev', 'Compras Test');
+  await be.account('compras@test.dev', { orders: [
+    { kind: 'shop', status: 'paid', total_cents: 3798, created_at: iso(-5), paid_at: iso(-5), order_items: [{ title: 'Mat de yoga Premium', size: null, qty: 2, item_type: 'product', class_id: null }] },
+    { kind: 'class', status: 'paid', total_cents: 900, created_at: iso(-3), paid_at: iso(-3), order_items: [{ title: 'Relajación profunda', size: null, qty: 1, item_type: 'class', class_id: IDS.second }] },
+    { kind: 'class', status: 'pending', total_cents: 900, created_at: iso(-1), order_items: [{ title: 'Curso avanzado', size: null, qty: 1, item_type: 'class', class_id: IDS.restricted }] },
+    { kind: 'shop', status: 'refunded', total_cents: 1499, refunded_cents: 1499, created_at: iso(-9), paid_at: iso(-9), order_items: [{ title: 'Botella térmica', size: null, qty: 1, item_type: 'product', class_id: null }] },
+    { kind: 'shop', status: 'created', total_cents: 500, created_at: iso(-2), order_items: [{ title: 'Remera Pop Up', size: 'M', qty: 1, item_type: 'product', class_id: null }] },
+  ] });
+  await openAccount(page, 'compras@test.dev');
+  await waitFor(page, () => document.querySelector('#accOrdersMain'), null, 10000);
+  assert.equal(await count(page, '#accOrdersMain .acc-row'), 4, 'pagado ×2, a confirmar y reembolsado');
+  const main = await text(page, '#accOrdersMain');
+  assert.match(main, /2 × Mat de yoga Premium/);
+  assert.match(main, /Pagado/);
+  assert.match(main, /Esperando confirmación/);
+  assert.match(main, /Reembolsado/);
+  assert.doesNotMatch(main, /Remera/, 'el intento sin completar no está entre los principales');
+  // "Ver clase" solo en la clase suelta pagada
+  assert.equal(await count(page, '#accOrdersMain a[href^="clase.html"]'), 1);
+  assert.equal(await page.$eval('#accOrdersMain a[href^="clase.html"]', (a) => new URL(a.href).searchParams.get('id')), IDS.second);
+  // los intentos sin completar están ocultos hasta que se piden
+  assert.equal(await page.$eval('#accOrdersIncomplete', (n) => n.hidden), true);
+  await page.evaluate(() => [...document.querySelectorAll('#accOrders button')].find((b) => /intentos sin completar/.test(b.textContent)).click());
+  assert.equal(await page.$eval('#accOrdersIncomplete', (n) => n.hidden), false);
+  assert.match(await text(page, '#accOrdersIncomplete'), /Remera Pop Up \(talle M\)/);
+  assert.match(await text(page, '#accOrdersIncomplete'), /No se te cobró nada/);
+});
+
+await test('cuenta · Mis compras y Mi suscripción no aparecen si los pagos no están configurados', async (page) => {
+  await signup('sinpagos@test.dev', 'Sin Pagos');
+  await openAccount(page, 'sinpagos@test.dev');
+  await waitFor(page, () => document.querySelector('#accProgress'), null, 10000);
+  assert.equal(await count(page, '#accOrders, #accSubscription'), 0);
+});
+
+await test('cuenta · Mi suscripción: activa con próximo cobro; cancelar mantiene el acceso hasta el fin del período', async (page) => {
+  await be.behavior({ payments: true });
+  await signup('sub@test.dev', 'Sub Test');
+  await be.account('sub@test.dev', { subscription: { status: 'active', current_period_end: iso(20), last_payment_at: iso(-10) } });
+  await openAccount(page, 'sub@test.dev');
+  await waitFor(page, () => document.querySelector('#accSubscription [data-state]'), null, 10000);
+  assert.equal(await page.$eval('#accSubscription [data-state]', (n) => n.dataset.state), 'active');
+  assert.match(await text(page, '#accSubscription'), /Suscripción activa\./);
+  assert.match(await text(page, '#accSubscription'), /Próximo cobro: /);
+  assert.match(await text(page, '#accSubscription'), /Último pago: /);
+  // cancelar: pide confirmación (si se rechaza no se cancela)
+  page.once('dialog', (d) => d.dismiss());
+  await page.click('#cancelSubscription');
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal((await be.state()).log.cancelSubscriptions, 0, 'sin confirmar no se llama a la función');
+  page.once('dialog', (d) => d.accept());
+  await page.click('#cancelSubscription');
+  await waitFor(page, () => document.querySelector('#accSubscription [data-state]')?.dataset.state === 'cancelled', null, 10000);
+  assert.equal((await be.state()).log.cancelSubscriptions, 1);
+  assert.match(await text(page, '#accSubscription'), /Seguís teniendo acceso hasta el /);
+  assert.equal(await count(page, '#cancelSubscription'), 0);
+});
+
+await test('cuenta · Mi suscripción: sin suscripción lo dice y no muestra cancelar', async (page) => {
+  await be.behavior({ payments: true });
+  await signup('nosub@test.dev', 'No Sub');
+  await openAccount(page, 'nosub@test.dev');
+  await waitFor(page, () => document.querySelector('#accSubscription [data-state]'), null, 10000);
+  assert.equal(await page.$eval('#accSubscription [data-state]', (n) => n.dataset.state), 'none');
+  assert.match(await text(page, '#accSubscription'), /No tenés una suscripción activa/);
+  assert.equal(await count(page, '#cancelSubscription'), 0);
+});
+
 await test('home · agenda: una clase con cupo completo no se puede reservar; sin clases este mes salta al primer mes con clases', async (page) => {
   await signup('otra@test.dev', 'Otra Test');
   // Una clase a ~40 días: si este mes no tiene clases, el calendario debe abrirse en el mes que sí.

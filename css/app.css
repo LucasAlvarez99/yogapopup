@@ -331,3 +331,12 @@
 .pp-buttons { min-height: 46px; }
 .cart-checkout .pp-buttons { margin-top: .6rem; }
 .cart-checkout .list-unstyled li { border-bottom: 1px dashed var(--color-border); }
+
+/* Mi cuenta: listas de progreso y compras (Fases 23-25) */
+.acc-list { list-style: none; margin: 0; padding: 0; }
+.acc-row { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .6rem 0; border-bottom: 1px dashed rgba(0, 0, 0, .15); }
+.acc-row:last-child { border-bottom: 0; }
+.acc-row-main { min-width: 0; flex: 1; }
+.acc-row-title { font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.acc-sub { line-height: 1.3; }
+.acc-progress { height: .45rem; }

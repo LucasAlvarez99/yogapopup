@@ -47,11 +47,12 @@ function seed() {
       { id: '10000000-0000-4000-8000-000000000003', title: 'Remera Pop Up', description: 'Algodón orgánico.', image_url: null, price_cents: 1999, stock: 0, category: 'Ropa', sort_order: 2, is_active: true, created_at: now },
       { id: '10000000-0000-4000-8000-000000000004', title: 'Producto borrador', description: null, image_url: null, price_cents: 500, stock: null, category: 'Ropa', sort_order: 3, is_active: false, created_at: now },
     ],
-    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null, schemaBehind: false },
+    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null, schemaBehind: false, payments: false },
     // Profesores y agenda (migración 20261005120000): `teachers` y `liveSessions` (live_sessions) los siembra seedTeachers().
     teachers: [], liveSessions: [], bookings: [],
+    orders: [], subscriptions: [], // pedidos ({..., user_id, order_items}) y suscripciones propias (Fases 23-25)
     variants: [], // talles: { id, product_id, size, stock, sort_order, created_at }
-    log: { saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [], teachers: [], sessions: [], bookings: [] },
+    log: { cancelSubscriptions: 0, saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [], teachers: [], sessions: [], bookings: [] },
     storage: new Map(), // Storage simulado: '<bucket>/<ruta>' -> { type, data }
     r2objects: new Map(), // R2 simulado: key -> bytes subidos por PUT (las clases de la semilla ya tienen su video)
   };
@@ -164,6 +165,8 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     let out = rows;
     for (const [key, val] of params) {
       if (['select', 'order', 'limit', 'offset'].includes(key)) continue;
+      const inM = /^in\.\((.*)\)$/.exec(val);
+      if (inM) { const set = inM[1].split(',').map(coerce); out = out.filter((r) => set.includes(r[key])); continue; }
       const m = /^(eq|gt|is)\.(.*)$/.exec(val);
       if (!m) continue;
       const want = coerce(m[2]);
@@ -361,6 +364,19 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
         ...(embed ? { classes: (() => { const c = db.classes.find((x) => x.id === r.class_id && x.is_published); return c ? pick(classPublic(c), embed[1].split(',')) : null; })() } : {}),
       }));
       return reply(rows);
+    }
+
+    // Pedidos y suscripciones: la RLS deja ver solo las propias (Fases 24-25)
+    if (table === 'orders' && req.method === 'GET') {
+      if (!user) return send(res, 200, []);
+      const select = p.get('select') || '';
+      const baseCols = select.replace(/,?order_items\([^)]*\)/, '').split(',').filter(Boolean);
+      return reply(applyFilters(db.orders.filter((o) => o.user_id === user.id), p).map((o) => ({ ...pick(o, baseCols), order_items: o.order_items ?? [] })));
+    }
+    if (table === 'subscriptions' && req.method === 'GET') {
+      if (!user) return send(res, 200, []);
+      const cols = (p.get('select') || '').split(',').filter(Boolean);
+      return reply(applyFilters(db.subscriptions.filter((x) => x.user_id === user.id), p).map((r) => pick(r, cols)));
     }
 
     // ------------------------------------------------------------------ profesores y agenda (misma regla que las políticas RLS)
@@ -665,6 +681,20 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
         return send(res, 200, { id: u?.id ?? null });
       }
       if (url.pathname === '/__test/session') { const b = await readBody(req); db.liveSessions.push({ id: randomUUID(), level: 'todos', mode: 'live', duration_minutes: 60, capacity: null, is_published: true, created_at: new Date().toISOString(), ...b }); return send(res, 200, {}); }
+      if (url.pathname === '/__test/account') { // siembra datos propios: { email, progress:[{classId,seconds,completed,at}], orders:[...], subscription:{...} }
+        const b = await readBody(req); const u = [...db.users.values()].find((x) => x.email === b.email);
+        for (const r of b.progress ?? []) db.progress.set(`${u.id}|${r.classId}`, { user_id: u.id, class_id: r.classId, progress_seconds: r.seconds, completed: !!r.completed, last_watched_at: r.at || new Date().toISOString() });
+        for (const o of b.orders ?? []) db.orders.push({ id: randomUUID(), user_id: u.id, kind: 'shop', status: 'paid', total_cents: 0, tax_cents: 0, refunded_cents: 0, created_at: new Date().toISOString(), paid_at: null, order_items: [], ...o });
+        if (b.subscription) db.subscriptions.push({ id: randomUUID(), user_id: u.id, paypal_subscription_id: 'I-TEST', status: 'active', current_period_end: null, last_payment_at: null, cancelled_at: null, created_at: new Date().toISOString(), ...b.subscription });
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === '/functions/v1/paypal-cancel-subscription') {
+        const u = bearerUser(req); if (!u) return send(res, 401, { error: { code: 'unauthenticated', message: 'x' } });
+        const sub = db.subscriptions.find((x) => x.user_id === u.id && ['active', 'suspended'].includes(x.status));
+        db.log.cancelSubscriptions++;
+        if (sub) { sub.status = 'cancelled'; sub.cancelled_at = new Date().toISOString(); }
+        return send(res, 200, { ok: true, status: 'cancelled' });
+      }
       if (url.pathname === '/__test/promote') { const b = await readBody(req); const u = [...db.users.values()].find((u) => u.email === b.email); if (u) u.role = b.role; return send(res, 200, { ok: true }); }
       if (url.pathname.startsWith('/auth/v1/')) return await auth(req, res, url);
       if (url.pathname.startsWith('/rest/v1/')) return await rest(req, res, url);
@@ -724,7 +754,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       // privacy: false = sin política (el registro no pide casilla) · 'full' = datos del titular completos · 'partial' = faltan algunos
       const legal = { full: { NAME: 'Yoga Pop Up S.L.', TAX_ID: 'B12345678', ADDRESS: 'Calle Mayor 1, 28013 Madrid', EMAIL: 'hola@yogapopup.es' },
         partial: { NAME: 'Yoga <b>Pop</b> Up S.L.', TAX_ID: '', ADDRESS: 'Calle Mayor 1, 28013 Madrid', EMAIL: 'hola@yogapopup.es' } }[db.behavior.privacy] || {};
-      return res.end(`window.YOGAPOPUP_CONFIG = Object.freeze({ SUPABASE_URL: '${origin.api}', SUPABASE_ANON_KEY: 'e2e-anon-key', FUNCTIONS_URL: '${origin.api}/functions/v1', PRIVACY_URL: '${db.behavior.privacy ? 'privacidad.html' : ''}', LEGAL: ${JSON.stringify(legal)}, PROGRESS_INTERVAL_SECONDS: ${progressIntervalSeconds} });`);
+      return res.end(`window.YOGAPOPUP_CONFIG = Object.freeze({ SUPABASE_URL: '${origin.api}', SUPABASE_ANON_KEY: 'e2e-anon-key', FUNCTIONS_URL: '${origin.api}/functions/v1', PRIVACY_URL: '${db.behavior.privacy ? 'privacidad.html' : ''}', LEGAL: ${JSON.stringify(legal)}, PROGRESS_INTERVAL_SECONDS: ${progressIntervalSeconds}${db.behavior.payments ? ", PAYPAL: { CLIENT_ID: 'e2eSandboxClientId123' }" : ''} });`);
     }
     let path = decodeURIComponent(url.pathname);
     if (path.endsWith('/')) path += 'index.html';
@@ -742,6 +772,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     reset: () => { progressIntervalSeconds = initialInterval; return control('reset'); },
     setProgressInterval: (n) => { progressIntervalSeconds = n; },
     behavior: (b) => control('behavior', b),
+    account: (email, data) => control('account', { email, ...data }),
     entitle: (email, classId) => control('entitle', { email, classId }),
     promote: (email, role) => control('promote', { email, role }),
     makeTeacher: (email, extra = {}) => control('teacher', { email, ...extra }),
