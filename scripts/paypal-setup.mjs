@@ -14,7 +14,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { API, buildPlanBody, buildProductBody, buildWebhookBody, parseArgs, priceToCents } from './lib/paypal-setup.mjs';
+import { API, buildPlanBody, buildProductBody, buildWebhookBody, parseArgs, priceFromArgs, priceToCents } from './lib/paypal-setup.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -61,7 +61,7 @@ async function token() {
 }
 
 if (command === 'plan') {
-  const cents = priceToCents(args.price);
+  const cents = priceToCents(priceFromArgs(args));
   if (!cents) die('Indica el precio con --price (ej.: --price 9,99). Es el precio FINAL con IVA incluido.');
   const interval = String(args.interval || 'MONTH').toUpperCase();
   const name = typeof args.name === 'string' ? args.name : 'Videoteca Yoga Pop Up';

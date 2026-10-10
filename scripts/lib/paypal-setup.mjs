@@ -73,11 +73,24 @@ export function parseArgs(argv) {
   const out = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a.startsWith('--')) {
+    if (a.startsWith('--') && a.includes('=')) { // --price=9,99
+      const eq = a.indexOf('=');
+      out[a.slice(2, eq)] = a.slice(eq + 1);
+    } else if (a.startsWith('--')) {
       const next = argv[i + 1];
       if (next === undefined || next.startsWith('--')) out[a.slice(2)] = true;
       else { out[a.slice(2)] = next; i++; }
     } else out._.push(a);
   }
   return out;
+}
+
+/**
+ * Precio del plan desde los argumentos. Además de `--price 9,99` acepta lo que llega cuando PowerShell parte "9,99" por la
+ * coma (`plan 9 99`): los números sueltos se juntan con coma.
+ */
+export function priceFromArgs(args) {
+  if (typeof args.price === 'string') return args.price;
+  const loose = (args._ ?? []).slice(1);
+  return loose.length > 0 && loose.length <= 2 && loose.every((x) => /^\d+$/.test(x)) ? loose.join(',') : undefined;
 }

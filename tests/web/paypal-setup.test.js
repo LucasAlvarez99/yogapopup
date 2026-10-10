@@ -4,6 +4,7 @@ import {
   buildProductBody,
   buildWebhookBody,
   parseArgs,
+  priceFromArgs,
   priceToCents,
   WEBHOOK_EVENTS,
 } from "../../scripts/lib/paypal-setup.mjs";
@@ -64,4 +65,13 @@ Deno.test("parseArgs", () => {
     name: "Mi plan",
   });
   assert.deepEqual(parseArgs([]), { _: [] });
+});
+
+Deno.test("parseArgs/priceFromArgs: --price=9,99 y el caso de PowerShell (que parte 9,99 en '9' y '99')", () => {
+  assert.equal(parseArgs(["plan", "--price=9,99"]).price, "9,99");
+  assert.equal(priceFromArgs(parseArgs(["plan", "--price", "9,99"])), "9,99");
+  assert.equal(priceFromArgs(parseArgs(["plan", "9", "99"])), "9,99");
+  assert.equal(priceFromArgs(parseArgs(["plan", "9"])), "9");
+  assert.equal(priceFromArgs(parseArgs(["plan"])), undefined);
+  assert.equal(priceFromArgs(parseArgs(["plan", "abc"])), undefined);
 });
