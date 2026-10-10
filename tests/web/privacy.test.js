@@ -127,3 +127,20 @@ Deno.test("privacidad: el sitio enlaza la política desde el pie y la configurac
   assert.match(read("js/ui/layout.js"), /privacidad\.html/);
   assert.match(read("js/config.js"), /PRIVACY_URL:\s*'privacidad\.html'/);
 });
+
+Deno.test("privacidad.html: cada función que guarda datos personales está declarada (comentarios, reservas, pagos, progreso…)", () => {
+  const html = read("privacidad.html").toLowerCase();
+  const declared = {
+    "comentarios públicos con tu nombre": ["si dejas un comentario", "con tu nombre", "aprueb"],
+    "reservas de clases en vivo": ["al reservar una clase en vivo"],
+    "compras y envío": ["al comprar un producto", "dirección de envío"],
+    "suscripciones": ["si te suscribes"],
+    "progreso de las clases": ["punto de cada clase"],
+    "carrito en el navegador": ["tu carrito"],
+    "profesores": ["si das clases"],
+  };
+  for (const [feature, needles] of Object.entries(declared)) {
+    for (const n of needles) assert.ok(html.includes(n), `la política no menciona: ${feature} («${n}»)`);
+  }
+  assert.match(html, /publicar los comentarios/, "los comentarios también deben figurar entre las finalidades");
+});

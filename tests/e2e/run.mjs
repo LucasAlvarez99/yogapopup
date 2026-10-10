@@ -2068,7 +2068,7 @@ await test('doctor --online y la prueba de integración real funcionan (contra e
   const integ = await run(['tests/integration/real-stack.integration.mjs'], env);
   assert.equal(integ.status, 0, `la integración salió con ${integ.status}:\n${integ.stdout}`);
   assert.match(integ.stdout, /Todo en verde/);
-  assert.equal((integ.stdout.match(/✓/g) || []).length, 9, integ.stdout);
+  assert.equal((integ.stdout.match(/✓/g) || []).length, 15, integ.stdout);
   // y el doctor SÍ detecta problemas: una clave secreta como clave pública -> error
   const bad = await run(['scripts/doctor.mjs'], { ...env, YP_ANON_KEY: 'sb_secret_abc' });
   assert.equal(bad.status, 1);

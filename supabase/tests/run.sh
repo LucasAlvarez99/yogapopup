@@ -26,6 +26,7 @@ done
 "${PSQL[@]}" -f tests/profesores_agenda.test.sql
 "${PSQL[@]}" -f tests/payments.test.sql
 "${PSQL[@]}" -f tests/testimonials.test.sql
+"${PSQL[@]}" -f tests/security_invariants.test.sql
 
 # Limpieza de clases con GUID de Bunny (migración 20260930120000): necesita datos "de antes" sembrados
 # ANTES de aplicarla, y otras pruebas cuentan filas de classes, así que va en una base temporal aparte.

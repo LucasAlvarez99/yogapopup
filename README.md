@@ -127,8 +127,8 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 23 | Perfil — progreso de videos | ✅ |
 | 24 | Perfil — historial de compras | 🟡 |
 | 25 | Perfil — estado de la suscripción | 🟡 |
-| 26 | Comentarios — modelo de datos y formulario | ✅ |
-| 27 | Comentarios — moderación | ✅ |
+| 26 | Comentarios — modelo de datos y formulario | 🟡 |
+| 27 | Comentarios — moderación | 🟡 |
 | 28 | Agenda — profesores, clases en vivo y reservas (modelo de datos) | ✅ |
 | 29 | Agenda — carrusel de profesores, calendario y panel del profesor | 🟡 |
 | 30 | Agenda — reservas de los alumnos (cupo, cancelar, "Mis clases") | 🟡 |
@@ -758,7 +758,7 @@ tiene `status` (`pending` · `approved` · `hidden`), porque la Fase 27 necesita
 - Pruebas: `supabase/tests/testimonials.test.sql` (RLS, columnas, triggers, auditoría), `tests/web/testimonials.test.js` y 4
   pruebas E2E del formulario y la lista.
 
-- [x] **FASE 26 CUMPLIDA**
+- [ ] **FASE 26 CUMPLIDA** (código y pruebas listos; falta aplicar la migración en tu Supabase y `npm run test:integration` en verde, ver `docs/BLINDAJE-FASES-17-27.md`)
 
 ### Fase 27 · Comentarios — moderación
 
@@ -769,7 +769,7 @@ Pestaña **Comentarios** del panel (admin y developer; `js/ui/testimonials-admin
 su cantidad (abre en Pendientes) y botones Aprobar, Ocultar y Borrar (con confirmación). La base impide que nadie más cambie el
 estado y deja en `audit_log` cada cambio de estado (`testimonial.moderate`) y cada borrado ajeno (`testimonial.delete`).
 
-- [x] **FASE 27 CUMPLIDA**
+- [ ] **FASE 27 CUMPLIDA** (misma validación que la Fase 26: el panel de moderación contra el Supabase real)
 
 ### Fase 28 · Súper-admin — modelo de datos de la agenda
 
