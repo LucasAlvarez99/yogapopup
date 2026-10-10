@@ -340,3 +340,8 @@
 .acc-row-title { font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
 .acc-sub { line-height: 1.3; }
 .acc-progress { height: .45rem; }
+
+/* Comentarios de la comunidad (Fases 26-27): el formulario es una tarjeta clara dentro de la sección oscura */
+.testimonial-box { color: var(--color-text); height: auto; }
+.testimonial-box .text-muted { color: var(--color-text-muted) !important; }
+.testimonial-box textarea { resize: vertical; }

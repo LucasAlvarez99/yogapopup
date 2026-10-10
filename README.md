@@ -127,8 +127,8 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 23 | Perfil — progreso de videos | ✅ |
 | 24 | Perfil — historial de compras | 🟡 |
 | 25 | Perfil — estado de la suscripción | 🟡 |
-| 26 | Comentarios — modelo de datos y formulario | ⬜ |
-| 27 | Comentarios — moderación | ⬜ |
+| 26 | Comentarios — modelo de datos y formulario | ✅ |
+| 27 | Comentarios — moderación | ✅ |
 | 28 | Agenda — profesores, clases en vivo y reservas (modelo de datos) | ✅ |
 | 29 | Agenda — carrusel de profesores, calendario y panel del profesor | 🟡 |
 | 30 | Agenda — reservas de los alumnos (cupo, cancelar, "Mis clases") | 🟡 |
@@ -744,18 +744,32 @@ período pagado) o sin suscripción. La fecha de próximo cobro solo se muestra 
 
 ### Fase 26 · Comentarios — modelo de datos y formulario
 
-- [ ] Tabla `testimonials` (usuario, texto, fecha, visible/oculto); RLS: cualquiera lee los visibles,
+- [x] Tabla `testimonials` (usuario, texto, fecha, visible/oculto); RLS: cualquiera lee los visibles,
       solo el dueño del comentario o el admin lo edita/borra
-- [ ] Formulario para dejar un comentario en la página de "Sobre nosotros" (requiere sesión)
+- [x] Formulario para dejar un comentario en la página de "Sobre nosotros" (requiere sesión)
 
-- [ ] **FASE 26 CUMPLIDA**
+Migración `20261009120000_testimonials.sql` (aplicar con `npm run sb:db-push`). En lugar de un simple visible/oculto la tabla
+tiene `status` (`pending` · `approved` · `hidden`), porque la Fase 27 necesita el estado "pendiente".
+- Un comentario por persona (`unique(user_id)`), de 10 a 600 caracteres, con puntuación opcional de 1 a 5.
+- El nombre que se muestra sale del perfil (lo pone la base, no el navegador). El público lee solo `id, author_name, body,
+  rating, created_at` de los aprobados: ni `user_id`, ni estado, ni datos de moderación.
+- Editar un comentario (lo hace su autor) lo devuelve a "pendiente". El profesor NO es gestión.
+- Las tarjetas de ejemplo de la home se mantienen mientras no haya ningún comentario aprobado.
+- Pruebas: `supabase/tests/testimonials.test.sql` (RLS, columnas, triggers, auditoría), `tests/web/testimonials.test.js` y 4
+  pruebas E2E del formulario y la lista.
+
+- [x] **FASE 26 CUMPLIDA**
 
 ### Fase 27 · Comentarios — moderación
 
-- [ ] El comentario no se muestra en público hasta que el panel lo aprueba
-- [ ] Aprobar / ocultar / borrar un comentario desde el panel
+- [x] El comentario no se muestra en público hasta que el panel lo aprueba
+- [x] Aprobar / ocultar / borrar un comentario desde el panel
 
-- [ ] **FASE 27 CUMPLIDA**
+Pestaña **Comentarios** del panel (admin y developer; `js/ui/testimonials-admin.js`): filtros Pendientes / Aprobados / Ocultos con
+su cantidad (abre en Pendientes) y botones Aprobar, Ocultar y Borrar (con confirmación). La base impide que nadie más cambie el
+estado y deja en `audit_log` cada cambio de estado (`testimonial.moderate`) y cada borrado ajeno (`testimonial.delete`).
+
+- [x] **FASE 27 CUMPLIDA**
 
 ### Fase 28 · Súper-admin — modelo de datos de la agenda
 

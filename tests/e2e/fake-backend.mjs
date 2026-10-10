@@ -50,9 +50,10 @@ function seed() {
     behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null, schemaBehind: false, payments: false },
     // Profesores y agenda (migración 20261005120000): `teachers` y `liveSessions` (live_sessions) los siembra seedTeachers().
     teachers: [], liveSessions: [], bookings: [],
+    testimonials: [], // comentarios de la comunidad (Fases 26-27): { id, user_id, author_name, body, rating, status, created_at }
     orders: [], subscriptions: [], // pedidos ({..., user_id, order_items}) y suscripciones propias (Fases 23-25)
     variants: [], // talles: { id, product_id, size, stock, sort_order, created_at }
-    log: { cancelSubscriptions: 0, saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [], teachers: [], sessions: [], bookings: [] },
+    log: { testimonials: [], cancelSubscriptions: 0, saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [], teachers: [], sessions: [], bookings: [] },
     storage: new Map(), // Storage simulado: '<bucket>/<ruta>' -> { type, data }
     r2objects: new Map(), // R2 simulado: key -> bytes subidos por PUT (las clases de la semilla ya tienen su video)
   };
@@ -366,6 +367,50 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       return reply(rows);
     }
 
+    // Comentarios de la comunidad (Fases 26-27): misma regla que la RLS y los privilegios por columna de la migración
+    if (table === 'testimonials') {
+      const staff = isStaff(user);
+      const rpcErr = (status, code, message) => send(res, status, { code, message });
+      const PUBLIC = ['id', 'author_name', 'body', 'rating', 'created_at'];
+      const cols = (p.get('select') || 'id').split(',');
+      const readable = (r) => r.status === 'approved' || (Boolean(user) && (r.user_id === user.id || staff));
+      const writable = (r) => Boolean(user) && (r.user_id === user.id || staff);
+      const log = (op, extra = {}) => db.log.testimonials.push({ op, by: user?.id ?? null, ...extra });
+      const wantsRows = /return=representation/.test(req.headers.prefer || '');
+      if (req.method === 'GET') {
+        if (!user && cols.some((c) => !PUBLIC.includes(c))) return rpcErr(401, '42501', 'permission denied for table testimonials');
+        return reply(applyFilters(db.testimonials.filter(readable), p).map((r) => pick(r, cols)));
+      }
+      if (!user) return rpcErr(401, '42501', 'permission denied for table testimonials');
+      if (req.method === 'POST') {
+        const b = await readBody(req);
+        if (Object.keys(b).some((k) => !['body', 'rating'].includes(k))) return rpcErr(403, '42501', 'permission denied for table testimonials');
+        const text = String(b.body ?? '').trim();
+        if (text.length < 10 || text.length > 600 || (b.rating != null && !(b.rating >= 1 && b.rating <= 5))) return rpcErr(400, '23514', 'violates check constraint');
+        if (db.testimonials.some((r) => r.user_id === user.id)) return rpcErr(409, '23505', 'duplicate key value violates unique constraint');
+        const row = { id: randomUUID(), user_id: user.id, author_name: user.name || 'Alumno/a', body: text, rating: b.rating ?? null, status: 'pending', created_at: new Date().toISOString() };
+        db.testimonials.push(row); log('insert', { id: row.id });
+        return reply([pick(row, cols)]);
+      }
+      const targets = applyFilters(db.testimonials.filter((r) => readable(r) && writable(r)), p);
+      if (req.method === 'PATCH') {
+        const b = await readBody(req);
+        if ('status' in b && !staff) return rpcErr(403, '42501', 'only staff can change the status of a testimonial');
+        for (const t of targets) {
+          const content = ('body' in b && String(b.body).trim() !== t.body) || ('rating' in b && b.rating !== t.rating);
+          Object.assign(t, { ...(b.body != null ? { body: String(b.body).trim() } : {}), ...('rating' in b ? { rating: b.rating } : {}), ...('status' in b ? { status: b.status } : {}) });
+          if (content && !staff && !('status' in b)) t.status = 'pending';
+          log('update', { id: t.id, status: t.status });
+        }
+        return reply(targets.map((t) => pick(t, cols)));
+      }
+      if (req.method === 'DELETE') {
+        db.testimonials = db.testimonials.filter((x) => !targets.includes(x));
+        for (const t of targets) log('delete', { id: t.id });
+        return wantsRows ? reply(targets.map((t) => pick(t, cols))) : send(res, 204);
+      }
+    }
+
     // Pedidos y suscripciones: la RLS deja ver solo las propias (Fases 24-25)
     if (table === 'orders' && req.method === 'GET') {
       if (!user) return send(res, 200, []);
@@ -666,7 +711,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     try {
       if (url.pathname === '/__test/reset') { db = seed(); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
-      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata, role: u.role ?? 'user' })), teachers: db.teachers, products: db.products, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
+      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata, role: u.role ?? 'user' })), teachers: db.teachers, products: db.products, testimonials: db.testimonials, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
       if (url.pathname === '/__test/variants') { // prepara talles directamente: { productId, rows:[{size, stock}] }
@@ -694,6 +739,15 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
         db.log.cancelSubscriptions++;
         if (sub) { sub.status = 'cancelled'; sub.cancelled_at = new Date().toISOString(); }
         return send(res, 200, { ok: true, status: 'cancelled' });
+      }
+      if (url.pathname === '/__test/testimonial') { // siembra un comentario: { author_name, body, rating?, status?, email? }
+        const b = await readBody(req); const u = [...db.users.values()].find((x) => x.email === b.email);
+        db.testimonials.push({ id: randomUUID(), user_id: u?.id ?? randomUUID(), rating: null, status: 'pending', created_at: new Date().toISOString(), ...b, email: undefined });
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === '/__test/testimonial-set') { // cambia el estado desde "la base" (simula a la gestión): { author_name, status }
+        const b = await readBody(req); const t = db.testimonials.find((x) => x.author_name === b.author_name);
+        if (t) t.status = b.status; return send(res, 200, { ok: !!t });
       }
       if (url.pathname === '/__test/promote') { const b = await readBody(req); const u = [...db.users.values()].find((u) => u.email === b.email); if (u) u.role = b.role; return send(res, 200, { ok: true }); }
       if (url.pathname.startsWith('/auth/v1/')) return await auth(req, res, url);
@@ -772,6 +826,8 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     reset: () => { progressIntervalSeconds = initialInterval; return control('reset'); },
     setProgressInterval: (n) => { progressIntervalSeconds = n; },
     behavior: (b) => control('behavior', b),
+    testimonial: (row) => control('testimonial', row),
+    setTestimonialStatus: (author_name, status) => control('testimonial-set', { author_name, status }),
     account: (email, data) => control('account', { email, ...data }),
     entitle: (email, classId) => control('entitle', { email, classId }),
     promote: (email, role) => control('promote', { email, role }),

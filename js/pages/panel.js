@@ -10,6 +10,7 @@ import { openAuth } from '../ui/auth-modal.js';
 import { openClassForm } from '../ui/class-form-modal.js';
 import { showProductsAdmin } from '../ui/products-admin.js';
 import { showOrdersAdmin } from '../ui/orders-admin.js';
+import { showTestimonialsAdmin } from '../ui/testimonials-admin.js';
 import { paymentsEnabled } from '../lib/env.js';
 import { showAgenda, showProfile, showTeachersAdmin } from '../ui/teacher-panel.js';
 import { toast } from '../ui/toast.js';
@@ -33,7 +34,7 @@ import { emptyState, errorState, skeletonGrid } from '../ui/states.js';
 const outer = document.getElementById('panel');
 const tabsHost = el('div');
 const root = el('div', { id: 'panelContent' });
-let activeTab = null; // 'classes' | 'products' | 'payments' | 'teachers' | 'agenda' | 'profile'
+let activeTab = null; // 'classes' | 'products' | 'payments' | 'testimonials' | 'teachers' | 'agenda' | 'profile'
 let classes = [];
 let statusFilter = 'all'; // 'all' | 'published' | 'draft' | 'failed'
 
@@ -211,6 +212,7 @@ const ALL_TABS = [
   ['products', 'Productos', () => session.isStaff()],
   // Solo con PayPal configurado (js/config.js > PAYPAL.CLIENT_ID): sin pagos no hay nada que gestionar.
   ['payments', 'Pagos', () => session.isStaff() && paymentsEnabled],
+  ['testimonials', 'Comentarios', () => session.isStaff()],
   ['teachers', 'Profesores', () => session.isStaff()],
   ['agenda', 'Mi agenda', () => session.isTeacher()],
   ['profile', 'Mi perfil', () => session.isTeacher()],
@@ -234,6 +236,7 @@ function loadActiveTab() {
   const { teacher } = session.getState();
   if (tab === 'products') showProductsAdmin(root, { isCurrent });
   else if (tab === 'payments') showOrdersAdmin(root, { isCurrent });
+  else if (tab === 'testimonials') showTestimonialsAdmin(root, { isCurrent });
   else if (tab === 'teachers') showTeachersAdmin(root, { isCurrent });
   else if (tab === 'agenda') showAgenda(root, { teacherId: teacher.profile_id, isCurrent });
   else if (tab === 'profile') showProfile(root, { teacher, isCurrent });

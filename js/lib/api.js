@@ -64,6 +64,71 @@ export async function getClass(id) {
   return unwrap(await db().from('classes').select(CLASS_COLUMNS).eq('id', id).maybeSingle());
 }
 
+// ---------------------------------------------------------------- comentarios (Fases 26-27)
+const TESTIMONIAL_PUBLIC = 'id,author_name,body,rating,created_at';
+const TESTIMONIAL_OWN = 'id,body,rating,status,created_at,updated_at';
+const TESTIMONIAL_ADMIN = 'id,author_name,body,rating,status,created_at,moderated_at';
+
+/** Comentarios aprobados (público, también sin sesión). Una base sin la migración devuelve [] en vez de romper la home. */
+export async function listPublicTestimonials(limit = 6) {
+  const { data, error } = await db().from('testimonials').select(TESTIMONIAL_PUBLIC)
+    .eq('status', 'approved').order('created_at', { ascending: false }).limit(limit);
+  if (error) {
+    if (isSchemaBehind(error)) return [];
+    throw new AppError('internal_error', error.message);
+  }
+  return data ?? [];
+}
+
+/** El comentario propio (uno por persona) o null. `null` también si la base aún no tiene la tabla. */
+export async function getMyTestimonial(userId) {
+  const { data, error } = await db().from('testimonials').select(TESTIMONIAL_OWN).eq('user_id', userId).maybeSingle();
+  if (error) {
+    if (isSchemaBehind(error)) return null;
+    throw new AppError('internal_error', error.message);
+  }
+  return data ?? null;
+}
+
+/** Escribe o corrige el comentario propio. Siempre queda pendiente: el estado lo pone la base, no el navegador. */
+export async function saveMyTestimonial({ body, rating }, existingId = null) {
+  const q = existingId
+    ? db().from('testimonials').update({ body, rating }).eq('id', existingId)
+    : db().from('testimonials').insert({ body, rating });
+  const { data, error } = await q.select(TESTIMONIAL_OWN).single();
+  if (error) {
+    if (error.code === '23505') throw new AppError('already_commented');
+    if (error.code === '23514') throw new AppError('invalid_testimonial');
+    if (error.code === '42501' || error.code === 'PGRST301') throw new AppError('unauthenticated');
+    throw new AppError('internal_error', error.message);
+  }
+  return data;
+}
+
+export async function deleteMyTestimonial(id) {
+  const { error } = await db().from('testimonials').delete().eq('id', id);
+  if (error) throw new AppError('internal_error', error.message);
+}
+
+/** Todos los comentarios (solo gestión: la RLS lo exige). */
+export async function adminListTestimonials(limit = 200) {
+  return unwrap(await db().from('testimonials').select(TESTIMONIAL_ADMIN).order('created_at', { ascending: false }).limit(limit)) ?? [];
+}
+
+/** Aprobar u ocultar. Devuelve la fila actualizada; si la RLS no deja ver la fila, falla (no es gestión). */
+export async function adminSetTestimonialStatus(id, status) {
+  const { data, error } = await db().from('testimonials').update({ status }).eq('id', id).select(TESTIMONIAL_ADMIN);
+  if (error) throw new AppError(error.code === '42501' ? 'forbidden' : 'internal_error', error.message);
+  if (!data?.length) throw new AppError('forbidden');
+  return data[0];
+}
+
+export async function adminDeleteTestimonial(id) {
+  const { data, error } = await db().from('testimonials').delete().eq('id', id).select('id');
+  if (error) throw new AppError(error.code === '42501' ? 'forbidden' : 'internal_error', error.message);
+  if (!data?.length) throw new AppError('forbidden');
+}
+
 /** Progreso propio de todas las clases: { [classId]: { progress_seconds, completed } } */
 export async function getMyProgressMap() {
   const rows = unwrap(await db().from('video_progress').select('class_id,progress_seconds,completed')) ?? [];

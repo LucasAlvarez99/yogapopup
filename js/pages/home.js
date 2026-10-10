@@ -12,6 +12,7 @@ import { classCard } from '../components/class-card.js';
 import { productCard } from '../components/product-card.js';
 import { addToCart, initCartUi } from '../ui/cart-drawer.js';
 import { emptyState, errorState } from '../ui/states.js';
+import { loadPublicTestimonials, mountTestimonialForm } from '../ui/testimonials.js';
 import { page } from '../lib/env.js';
 import { el, mount } from '../lib/dom.js';
 
@@ -91,3 +92,7 @@ if (agendaBox) {
     });
   }
 }
+
+// Comentarios de la comunidad (Fases 26-27): los aprobados reemplazan a las tarjetas de ejemplo; el formulario pide sesión.
+loadPublicTestimonials(document.getElementById('homeTestimonials'));
+mountTestimonialForm(document.getElementById('testimonialForm'), {});
