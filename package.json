@@ -32,7 +32,8 @@
     "paypal:webhook": "node scripts/paypal-setup.mjs webhook",
     "doctor": "node scripts/doctor.mjs",
     "doctor:online": "node scripts/doctor.mjs --online",
-    "test:integration": "node tests/integration/real-stack.integration.mjs"
+    "test:integration": "node tests/integration/real-stack.integration.mjs",
+    "security": "npm audit --omit=dev --audit-level=high && deno test --allow-read --config supabase/functions/deno.json tests/web/security-static.test.js"
   },
   "devDependencies": {
     "deno": "2.9.6",
@@ -44,5 +45,8 @@
     "@supabase/supabase-js": "2.116.0",
     "bootstrap": "5.3.3",
     "bootstrap-icons": "1.11.3"
+  },
+  "overrides": {
+    "compression": "1.8.2"
   }
 }

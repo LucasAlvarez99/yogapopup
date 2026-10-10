@@ -223,6 +223,14 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       return send(res, 200, rows);
     };
 
+    // Tablas privadas que este simulador no necesita modelar: sin sesión la API las rechaza (como los privilegios reales) y
+    // con sesión una cuenta común ve cero filas (la RLS). También cualquier escritura sin sesión.
+    const PRIVATE_TABLES = ['payment_events', 'audit_log', 'entitlements', 'rate_limits', 'order_items', 'live_bookings'];
+    if (PRIVATE_TABLES.includes(table) && req.method === 'GET') return user ? reply([]) : send(res, 401, { code: '42501', message: `permission denied for table ${table}` });
+    if (!user && req.method === 'POST' && ['products', 'classes', 'live_bookings', 'testimonials'].includes(table)) {
+      return send(res, 401, { code: '42501', message: `permission denied for table ${table}` });
+    }
+
     if (table === 'rpc/save_progress' && req.method === 'POST') {
       if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
       if (db.behavior.saveFail) return send(res, 503, { message: 'unavailable' });
