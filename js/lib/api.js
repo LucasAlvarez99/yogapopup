@@ -90,7 +90,10 @@ export async function getMyTestimonial(userId) {
   return data ?? null;
 }
 
-/** Escribe o corrige el comentario propio. Siempre queda pendiente: el estado lo pone la base, no el navegador. */
+/**
+ * Escribe o corrige el comentario propio. Se publica solo, salvo que tenga una palabra prohibida (queda oculto y la cuenta
+ * se suspende 168 h): el estado lo pone la base, no el navegador. La fila devuelta trae el estado final.
+ */
 export async function saveMyTestimonial({ body, rating }, existingId = null) {
   const q = existingId
     ? db().from('testimonials').update({ body, rating }).eq('id', existingId)
@@ -99,10 +102,19 @@ export async function saveMyTestimonial({ body, rating }, existingId = null) {
   if (error) {
     if (error.code === '23505') throw new AppError('already_commented');
     if (error.code === '23514') throw new AppError('invalid_testimonial');
+    if (error.code === 'YP001') throw new AppError('account_suspended');
     if (error.code === '42501' || error.code === 'PGRST301') throw new AppError('unauthenticated');
     throw new AppError('internal_error', error.message);
   }
   return data;
+}
+
+/** ¿Hasta cuándo está suspendida MI cuenta? Devuelve un Date, o null si no lo está (o si la base aún no tiene la función). */
+export async function getMySuspension() {
+  const { data, error } = await db().rpc('my_suspension');
+  if (error || !data) return null;
+  const until = new Date(data);
+  return Number.isNaN(until.getTime()) || until.getTime() <= Date.now() ? null : until;
 }
 
 export async function deleteMyTestimonial(id) {

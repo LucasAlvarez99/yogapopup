@@ -28,12 +28,26 @@ export function initials(name) {
   return (parts.length === 1 ? parts[0][0] : parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Cómo se le cuenta a la persona el estado de SU comentario. */
+/** Cuánto dura la suspensión de la cuenta que escribe una palabra prohibida (la aplica la base; esto solo lo cuenta). */
+export const SUSPENSION_HOURS = 168;
+
+/**
+ * Cómo se le cuenta a la persona el estado de SU comentario. Los comentarios se publican solos: 'pending' ya no lo pone
+ * nadie (se conserva por si quedó alguno viejo) y 'hidden' es lo que el equipo ocultó o lo que tenía una palabra prohibida.
+ */
 export const MY_STATUS = Object.freeze({
   pending: { label: 'En revisión', tone: 'warning', note: 'Gracias. Se publica cuando el equipo lo apruebe.' },
-  approved: { label: 'Publicado', tone: 'success', note: 'Tu comentario ya se ve en la página. Si lo editás, vuelve a revisión.' },
-  hidden: { label: 'No publicado', tone: 'secondary', note: 'El equipo no lo publicó. Podés editarlo y se vuelve a revisar.' },
+  approved: { label: 'Publicado', tone: 'success', note: 'Tu comentario ya se ve en la página. Si lo editás, se actualiza al instante.' },
+  hidden: { label: 'No publicado', tone: 'secondary', note: 'Tu comentario no se muestra en la página.' },
 });
+
+/** "viernes, 18 de octubre de 2026, 11:30" (hora de la persona) para decir hasta cuándo dura la suspensión. */
+export function formatSuspensionEnd(until, locale = 'es-AR') {
+  if (until === null || until === undefined || until === '') return '';   // new Date(null) sería 1970, no "sin fecha"
+  const d = until instanceof Date ? until : new Date(until);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'full', timeStyle: 'short' }).format(d);
+}
 
 /** Estados para el panel de gestión, en el orden de las pestañas de filtro (los pendientes primero: es lo que hay que atender). */
 export const MODERATION_FILTERS = Object.freeze([

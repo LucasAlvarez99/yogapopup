@@ -1073,11 +1073,10 @@ await test('cuenta · Mi suscripción: sin suscripción lo dice y no muestra can
 // ---------------------------------------------------------------- Comentarios y moderación (Fases 26-27)
 const tmLog = async () => (await be.state()).log.testimonials;
 
-await test('comentarios: la home muestra solo los APROBADOS (como texto); sin ninguno invita a dejar el primero', async (page) => {
+await test('comentarios: la home muestra solo los APROBADOS (como texto) y sin ninguno deja las tarjetas de ejemplo', async (page) => {
   await page.goto(S);
   await waitFor(page, () => document.querySelector('#homeTestimonials'), null, 10000);
-  await waitFor(page, () => /Todavía no hay comentarios/.test(document.querySelector('#homeTestimonials')?.textContent), null, 10000);
-  assert.equal(await count(page, '#homeTestimonials figure'), 0, 'no hay testimonios de ejemplo');
+  assert.equal(await count(page, '#homeTestimonials figure'), 3, 'sin comentarios aprobados quedan los de ejemplo');
   await be.testimonial({ author_name: 'Camila Paz', body: 'Una clase hermosa, volvería mil veces.', rating: 4, status: 'approved' });
   await be.testimonial({ author_name: 'Pendiente Pérez', body: 'Este todavía no está aprobado nunca.', status: 'pending' });
   await be.testimonial({ author_name: 'Oculto Ortiz', body: 'Este lo ocultó el equipo hace tiempo.', status: 'hidden' });
@@ -1086,7 +1085,7 @@ await test('comentarios: la home muestra solo los APROBADOS (como texto); sin ni
   await waitFor(page, () => /Camila Paz/.test(document.querySelector('#homeTestimonials')?.textContent), null, 10000);
   const shown = await page.$eval('#homeTestimonials', (n) => n.textContent);
   assert.match(shown, /Una clase hermosa/);
-  assert.doesNotMatch(shown, /Pendiente Pérez|Oculto Ortiz|Todavía no hay comentarios/, 'ni pendientes, ni ocultos, ni el aviso de vacío');
+  assert.doesNotMatch(shown, /Pendiente Pérez|Oculto Ortiz|María Sol/, 'ni pendientes, ni ocultos, ni los de ejemplo');
   assert.equal(await count(page, '#homeTestimonials figure'), 2);
   assert.equal(await count(page, '#homeTestimonials img'), 0, 'el texto de una persona nunca se interpreta como HTML');
   assert.equal(await page.evaluate(() => window.__xss), undefined);
@@ -1094,17 +1093,28 @@ await test('comentarios: la home muestra solo los APROBADOS (como texto); sin ni
   assert.equal(await count(page, '#homeTestimonials .stars i'), 4, 'cuatro estrellas para el comentario de 4');
 });
 
-await test('comentarios: sin sesión el formulario pide iniciar sesión y no escribe nada', async (page) => {
+// El formulario vive en un pop up: se abre con el botón de la home y espera a que termine de animarse.
+const openTm = async (page) => {
+  await page.$eval('#openTestimonial', (b) => b.click());
+  await waitFor(page, () => document.querySelector('#tmModal')?.classList.contains('show'), null, 10000);
+  await new Promise((r) => setTimeout(r, 450));
+};
+const tmModalClosed = (page) => waitFor(page, () => !document.querySelector('#tmModal')?.classList.contains('show'), null, 10000);
+
+await test('comentarios: sin sesión el pop up pide iniciar sesión y no escribe nada', async (page) => {
   await page.goto(S);
+  assert.match(await text(page, '#openTestimonial'), /Dejá tu comentario/, 'el botón está debajo de "Explorar Yoga Pop Up"');
+  await openTm(page);
   await waitFor(page, () => document.querySelector('#tmLogin'), null, 10000);
   assert.equal(await count(page, '#tmForm'), 0);
   assert.deepEqual(await tmLog(), []);
 });
 
-await test('comentarios: escribir queda "En revisión"; editar lo aprobado vuelve a revisión; se puede borrar y no hay segundo', async (page) => {
+await test('comentarios: se publican solos (sin aprobación); editar sigue publicado; se puede borrar y no hay segundo', async (page) => {
   await signup('comenta@test.dev', 'Comenta Test');
   await page.goto(S);
   await loginViaModal(page, 'comenta@test.dev');
+  await openTm(page);
   await waitFor(page, () => document.querySelector('#tmForm'), null, 10000);
   assert.equal(await count(page, '#tmStatus'), 0, 'sin comentario todavía no hay estado');
   // texto corto: se frena en el navegador
@@ -1112,46 +1122,82 @@ await test('comentarios: escribir queda "En revisión"; editar lo aprobado vuelv
   await page.click('#tmForm button[type=submit]');
   assert.match(await text(page, '#tmError'), /al menos 10/);
   assert.deepEqual(await tmLog(), [], 'no se mandó nada');
-  // válido, con puntuación
+  // válido, con puntuación: se publica y el pop up avisa y se cierra solo
   await page.$eval('#tmBody', (n) => { n.value = ''; });
   await page.type('#tmBody', 'Las clases me ayudaron muchísimo a dormir mejor.');
   await page.select('#tmRating', '5');
   await page.click('#tmForm button[type=submit]');
-  await toastHas(page, 'Tu comentario está en revisión');
-  await waitFor(page, () => document.querySelector('#tmStatus')?.dataset.status === 'pending', null, 8000);
-  assert.match(await text(page, '#tmStatus'), /En revisión/);
-  assert.equal(await page.$eval('#tmBody', (n) => n.value), 'Las clases me ayudaron muchísimo a dormir mejor.');
+  await waitFor(page, () => document.querySelector('#tmSuccess'), null, 8000);
+  assert.match(await text(page, '#tmSuccess'), /Comentario enviado/);
+  await tmModalClosed(page);
   let state = await be.state();
   assert.equal(state.testimonials.length, 1);
-  assert.equal(state.testimonials[0].status, 'pending');
+  assert.equal(state.testimonials[0].status, 'approved', 'nace publicado: nadie lo tiene que aprobar');
   assert.equal(state.testimonials[0].author_name, 'Comenta Test', 'el nombre sale del perfil, no del formulario');
-  assert.doesNotMatch(await text(page, '#homeTestimonials'), /dormir mejor/, 'pendiente: no es público');
-  // la gestión lo aprueba → ella lo ve "Publicado"; al editarlo vuelve a revisión
-  await be.setTestimonialStatus('Comenta Test', 'approved');
-  await page.goto(S);
+  await waitFor(page, () => /dormir mejor/.test(document.querySelector('#homeTestimonials')?.textContent), null, 8000);
+  // al volver a abrirlo ve su comentario, ya "Publicado"
+  await openTm(page);
   await waitFor(page, () => document.querySelector('#tmStatus')?.dataset.status === 'approved', null, 10000);
   assert.match(await text(page, '#tmStatus'), /Publicado/);
-  assert.match(await text(page, '#homeTestimonials'), /dormir mejor/, 'aprobado: ya es público');
+  assert.equal(await page.$eval('#tmBody', (n) => n.value), 'Las clases me ayudaron muchísimo a dormir mejor.');
+  // editar con texto limpio: sigue publicado y la home lo muestra al instante
   await page.$eval('#tmBody', (n) => { n.value = ''; });
   await page.type('#tmBody', 'Ahora cambié el texto por completo, gracias.');
   await page.click('#tmForm button[type=submit]');
-  await waitFor(page, () => document.querySelector('#tmStatus')?.dataset.status === 'pending', null, 8000);
+  await waitFor(page, () => /Cambios guardados/.test(document.querySelector('#tmSuccess')?.textContent ?? ''), null, 8000);
+  await tmModalClosed(page);
   state = await be.state();
   assert.equal(state.testimonials.length, 1, 'se editó, no se duplicó');
-  assert.equal(state.testimonials[0].status, 'pending');
+  assert.equal(state.testimonials[0].status, 'approved');
+  await waitFor(page, () => /cambié el texto/.test(document.querySelector('#homeTestimonials')?.textContent), null, 8000);
+  // la gestión lo oculta: ella lo ve "No publicado" y deja de verse en la home
+  await be.setTestimonialStatus('Comenta Test', 'hidden');
+  await page.goto(S);
+  await openTm(page);
+  await waitFor(page, () => document.querySelector('#tmStatus')?.dataset.status === 'hidden', null, 10000);
+  assert.match(await text(page, '#tmStatus'), /No publicado/);
+  assert.doesNotMatch(await text(page, '#homeTestimonials'), /cambié el texto/);
   // borrar
   page.once('dialog', (d) => d.accept());
   await page.click('#tmDelete');
   await toastHas(page, 'Borraste tu comentario');
-  await waitFor(page, () => document.querySelector('#tmForm') && !document.querySelector('#tmDelete'), null, 8000);
+  await tmModalClosed(page);
   assert.equal((await be.state()).testimonials.length, 0);
+  await openTm(page);
+  await waitFor(page, () => document.querySelector('#tmForm') && !document.querySelector('#tmDelete'), null, 8000);
+});
+
+await test('comentarios: una palabra prohibida no se publica y suspende la cuenta 168 horas', async (page) => {
+  await signup('grosero@test.dev', 'Grosero Test');
+  await page.goto(S);
+  await loginViaModal(page, 'grosero@test.dev');
+  await openTm(page);
+  await waitFor(page, () => document.querySelector('#tmForm'), null, 10000);
+  await page.type('#tmBody', 'Qué clase de mierda, no sirve para nada.');
+  await page.click('#tmForm button[type=submit]');
+  await waitFor(page, () => document.querySelector('#tmBlocked'), null, 8000);
+  assert.match(await text(page, '#tmBlocked'), /168 horas/);
+  assert.match(await text(page, '#tmBlockedUntil'), /Podés volver a ingresar el/);
+  const state = await be.state();
+  assert.equal(state.testimonials.length, 1);
+  assert.equal(state.testimonials[0].status, 'hidden', 'con palabra prohibida no se publica');
+  const left = state.users.find((u) => u.email === 'grosero@test.dev').banned_until - Date.now();
+  assert.ok(left > 167 * 3600e3 && left < 169 * 3600e3, `suspendida ~168 h (quedan ${Math.round(left / 3600e3)} h)`);
+  assert.doesNotMatch(await text(page, '#homeTestimonials'), /mierda/, 'no aparece en la home');
+  // al cerrar el aviso se cierra su sesión: el pop up vuelve a pedir iniciar sesión
+  await page.click('#tmBlockedOk');
+  await tmModalClosed(page);
+  await openTm(page);
+  await waitFor(page, () => document.querySelector('#tmLogin'), null, 10000);
+  assert.equal(await count(page, '#tmForm'), 0, 'sin sesión no hay formulario');
 });
 
 await test('comentarios: quien ya comentó ve su comentario para editarlo o borrarlo (no se ofrece un segundo)', async (page) => {
   await signup('doble@test.dev', 'Doble Test');
-  await be.testimonial({ email: 'doble@test.dev', author_name: 'Doble Test', body: 'Ya había dejado uno antes de hoy.', status: 'pending' });
+  await be.testimonial({ email: 'doble@test.dev', author_name: 'Doble Test', body: 'Ya había dejado uno antes de hoy.', status: 'approved' });
   await page.goto(S);
   await loginViaModal(page, 'doble@test.dev');
+  await openTm(page);
   await waitFor(page, () => document.querySelector('#tmStatus'), null, 10000);
   assert.equal(await page.$eval('#tmBody', (n) => n.value), 'Ya había dejado uno antes de hoy.', 'se muestra el que ya tiene (para editarlo)');
   assert.equal(await count(page, '#tmDelete'), 1);
@@ -1201,6 +1247,7 @@ await test('panel · Comentarios: un usuario común no puede moderar (la base lo
   await signup('curioso@test.dev', 'Curioso');
   await page.goto(S);
   await loginViaModal(page, 'curioso@test.dev');
+  await openTm(page);
   await waitFor(page, () => document.querySelector('#tmForm'), null, 10000);
   const result = await page.evaluate(async () => {
     const { supabase } = await import('/js/lib/supabase.js');

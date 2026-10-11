@@ -38,6 +38,7 @@ const MESSAGES = {
   forbidden: 'No tenés permiso para hacer esto.',
   already_commented: 'Ya dejaste un comentario. Podés editarlo desde esta misma sección.',
   invalid_testimonial: 'El comentario no es válido: tiene que tener entre 10 y 600 caracteres.',
+  account_suspended: 'Tu cuenta está suspendida temporalmente por incumplir las normas de convivencia. Podés volver a comentar cuando termine la suspensión.',
   payments_unavailable: 'No pudimos abrir PayPal. Si usás un bloqueador de anuncios, desactivalo para este sitio y probá de nuevo.',
   payments_not_configured: 'Los pagos todavía no están disponibles. Probá más tarde.',
   payment_provider_error: 'PayPal no responde en este momento. No se te cobró nada: probá de nuevo en un minuto.',

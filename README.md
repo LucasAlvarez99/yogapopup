@@ -754,7 +754,7 @@ tiene `status` (`pending` · `approved` · `hidden`), porque la Fase 27 necesita
 - El nombre que se muestra sale del perfil (lo pone la base, no el navegador). El público lee solo `id, author_name, body,
   rating, created_at` de los aprobados: ni `user_id`, ni estado, ni datos de moderación.
 - Editar un comentario (lo hace su autor) lo devuelve a "pendiente". El profesor NO es gestión.
-- Ya no hay testimonios de ejemplo en la home: sin comentarios aprobados se invita a dejar el primero.
+- Las tarjetas de ejemplo de la home se mantienen mientras no haya ningún comentario aprobado.
 - Pruebas: `supabase/tests/testimonials.test.sql` (RLS, columnas, triggers, auditoría), `tests/web/testimonials.test.js` y 4
   pruebas E2E del formulario y la lista.
 
@@ -770,6 +770,36 @@ su cantidad (abre en Pendientes) y botones Aprobar, Ocultar y Borrar (con confir
 estado y deja en `audit_log` cada cambio de estado (`testimonial.moderate`) y cada borrado ajeno (`testimonial.delete`).
 
 - [ ] **FASE 27 CUMPLIDA** (misma validación que la Fase 26: el panel de moderación contra el Supabase real)
+
+#### Cambio posterior · Comentarios que se publican solos + palabras prohibidas (migración `20261011120000`)
+
+Ya no hace falta aprobar nada: un comentario **nace publicado** y aparece en la home al instante (también cuando se edita).
+El botón **"Dejá tu comentario"** (debajo de "Explorar Yoga Pop Up") abre el formulario en un pop up; al enviar muestra
+"¡Comentario enviado!" y se cierra solo.
+
+Si el texto trae una **palabra prohibida** (tabla `banned_words`):
+- el comentario queda `hidden` (no se publica; lo ven su autora y la gestión),
+- la cuenta se **suspende 168 horas (7 días)** con `auth.users.banned_until`: Supabase Auth no la deja iniciar ni renovar sesión,
+  y la base le niega crear o editar comentarios aunque conserve un token vivo (dura como máximo ~1 h),
+- la web le explica qué pasó, hasta cuándo, y le cierra la sesión,
+- queda en `audit_log` como `user.auto_suspend`. La gestión (admin/developer) nunca se suspende sola.
+Se compara sin importar mayúsculas, tildes, números por letras (`m1erda`) ni letras repetidas (`puuuta`), y como **palabra completa**
+(`computadora` no dispara a `puta`). Límite conocido: letras separadas (`p.u.t.a`) no se detectan. Si la gestión oculta un
+comentario a mano, su autora no lo vuelve a publicar editándolo. La pestaña "Pendientes" del panel queda vacía (nada nace pendiente).
+
+Administrar la lista y las suspensiones desde el **SQL Editor** de Supabase:
+
+```sql
+select word from public.banned_words order by word;                       -- ver la lista
+insert into public.banned_words (word) values ('palabra nueva') on conflict do nothing;   -- agregar (tilde y mayúsculas no importan)
+delete from public.banned_words where word = 'palabra';                   -- quitar
+
+select u.email, u.banned_until from auth.users u where u.banned_until > now();   -- quién está suspendido
+update auth.users set banned_until = null where email = 'persona@correo.com';    -- levantar una suspensión (por un falso positivo)
+```
+Evitá palabras que también son nombres o cosas comunes (por eso no están "concha", "foro" ni "cono"): un falso positivo suspende a
+alguien por error. Pruebas: `supabase/tests/testimonials.test.sql` (secciones 9 a 14), `tests/web/testimonials.test.js`, el E2E de
+comentarios y `npm run test:integration` (que NO prueba el insulto para no suspender a la cuenta de prueba).
 
 ### Fase 28 · Súper-admin — modelo de datos de la agenda
 

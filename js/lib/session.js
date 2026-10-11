@@ -127,6 +127,7 @@ export async function updatePassword(newPassword) {
 export function authMessage(err) {
   const msg = String(err?.message || '').toLowerCase();
   if (msg.includes('invalid login')) return 'El correo o la contraseña no son correctos.';
+  if (msg.includes('banned')) return 'Tu cuenta está suspendida temporalmente por incumplir las normas de convivencia. Probá de nuevo cuando termine la suspensión.';
   if (msg.includes('email not confirmed')) return 'Confirmá tu correo antes de entrar: te enviamos un enlace.';
   if (msg.includes('already registered') || msg.includes('already been registered')) return 'Ya existe una cuenta con ese correo. Probá iniciar sesión.';
   if (msg.includes('password') && msg.includes('characters')) return 'La contraseña es demasiado corta (mínimo 8 caracteres).';

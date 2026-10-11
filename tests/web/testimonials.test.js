@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { AppError, messageFor } from "../../js/lib/errors.js";
 import {
   BODY_MAX,
   BODY_MIN,
   countByStatus,
+  formatSuspensionEnd,
   initials,
   moderationActions,
   MY_STATUS,
   sortForModeration,
+  SUSPENSION_HOURS,
   validateTestimonial,
 } from "../../js/lib/testimonials.js";
 
@@ -68,4 +71,25 @@ Deno.test("comentarios: conteo y orden para moderar (los pendientes, del más an
   assert.deepEqual(sortForModeration(rows, "pending").map((r) => r.id), [2, 1]);
   assert.deepEqual(sortForModeration(rows, "approved").map((r) => r.id), [4, 3]);
   assert.deepEqual(sortForModeration(rows, "hidden").map((r) => r.id), [5]);
+});
+
+Deno.test("comentarios: se publican solos, así que ningún texto promete una aprobación del equipo", () => {
+  assert.match(MY_STATUS.approved.note, /al instante/);
+  assert.doesNotMatch(MY_STATUS.approved.note, /revisi[oó]n/i);
+  assert.match(MY_STATUS.hidden.note, /no se muestra/i);
+});
+
+Deno.test("comentarios: la suspensión por palabras prohibidas dura 168 horas (7 días) y tiene mensaje propio", () => {
+  assert.equal(SUSPENSION_HOURS, 168);
+  assert.equal(SUSPENSION_HOURS, 7 * 24);
+  assert.match(messageFor(new AppError("account_suspended")), /suspendida/);
+});
+
+Deno.test("comentarios: la fecha de fin de la suspensión se escribe en español y tolera valores raros", () => {
+  const out = formatSuspensionEnd(new Date("2026-10-18T14:30:00Z"), "es-AR");
+  assert.match(out, /2026/);
+  assert.match(out, /octubre/);
+  assert.equal(formatSuspensionEnd("2026-10-18T14:30:00Z", "es-AR"), out, "acepta texto ISO igual que un Date");
+  assert.equal(formatSuspensionEnd("no es una fecha"), "");
+  assert.equal(formatSuspensionEnd(null), "");
 });

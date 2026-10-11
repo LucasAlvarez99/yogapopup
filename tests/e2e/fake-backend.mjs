@@ -124,17 +124,30 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
   };
   const authErr = (res, status, code, msg) => send(res, status, { code: status, error_code: code, msg });
 
+  // Palabras prohibidas: espejo reducido de public.banned_words / contains_banned_word (la lista y la normalización reales
+  // se prueban contra PostgreSQL en supabase/tests/testimonials.test.sql). Suspensión: 168 h, como la base.
+  const BANNED_WORDS = ['puta', 'puto', 'hdp', 'mierda', 'pelotudo', 'idiota', 'hijo de puta'];
+  const SUSPENSION_MS = 168 * 3600 * 1000;
+  const normalizeText = (t) => String(t ?? '').toLowerCase()
+    .replace(/[áàäâã]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i').replace(/[óòöôõ]/g, 'o').replace(/[úùüû]/g, 'u').replace(/ñ/g, 'n')
+    .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't').replace(/@/g, 'a').replace(/\$/g, 's')
+    .replace(/[^a-z0-9]+/g, ' ').replace(/([a-z0-9])\1+/g, '$1').trim();
+  const containsBannedWord = (t) => BANNED_WORDS.some((w) => ` ${normalizeText(t)} `.includes(` ${normalizeText(w)} `));
+  const isBanned = (u) => Boolean(u?.banned_until) && u.banned_until > Date.now();
+
   async function auth(req, res, url) {
     const path = url.pathname.replace('/auth/v1', '');
     const body = req.method === 'GET' ? {} : await readBody(req);
     if (path === '/token' && url.searchParams.get('grant_type') === 'password') {
       const u = db.users.get(String(body.email).toLowerCase());
       if (!u || u.password !== body.password) return authErr(res, 400, 'invalid_credentials', 'Invalid login credentials');
+      if (isBanned(u)) return authErr(res, 400, 'user_banned', 'User is banned');
       return send(res, 200, sessionFor(u));
     }
     if (path === '/token' && url.searchParams.get('grant_type') === 'refresh_token') {
       const id = db.sessions.get(`refresh:${body.refresh_token}`);
       const u = [...db.users.values()].find((x) => x.id === id);
+      if (u && isBanned(u)) return authErr(res, 400, 'user_banned', 'User is banned');
       return u ? send(res, 200, sessionFor(u)) : authErr(res, 400, 'refresh_token_not_found', 'Invalid Refresh Token');
     }
     if (path === '/signup') {
@@ -393,21 +406,32 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       if (req.method === 'POST') {
         const b = await readBody(req);
         if (Object.keys(b).some((k) => !['body', 'rating'].includes(k))) return rpcErr(403, '42501', 'permission denied for table testimonials');
+        if (isBanned(user) && !staff) return rpcErr(400, 'YP001', 'account suspended');
         const text = String(b.body ?? '').trim();
         if (text.length < 10 || text.length > 600 || (b.rating != null && !(b.rating >= 1 && b.rating <= 5))) return rpcErr(400, '23514', 'violates check constraint');
         if (db.testimonials.some((r) => r.user_id === user.id)) return rpcErr(409, '23505', 'duplicate key value violates unique constraint');
-        const row = { id: randomUUID(), user_id: user.id, author_name: user.name || 'Alumno/a', body: text, rating: b.rating ?? null, status: 'pending', created_at: new Date().toISOString() };
+        const flagged = containsBannedWord(text);
+        const row = { id: randomUUID(), user_id: user.id, author_name: user.name || 'Alumno/a', body: text, rating: b.rating ?? null, status: flagged ? 'hidden' : 'approved', moderated: false, created_at: new Date().toISOString() };
+        if (flagged && !staff) { user.banned_until = Date.now() + SUSPENSION_MS; log('suspend', { id: row.id }); }
         db.testimonials.push(row); log('insert', { id: row.id });
         return reply([pick(row, cols)]);
       }
       const targets = applyFilters(db.testimonials.filter((r) => readable(r) && writable(r)), p);
       if (req.method === 'PATCH') {
         const b = await readBody(req);
+        if (isBanned(user) && !staff) return rpcErr(400, 'YP001', 'account suspended');
         if ('status' in b && !staff) return rpcErr(403, '42501', 'only staff can change the status of a testimonial');
         for (const t of targets) {
           const content = ('body' in b && String(b.body).trim() !== t.body) || ('rating' in b && b.rating !== t.rating);
           Object.assign(t, { ...(b.body != null ? { body: String(b.body).trim() } : {}), ...('rating' in b ? { rating: b.rating } : {}), ...('status' in b ? { status: b.status } : {}) });
-          if (content && !staff && !('status' in b)) t.status = 'pending';
+          if ('status' in b && staff) t.moderated = true;
+          else if (content && !staff) {
+            // Como el trigger: con palabra prohibida (o si la gestión lo había ocultado) queda oculto; con texto limpio se publica solo.
+            const flagged = containsBannedWord(t.body);
+            if (flagged) { user.banned_until = Date.now() + SUSPENSION_MS; log('suspend', { id: t.id }); }
+            if (flagged || (t.status === 'hidden' && t.moderated)) t.status = 'hidden';
+            else { t.status = 'approved'; t.moderated = false; }
+          }
           log('update', { id: t.id, status: t.status });
         }
         return reply(targets.map((t) => pick(t, cols)));
@@ -483,6 +507,11 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
         return send(res, 204);
       }
       if (req.method === 'GET') return reply(targets.map((r) => pick(r, (p.get('select') || 'id').split(','))));
+    }
+    if (table === 'rpc/my_suspension' && req.method === 'POST') {
+      if (!user) return send(res, 401, { code: '42501', message: 'permission denied for function my_suspension' });
+      // PostgREST devuelve el escalar como JSON ("2026-…" o null), no como texto suelto
+      return send(res, 200, JSON.stringify(isBanned(user) ? new Date(user.banned_until).toISOString() : null), { 'Content-Type': 'application/json' });
     }
     if (table === 'rpc/live_agenda' && req.method === 'POST') {
       const { p_teacher: teacher, p_from: from, p_to: to } = await readBody(req);
@@ -719,7 +748,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     try {
       if (url.pathname === '/__test/reset') { db = seed(); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
-      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata, role: u.role ?? 'user' })), teachers: db.teachers, products: db.products, testimonials: db.testimonials, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
+      if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata, role: u.role ?? 'user', banned_until: u.banned_until ?? null })), teachers: db.teachers, products: db.products, testimonials: db.testimonials, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
       if (url.pathname === '/__test/variants') { // prepara talles directamente: { productId, rows:[{size, stock}] }

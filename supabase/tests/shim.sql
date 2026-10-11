@@ -9,7 +9,8 @@ create schema auth;
 create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text,
-  raw_user_meta_data jsonb not null default '{}'
+  raw_user_meta_data jsonb not null default '{}',
+  banned_until timestamptz            -- como la real: Supabase Auth impide iniciar/renovar sesión hasta esa fecha
 );
 -- Definición equivalente a la real de Supabase (lee el claim "sub" de cualquiera de los dos GUC).
 create function auth.uid() returns uuid language sql stable as $$

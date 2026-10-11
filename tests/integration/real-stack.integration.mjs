@@ -77,10 +77,9 @@ try {
     state.videoUrl = body.video_url;
   });
 
-   await check('R2 acepta la URL firmada: el archivo responde 200', async () => {
-    // La URL está firmada para GET: un HEAD daría 403 aunque todo esté bien.
-    const r = await fetch(state.videoUrl, { headers: { Range: 'bytes=0-0' } });
-    assert.ok([200, 206].includes(r.status), `estado ${r.status}: revisa R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY y el nombre del bucket`);
+  await check('R2 acepta la URL firmada: el archivo responde 200', async () => {
+    const r = await fetch(state.videoUrl, { method: 'HEAD' });
+    assert.equal(r.status, 200, `estado ${r.status}: revisa R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY y el nombre del bucket`);
   });
 
   await check('R2 soporta Range requests (206, necesario para buscar/adelantar)', async () => {
@@ -88,12 +87,11 @@ try {
     assert.equal(r.status, 206, `estado ${r.status}: el reproductor no va a poder buscar dentro del video`);
   });
 
-  await check('Sin firma, R2 rechaza el mismo objeto (400/403)', async () => {
+  await check('Sin firma, R2 rechaza el mismo objeto (403)', async () => {
     const naked = state.videoUrl.split('?')[0];
     assert.notEqual(naked, state.videoUrl);
     const r = await fetch(naked);
-    // R2 responde 400 o 403 a un pedido sin firma; lo grave sería un 2xx (objeto público).
-    assert.ok([400, 403].includes(r.status), `estado ${r.status}: ¡el video se puede ver SIN firma! Revisa que el bucket no sea público`);
+    assert.equal(r.status, 403, `estado ${r.status}: ¡el video se puede ver SIN firma! Revisa que el bucket no sea público`);
   });
 
   await check('El progreso se guarda en Supabase real (save_progress)', async () => {
@@ -166,24 +164,33 @@ try {
     });
   }
 
+  // OJO: la prueba de palabras prohibidas NO se hace acá: suspendería 168 h a la cuenta de prueba. Esa regla se prueba contra
+  // PostgreSQL en supabase/tests/testimonials.test.sql (npm run test:db).
+  await check('Comentarios automáticos: la migración 20261011120000 está aplicada (my_suspension responde y la cuenta de prueba no está suspendida)', async () => {
+    const r = await fetch(`${base}/rest/v1/rpc/my_suspension`, { method: 'POST', headers: auth(), body: '{}' });
+    assert.equal(r.status, 200, `estado ${r.status}: falta aplicar la migración (npm run sb:db-push)`);
+    assert.equal(await r.json(), null, 'la cuenta de prueba está suspendida: esperá a que termine o corré: update auth.users set banned_until = null where email = \'<la de prueba>\';');
+  });
+
   const created = await fetch(`${base}/rest/v1/testimonials?select=id,status`, {
     method: 'POST', headers: { ...auth(), Prefer: 'return=representation' },
     body: JSON.stringify({ body: 'Prueba automática de integración: este comentario se borra solo.', rating: 5 }),
   });
-  if (created.status === 409) skip('Comentarios: pendiente, no público y no se aprueba solo', 'esta cuenta de prueba ya tiene un comentario (hay uno por persona)');
+  if (created.status === 409) skip('Comentarios: se publican solos y la autora no cambia su estado', 'esta cuenta de prueba ya tiene un comentario (hay uno por persona)');
   else {
     const row = [200, 201].includes(created.status) ? (await created.json())[0] : null;
     try {
-      await check('Comentarios: nacen pendientes, no son públicos y la autora no puede aprobarlos', async () => {
+      // Mientras corre la prueba (un segundo o dos) este comentario SÍ se ve en la home: se publica solo y se borra al final.
+      await check('Comentarios: se publican solos (sin aprobación) y la autora no puede cambiarles el estado', async () => {
         assert.ok([200, 201].includes(created.status), `crear: estado ${created.status}`);
-        assert.equal(row.status, 'pending', 'un comentario nuevo tiene que nacer "pendiente"');
-        const pub = await fetch(`${base}/rest/v1/testimonials?select=id&id=eq.${row.id}`, { headers: anon });
-        assert.deepEqual(await pub.json(), [], '¡un comentario pendiente se ve sin sesión!');
+        assert.equal(row.status, 'approved', 'un comentario limpio tiene que nacer publicado: ¿falta aplicar la migración 20261011120000?');
+        const pub = await fetch(`${base}/rest/v1/testimonials?select=id,author_name&id=eq.${row.id}`, { headers: anon });
+        assert.equal((await pub.json()).length, 1, 'un comentario publicado tiene que verse sin sesión');
         const col = await fetch(`${base}/rest/v1/testimonials?select=status&limit=1`, { headers: anon });
         assert.ok([401, 403].includes(col.status), `anon puede pedir la columna status (estado ${col.status})`);
-        const self = await fetch(`${base}/rest/v1/testimonials?id=eq.${row.id}&select=id,status`, { method: 'PATCH', headers: { ...auth(), Prefer: 'return=representation' }, body: JSON.stringify({ status: 'approved' }) });
+        const self = await fetch(`${base}/rest/v1/testimonials?id=eq.${row.id}&select=id,status`, { method: 'PATCH', headers: { ...auth(), Prefer: 'return=representation' }, body: JSON.stringify({ status: 'hidden' }) });
         const after = self.status === 200 ? await self.json() : [];
-        assert.ok(self.status === 403 || after.length === 0 || after[0].status !== 'approved', '¡la autora aprobó su propio comentario!');
+        assert.ok(self.status === 403 || after.length === 0 || after[0].status !== 'hidden', '¡la autora cambió el estado de su propio comentario!');
       });
     } finally {
       if (row) await fetch(`${base}/rest/v1/testimonials?id=eq.${row.id}`, { method: 'DELETE', headers: auth() });

@@ -93,6 +93,8 @@ img { max-width: 100%; }
 .btn-soft:hover { background: var(--color-light); color: var(--color-text); }
 .btn-outline-light-pill { border: 1px solid rgba(255,255,255,.7); color: #fff; background: rgba(255,255,255,.06); }
 .btn-outline-light-pill:hover { background: var(--color-light); color: var(--color-primary-dark); transform: translateY(-2px); }
+.btn-solid-light-pill { border: 1px solid var(--color-light); color: var(--color-primary-dark); background: var(--color-light); }
+.btn-solid-light-pill:hover, .btn-solid-light-pill:focus-visible { background: #fff; color: var(--color-primary-dark); transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0, 0, 0, .25); }
 :focus-visible { outline: 3px solid var(--color-mint); outline-offset: 2px; }
 
 /* ===== Navbar ===== */
