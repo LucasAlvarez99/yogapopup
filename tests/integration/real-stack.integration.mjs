@@ -77,9 +77,10 @@ try {
     state.videoUrl = body.video_url;
   });
 
-  await check('R2 acepta la URL firmada: el archivo responde 200', async () => {
-    const r = await fetch(state.videoUrl, { method: 'HEAD' });
-    assert.equal(r.status, 200, `estado ${r.status}: revisa R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY y el nombre del bucket`);
+   await check('R2 acepta la URL firmada: el archivo responde 200', async () => {
+    // La URL está firmada para GET: un HEAD daría 403 aunque todo esté bien.
+    const r = await fetch(state.videoUrl, { headers: { Range: 'bytes=0-0' } });
+    assert.ok([200, 206].includes(r.status), `estado ${r.status}: revisa R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY y el nombre del bucket`);
   });
 
   await check('R2 soporta Range requests (206, necesario para buscar/adelantar)', async () => {
@@ -87,11 +88,12 @@ try {
     assert.equal(r.status, 206, `estado ${r.status}: el reproductor no va a poder buscar dentro del video`);
   });
 
-  await check('Sin firma, R2 rechaza el mismo objeto (403)', async () => {
+  await check('Sin firma, R2 rechaza el mismo objeto (400/403)', async () => {
     const naked = state.videoUrl.split('?')[0];
     assert.notEqual(naked, state.videoUrl);
     const r = await fetch(naked);
-    assert.equal(r.status, 403, `estado ${r.status}: ¡el video se puede ver SIN firma! Revisa que el bucket no sea público`);
+    // R2 responde 400 o 403 a un pedido sin firma; lo grave sería un 2xx (objeto público).
+    assert.ok([400, 403].includes(r.status), `estado ${r.status}: ¡el video se puede ver SIN firma! Revisa que el bucket no sea público`);
   });
 
   await check('El progreso se guarda en Supabase real (save_progress)', async () => {

@@ -9,7 +9,7 @@ import { toast } from './toast.js';
 
 /**
  * "Lo que dice nuestra comunidad" (Fases 26-27) en la sección Sobre nosotros de la home.
- *  - Lista: comentarios APROBADOS. Si todavía no hay ninguno se dejan las tarjetas de ejemplo del HTML.
+ *  - Lista: comentarios APROBADOS. Si todavía no hay ninguno se invita a dejar el primero (no hay testimonios de ejemplo).
  *  - Formulario: requiere sesión; uno por persona; lo escrito queda "En revisión" hasta que el panel lo aprueba.
  * Quién puede qué lo decide la base (RLS); esto solo ordena la interfaz.
  */
@@ -28,8 +28,9 @@ export async function loadPublicTestimonials(list) {
   if (!list || !supabase) return;
   try {
     const items = await listPublicTestimonials(6);
-    if (items.length > 0) mount(list, ...items.map(quoteCard));
-  } catch { /* se quedan las tarjetas de ejemplo: la home no se rompe por esto */ }
+    mount(list, ...(items.length > 0 ? items.map(quoteCard)
+      : [el('p', { class: 'col-12 testimonial-empty' }, 'Todavía no hay comentarios. ¡Sé la primera persona en dejar uno!')]));
+  } catch { /* sin comentarios que mostrar: la home no se rompe por esto */ }
 }
 
 export function mountTestimonialForm(host, { onChange = () => {} } = {}) {
@@ -41,9 +42,9 @@ export function mountTestimonialForm(host, { onChange = () => {} } = {}) {
     const { user } = session.getState();
     if (!user) {
       return mount(host, el('div', { class: 'yp-card testimonial-box' },
-        el('h3', { class: 'h5' }, '¿Practicaste con nosotros?'),
-        el('p', { class: 'text-muted' }, 'Contanos cómo te fue. Tu comentario se publica después de que el equipo lo revise.'),
-        el('button', { type: 'button', class: 'btn btn-brand', id: 'tmLogin', onclick: () => openAuth() }, 'Iniciar sesión para comentar')));
+        el('h3', { class: 'h6' }, '¿Practicaste con nosotros?'),
+        el('p', { class: 'text-muted small' }, 'Contanos cómo te fue. Tu comentario se publica después de que el equipo lo revise.'),
+        el('button', { type: 'button', class: 'btn btn-brand btn-sm', id: 'tmLogin', onclick: () => openAuth() }, 'Iniciar sesión para comentar')));
     }
     mount(host, el('div', { class: 'yp-card testimonial-box', 'aria-busy': 'true' }, el('p', { class: 'text-muted small mb-0' }, 'Cargando…')));
     let existing = null;
@@ -55,7 +56,7 @@ export function mountTestimonialForm(host, { onChange = () => {} } = {}) {
 
   function form(existing) {
     const info = existing ? MY_STATUS[existing.status] : null;
-    const body = el('textarea', { class: 'form-control', id: 'tmBody', rows: 4, maxlength: BODY_MAX, required: true, 'aria-describedby': 'tmCount tmError' });
+    const body = el('textarea', { class: 'form-control', id: 'tmBody', rows: 3, maxlength: BODY_MAX, required: true, 'aria-describedby': 'tmCount tmError' });
     body.value = existing?.body ?? '';
     const rating = el('select', { class: 'form-select', id: 'tmRating' },
       el('option', { value: '' }, 'Sin puntuación'),
@@ -64,10 +65,10 @@ export function mountTestimonialForm(host, { onChange = () => {} } = {}) {
     const count = el('span', { class: 'small text-muted', id: 'tmCount' }, `${body.value.length} / ${BODY_MAX}`);
     body.addEventListener('input', () => { count.textContent = `${body.value.length} / ${BODY_MAX}`; });
     const error = el('p', { class: 'small text-danger mb-2', id: 'tmError', role: 'alert', hidden: true });
-    const submit = el('button', { type: 'submit', class: 'btn btn-brand' }, existing ? 'Guardar cambios' : 'Enviar comentario');
+    const submit = el('button', { type: 'submit', class: 'btn btn-brand btn-sm' }, existing ? 'Guardar cambios' : 'Enviar comentario');
 
     const f = el('form', { class: 'yp-card testimonial-box', id: 'tmForm', novalidate: true },
-      el('h3', { class: 'h5' }, existing ? 'Tu comentario' : 'Dejá tu comentario'),
+      el('h3', { class: 'h6' }, existing ? 'Tu comentario' : 'Dejá tu comentario'),
       info ? el('p', { class: 'small mb-2', id: 'tmStatus', 'data-status': existing.status }, el('span', { class: `badge text-bg-${info.tone} me-2` }, info.label), info.note) : null,
       el('div', { class: 'mb-2' }, el('label', { class: 'form-label', for: 'tmBody' }, 'Tu experiencia'), body,
         el('div', { class: 'd-flex justify-content-between' }, el('span', { class: 'small text-muted' }, 'Se muestra con el nombre de tu cuenta.'), count)),
@@ -75,7 +76,7 @@ export function mountTestimonialForm(host, { onChange = () => {} } = {}) {
       error,
       el('div', { class: 'd-flex gap-2 flex-wrap' }, submit,
         existing ? el('button', {
-          type: 'button', class: 'btn btn-outline-secondary', id: 'tmDelete',
+          type: 'button', class: 'btn btn-outline-secondary btn-sm', id: 'tmDelete',
           onclick: async (e) => {
             if (!confirm('¿Borrar tu comentario?')) return;
             e.currentTarget.disabled = true;

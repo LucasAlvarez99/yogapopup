@@ -1073,10 +1073,11 @@ await test('cuenta · Mi suscripción: sin suscripción lo dice y no muestra can
 // ---------------------------------------------------------------- Comentarios y moderación (Fases 26-27)
 const tmLog = async () => (await be.state()).log.testimonials;
 
-await test('comentarios: la home muestra solo los APROBADOS (como texto) y sin ninguno deja las tarjetas de ejemplo', async (page) => {
+await test('comentarios: la home muestra solo los APROBADOS (como texto); sin ninguno invita a dejar el primero', async (page) => {
   await page.goto(S);
   await waitFor(page, () => document.querySelector('#homeTestimonials'), null, 10000);
-  assert.equal(await count(page, '#homeTestimonials figure'), 3, 'sin comentarios aprobados quedan los de ejemplo');
+  await waitFor(page, () => /Todavía no hay comentarios/.test(document.querySelector('#homeTestimonials')?.textContent), null, 10000);
+  assert.equal(await count(page, '#homeTestimonials figure'), 0, 'no hay testimonios de ejemplo');
   await be.testimonial({ author_name: 'Camila Paz', body: 'Una clase hermosa, volvería mil veces.', rating: 4, status: 'approved' });
   await be.testimonial({ author_name: 'Pendiente Pérez', body: 'Este todavía no está aprobado nunca.', status: 'pending' });
   await be.testimonial({ author_name: 'Oculto Ortiz', body: 'Este lo ocultó el equipo hace tiempo.', status: 'hidden' });
@@ -1085,7 +1086,7 @@ await test('comentarios: la home muestra solo los APROBADOS (como texto) y sin n
   await waitFor(page, () => /Camila Paz/.test(document.querySelector('#homeTestimonials')?.textContent), null, 10000);
   const shown = await page.$eval('#homeTestimonials', (n) => n.textContent);
   assert.match(shown, /Una clase hermosa/);
-  assert.doesNotMatch(shown, /Pendiente Pérez|Oculto Ortiz|María Sol/, 'ni pendientes, ni ocultos, ni los de ejemplo');
+  assert.doesNotMatch(shown, /Pendiente Pérez|Oculto Ortiz|Todavía no hay comentarios/, 'ni pendientes, ni ocultos, ni el aviso de vacío');
   assert.equal(await count(page, '#homeTestimonials figure'), 2);
   assert.equal(await count(page, '#homeTestimonials img'), 0, 'el texto de una persona nunca se interpreta como HTML');
   assert.equal(await page.evaluate(() => window.__xss), undefined);

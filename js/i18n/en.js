@@ -116,6 +116,7 @@ const exact = {
   'Escribí al menos 10 caracteres.': 'Write at least 10 characters.',
   'El comentario no puede pasar de 600 caracteres.': 'The comment cannot be longer than 600 characters.',
   'Elegí una puntuación de 1 a 5.': 'Choose a rating from 1 to 5.',
+  'Todavía no hay comentarios. ¡Sé la primera persona en dejar uno!': 'There are no comments yet. Be the first to leave one!',
   'Comentarios': 'Comments', 'Pendientes': 'Pending', 'Aprobados': 'Approved', 'Ocultos': 'Hidden',
   'Pendiente': 'Pending', 'Aprobado': 'Approved', 'Oculto': 'Hidden', 'Aprobar': 'Approve', 'Ocultar': 'Hide',
   'No hay comentarios por revisar': 'No comments to review', 'Cuando alguien escriba uno, va a aparecer acá.': 'When someone writes one, it will show up here.',

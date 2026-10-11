@@ -342,6 +342,9 @@
 .acc-progress { height: .45rem; }
 
 /* Comentarios de la comunidad (Fases 26-27): el formulario es una tarjeta clara dentro de la sección oscura */
-.testimonial-box { color: var(--color-text); height: auto; }
+.testimonial-box { color: var(--color-text); height: auto; max-width: 30rem; padding: 1rem 1.1rem; font-size: .9rem; }
+.testimonial-box .form-label { margin-bottom: .2rem; font-size: .85rem; }
+.testimonial-box .form-control, .testimonial-box .form-select { padding: .45rem .7rem; font-size: .9rem; }
+.testimonial-empty { color: rgba(255, 255, 255, .8); margin: 0; }
 .testimonial-box .text-muted { color: var(--color-text-muted) !important; }
 .testimonial-box textarea { resize: vertical; }
