@@ -177,15 +177,18 @@ Deno.test("buildCsp: sin Client ID de PayPal no se permite NADA de PayPal (el si
   assert.equal(buildCsp({ ...CFG, paypalClientId: "" }), csp);
 });
 
-Deno.test("buildCsp: con Client ID agrega solo los hosts de PayPal necesarios y NO afloja scripts ni estilos del sitio", () => {
+Deno.test("buildCsp: con Client ID agrega los hosts de PayPal necesarios y solo permite estilos inline para el SDK", () => {
   const csp = buildCsp({ ...CFG, paypalClientId: PP });
   const dir = (name) => csp.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
   for (const h of PAYPAL_HOSTS.script) assert.ok(dir("script-src").includes(h), `script-src ${h}`);
   for (const h of PAYPAL_HOSTS.frame) assert.ok(dir("frame-src").includes(h), `frame-src ${h}`);
   for (const h of PAYPAL_HOSTS.connect) assert.ok(dir("connect-src").includes(h), `connect-src ${h}`);
   for (const h of PAYPAL_HOSTS.img) assert.ok(dir("img-src").includes(h), `img-src ${h}`);
-  assert.equal(dir("style-src"), "style-src 'self'", "los estilos siguen sin 'unsafe-inline'");
-  assert.doesNotMatch(csp, /unsafe-inline|unsafe-eval|\*(?!\.)/, "nada de unsafe-* ni comodines sueltos");
+  // Solo los ESTILOS aceptan 'unsafe-inline' (el SDK dimensiona el formulario de tarjeta con <style>); los scripts, no.
+  assert.equal(dir("style-src"), "style-src 'self' 'unsafe-inline' https://*.paypal.com https://*.paypalobjects.com");
+  for (const h of PAYPAL_HOSTS.style) assert.ok(dir("style-src").includes(h), `style-src ${h}`);
+  assert.doesNotMatch(dir("script-src"), /unsafe-/, "los scripts siguen sin 'unsafe-inline'");
+  assert.doesNotMatch(csp, /unsafe-eval|\*(?!\.)/, "nada de unsafe-eval ni comodines sueltos");
   assert.match(dir("script-src"), /^script-src 'self' /);
   assert.doesNotMatch(dir("default-src"), /paypal/);
   assert.doesNotMatch(dir("object-src") + dir("base-uri") + dir("form-action"), /paypal/);

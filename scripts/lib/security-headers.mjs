@@ -2,8 +2,8 @@
  * Cabeceras de seguridad del sitio estático. Se generan en el build (y no a mano en .htaccess) porque la CSP depende
  * del proyecto de Supabase de cada despliegue; así no puede quedar desactualizada ni con un host de otro entorno.
  *
- * La CSP es estricta a propósito: el sitio no tiene scripts ni estilos inline, ni `innerHTML`, ni `eval`
- * (lo garantiza tests/web/csp.test.js). Si algún día hace falta una excepción, se agrega acá, explicada.
+ * La CSP es estricta a propósito: el sitio no tiene scripts inline, ni `innerHTML`, ni `eval`; solo se permite
+ * estilo inline cuando PayPal está activo porque su SDK dimensiona el formulario (lo garantiza tests/web/csp.test.js).
  */
 
 /** Hosts de R2: la subida del video (PUT) y la reproducción (GET firmado) van directo del navegador a R2. */
@@ -15,11 +15,13 @@ export const EXTRA_IMG_HOSTS = ['https://images.unsplash.com'];
 /**
  * Hosts de PayPal (SDK de botones). Solo se agregan cuando js/config.js tiene un PAYPAL.CLIENT_ID: sin pagos, la CSP sigue
  * sin permitir NADA de PayPal. El SDK carga scripts, abre iframes con los botones y se conecta a su API.
- * No se agrega 'unsafe-inline': si algún día los botones salen sin estilo, mirá la consola (violaciones de CSP) antes de aflojarla.
+ * Los SCRIPTS siguen sin 'unsafe-inline'. Los ESTILOS sí lo necesitan solo cuando hay pagos: el SDK inyecta <style> y atributos
+ * style para dimensionar el formulario de tarjeta; sin eso queda cortado (lo recomienda PayPal: developer.paypal.com/sdk/js/best-practices).
  */
 export const PAYPAL_HOSTS = {
   script: ['https://*.paypal.com', 'https://*.paypalobjects.com'],
-  frame: ['https://*.paypal.com'],
+  frame: ['https://*.paypal.com', 'https://*.paypalobjects.com'],
+  style: ['https://*.paypal.com', 'https://*.paypalobjects.com'],
   connect: ['https://*.paypal.com', 'https://*.paypalobjects.com'],
   img: ['https://*.paypal.com', 'https://*.paypalobjects.com'],
 };
@@ -47,7 +49,7 @@ export function buildCsp({ supabaseUrl, functionsUrl, extraImgHosts = EXTRA_IMG_
   const directives = {
     'default-src': ["'self'"],
     'script-src': ["'self'", ...(paypal ? PAYPAL_HOSTS.script : [])],
-    'style-src': ["'self'"],
+    'style-src': ["'self'", ...(paypal ? ["'unsafe-inline'", ...PAYPAL_HOSTS.style] : [])],
     'img-src': [...new Set(img)],
     'media-src': ["'self'", 'blob:', ...R2_HOSTS],
     'font-src': ["'self'"],

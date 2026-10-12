@@ -197,8 +197,9 @@ Códigos de error nuevos (los muestra la web en español): `payments_not_configu
 - **Facturas:** el sistema guarda pedidos con su IVA incluido, pero **no emite facturas**.
 - **Privacidad:** de cada evento del webhook se guarda solo un resumen (ids, estado, monto), no el cuerpo (trae correo y dirección). La dirección
   de envío vive en `orders.shipping` y la ven solo la persona y la gestión.
-- **CSP:** los estilos siguen sin `'unsafe-inline'`. Si en el sandbox los botones salen sin estilo o no aparecen, mirá la consola del
-  navegador (violaciones de CSP) antes de aflojarla; los hosts permitidos están en `scripts/lib/security-headers.mjs` (`PAYPAL_HOSTS`).
+- **CSP:** con PayPal activo, `style-src` admite `'unsafe-inline'` (el SDK lo necesita para dimensionar el formulario de tarjeta; sin eso sale
+  cortado). Los scripts siguen sin él. Si algo no aparece, mirá la consola del navegador (violaciones de CSP); los hosts permitidos están en
+  `scripts/lib/security-headers.mjs` (`PAYPAL_HOSTS`).
 - **`application_context`:** las órdenes y suscripciones se crean con el bloque `application_context` (marcado como heredado por PayPal pero
   vigente). Si el sandbox lo rechazara, el ajuste es mínimo y está en `paypal.service.ts`.
 
