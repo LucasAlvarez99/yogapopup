@@ -21,7 +21,7 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
     NAME: 'YogaPopup',     // nombre y apellidos, o razón social
     TAX_ID: 'Tramitando',   // NIF / CIF
     ADDRESS: 'Tramitando',  // domicilio (calle, número, código postal, localidad, provincia)
-    EMAIL: 'Tramitando',    // correo para ejercer derechos de privacidad
+    EMAIL: 'Manuelaperuzzotti@gmail.com',    // correo para ejercer derechos de privacidad
   },
   // Pagos con PayPal (fases 17-22). Guía: docs/PAYPAL.md.
   //   CLIENT_ID: el "Client ID" de tu app de PayPal (Sandbox para pruebas, Live para cobrar). Es PÚBLICO: el SECRETO
@@ -31,7 +31,7 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
   //               Es solo el texto: el cobro real lo define el plan creado en PayPal. Vacío = no se ofrece suscripción.
   PAYPAL: {
     CLIENT_ID: 'Adjm1jBhCvYq4TEe_gxsmleLjM4bThBUkjMLGlMkjHb35xG5915O83si9lTjq_OVXYeZcNwxHjdY5Hel',
-    PLAN_LABEL: 'Plan mensual · 29,99 € / mes',
+    PLAN_LABEL: 'Plan mensual · 9,99 € / mes',
   },
   // Cada cuántos segundos de reproducción se guarda el progreso.
   PROGRESS_INTERVAL_SECONDS: 15,
