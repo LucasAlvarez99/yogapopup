@@ -30,8 +30,8 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
   //   PLAN_LABEL: si lo completás se OFRECE la suscripción (requiere PAYPAL_PLAN_ID en el backend). Ej.: 'Plan mensual · 9,99 € / mes'.
   //               Es solo el texto: el cobro real lo define el plan creado en PayPal. Vacío = no se ofrece suscripción.
   PAYPAL: {
-    CLIENT_ID: '',
-    PLAN_LABEL: '',
+    CLIENT_ID: 'Adjm1jBhCvYq4TEe_gxsmleLjM4bThBUkjMLGlMkjHb35xG5915O83si9lTjq_OVXYeZcNwxHjdY5Hel',
+    PLAN_LABEL: 'Plan mensual · 29,99 € / mes',
   },
   // Cada cuántos segundos de reproducción se guarda el progreso.
   PROGRESS_INTERVAL_SECONDS: 15,
