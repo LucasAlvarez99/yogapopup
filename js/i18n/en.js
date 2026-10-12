@@ -15,7 +15,7 @@ const exact = {
   'Yoga Pop Up · Yoga & Conexión': 'Yoga Pop Up · Yoga & Connection',
   'Inicio': 'Home', 'Cursos': 'Courses', 'Clases': 'Classes', 'Videoteca': 'Video library',
   'Merchandising': 'Merch', 'Sobre nosotros': 'About us', 'Tienda': 'Shop', 'Más': 'More',
-  'Mi cuenta': 'My account', 'Mi cuenta (sesión iniciada)': 'My account (signed in)',
+  'Mi perfil': 'My profile', 'Mi cuenta': 'My account', 'Mi cuenta (sesión iniciada)': 'My account (signed in)',
   'Iniciar sesión o crear cuenta': 'Sign in or create an account',
   'Abrir menú': 'Open menu', 'Abrir carrito': 'Open cart', 'Navegación': 'Navigation',
   'Buscar': 'Search', 'Buscar cursos, clases, productos...': 'Search courses, classes, products...',

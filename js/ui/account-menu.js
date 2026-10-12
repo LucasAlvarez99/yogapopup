@@ -7,7 +7,7 @@ import { toast } from './toast.js';
 /**
  * Activa el ícono "Mi cuenta" del encabezado ([data-account-toggle]):
  *  - sin sesión  -> abre el modal de acceso
- *  - con sesión  -> menú con la videoteca, mi cuenta y cerrar sesión
+ *  - con sesión  -> menú con mi perfil, la videoteca, el panel (si corresponde) y cerrar sesión
  */
 let popover = null;
 
@@ -23,6 +23,8 @@ function open(anchor) {
   const name = profile?.display_name || user.email;
   const items = [
     el('div', { class: 'yp-account-who' }, el('strong', {}, name), profile?.display_name ? el('small', {}, user.email) : null),
+    // Mi perfil = la página de la cuenta: nombre, contraseña, progreso, compras y suscripción.
+    el('a', { class: 'yp-account-item', href: page('cuenta.html'), role: 'menuitem' }, icon('person-circle'), 'Mi perfil'),
     el('a', { class: 'yp-account-item', href: page('videoteca.html'), role: 'menuitem' }, icon('collection-play'), 'Videoteca'),
     // El enlace a /interno (session.isDeveloper()) se añade cuando esa página exista: no se muestra
     // ningún enlace a una página que todavía no está.

@@ -39,7 +39,7 @@ const CLOSE_DELAY_MS = 2400; // lo que se ve el mensaje de "enviado" antes de ce
 export function mountTestimonialModal(trigger, { onChange = () => {} } = {}) {
   if (!trigger) return;
   if (!supabase || !window.bootstrap?.Modal) { trigger.hidden = true; return; }
-  let modalEl, bsModal, titleEl, bodyEl, closeTimer = null, isOpen = false, token = 0, signOutOnClose = false;
+  let modalEl, bsModal, titleEl, bodyEl, closeTimer = null, isOpen = false, isHiding = false, token = 0, signOutOnClose = false;
 
   function build() {
     titleEl = el('h2', { class: 'modal-title', id: 'tmModalTitle' }, 'Dejá tu comentario');
@@ -54,8 +54,9 @@ export function mountTestimonialModal(trigger, { onChange = () => {} } = {}) {
     document.body.append(modalEl);
     bsModal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
     modalEl.addEventListener('shown.bs.modal', () => { modalEl.querySelector('#tmBody')?.focus(); });
+    modalEl.addEventListener('hide.bs.modal', () => { isHiding = true; });
     modalEl.addEventListener('hidden.bs.modal', () => {
-      isOpen = false; clearTimeout(closeTimer); closeTimer = null;
+      isOpen = false; isHiding = false; clearTimeout(closeTimer); closeTimer = null;
       // Cuenta suspendida: al cerrar el aviso se cierra también su sesión (la base ya no le renueva el acceso).
       if (signOutOnClose) { signOutOnClose = false; session.signOut().catch(() => {}); }
     });
@@ -168,6 +169,8 @@ export function mountTestimonialModal(trigger, { onChange = () => {} } = {}) {
 
   function open() {
     if (!modalEl) build();
+    // Bootstrap ignora show() mientras la animación de cierre no terminó (un clic rápido tras cerrar): se espera y se abre.
+    if (isHiding) return void modalEl.addEventListener('hidden.bs.modal', open, { once: true });
     clearTimeout(closeTimer);
     isOpen = true;
     bsModal.show();

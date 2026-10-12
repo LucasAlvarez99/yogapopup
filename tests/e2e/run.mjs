@@ -395,8 +395,9 @@ await test('home: muestra clases reales (no las tarjetas de ejemplo) y omite bor
 });
 
 await test('videoteca: estado de carga (esqueleto) y luego el catálogo', async (page) => {
-  await be.behavior({ catalogLatencyMs: 900 });
-  await page.goto(`${S}/videoteca.html`);
+  await be.behavior({ catalogLatencyMs: 1500 });
+  // 'domcontentloaded' y no 'load': si la página espera imágenes o fuentes externas, el esqueleto podía desaparecer antes de mirarlo
+  await page.goto(`${S}/videoteca.html`, { waitUntil: 'domcontentloaded' });
   await waitFor(page, () => document.querySelectorAll('#catalogGrid .yp-skeleton').length > 0, null, 5000);
   await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-card').length === 3);
   assert.equal(await count(page, '#catalogGrid .yp-skeleton'), 0);
@@ -710,6 +711,8 @@ await test('cuenta: registro, sesión persistente tras recargar, menú y cierre 
   await page.waitForSelector('.yp-account-menu');
   assert.match(await text(page, '.yp-account-who strong'), /Lucía Prueba/);
   assert.equal(await count(page, '.yp-account-menu a[href*="admin"]'), 0, 'un usuario común no ve el panel');
+  assert.match(await text(page, '.yp-account-menu a.yp-account-item'), /Mi perfil/, '"Mi perfil" es lo primero del menú');
+  assert.equal(await page.$eval('.yp-account-menu a.yp-account-item', (a) => new URL(a.href).pathname.split('/').pop()), 'cuenta.html', 'y lleva a la página de la cuenta');
   await page.evaluate(() => [...document.querySelectorAll('.yp-account-item')].find((b) => /Cerrar sesión/.test(b.textContent)).click());
   await waitFor(page, () => !document.querySelector('[data-account-toggle]').classList.contains('has-session'));
   await page.reload();
@@ -1099,7 +1102,7 @@ const openTm = async (page) => {
   await waitFor(page, () => document.querySelector('#tmModal')?.classList.contains('show'), null, 10000);
   await new Promise((r) => setTimeout(r, 450));
 };
-const tmModalClosed = (page) => waitFor(page, () => !document.querySelector('#tmModal')?.classList.contains('show'), null, 10000);
+const tmModalClosed = (page) => waitFor(page, () => !document.querySelector('#tmModal')?.classList.contains('show') && !document.querySelector('.modal-backdrop'), null, 10000);
 
 await test('comentarios: sin sesión el pop up pide iniciar sesión y no escribe nada', async (page) => {
   await page.goto(S);
@@ -2116,7 +2119,7 @@ await test('doctor --online y la prueba de integración real funcionan (contra e
   const integ = await run(['tests/integration/real-stack.integration.mjs'], env);
   assert.equal(integ.status, 0, `la integración salió con ${integ.status}:\n${integ.stdout}`);
   assert.match(integ.stdout, /Todo en verde/);
-  assert.equal((integ.stdout.match(/✓/g) || []).length, 15, integ.stdout);
+  assert.equal((integ.stdout.match(/✓/g) || []).length, 16, integ.stdout);
   // y el doctor SÍ detecta problemas: una clave secreta como clave pública -> error
   const bad = await run(['scripts/doctor.mjs'], { ...env, YP_ANON_KEY: 'sb_secret_abc' });
   assert.equal(bad.status, 1);
