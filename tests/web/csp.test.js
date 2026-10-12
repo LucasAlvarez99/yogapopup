@@ -208,9 +208,13 @@ Deno.test("readFrontendConfig: el Client ID de PayPal se lee, y uno con caracter
   for (const bad of ["corto", "con espacios en el medio", "x;script-src *", "a'b", "😀😀😀😀😀😀😀😀😀😀😀"]) {
     assert.equal(readFrontendConfig(src(bad)).paypalClientId, "", bad);
   }
+  // El Client ID del config.js real es público y puede estar completo (sandbox o live). Lo que importa: que, si está
+  // escrito, el build lo acepte tal cual. Uno mal copiado (con un espacio, una comilla...) se descarta en silencio y
+  // la CSP dejaría de permitir los hosts de PayPal: los botones de pago no cargarían.
+  const rawId = read("js/config.js").match(/CLIENT_ID:\s*'([^']*)'/)?.[1] ?? "";
   assert.equal(
     readFrontendConfig(read("js/config.js")).paypalClientId,
-    "",
-    "el config.js del repo no trae un Client ID de ejemplo",
+    rawId,
+    "el PAYPAL.CLIENT_ID de js/config.js está mal escrito: el build lo descartaría y la CSP bloquearía PayPal",
   );
 });
