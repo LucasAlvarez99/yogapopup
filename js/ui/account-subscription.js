@@ -1,10 +1,16 @@
-import { getMySubscription, paypalCancelSubscription } from '../lib/api.js';
+import { getMySubscription, listTiers, paypalCancelSubscription } from '../lib/api.js';
+import { tierName } from '../lib/tiers.js';
 import { describeSubscription } from '../lib/account-view.js';
 import { paymentsEnabled } from '../lib/env.js';
 import { messageFor } from '../lib/errors.js';
 import { el, mount } from '../lib/dom.js';
 import { toast } from './toast.js';
-import { subscribeBox, subscriptionOffered } from './subscribe-box.js';
+import { subscriptionOffered, tierPicker } from './subscribe-box.js';
+
+const tierLine = (sub, rows) => {
+  const name = tierName(rows, sub?.tier);
+  return name ? el('p', { class: 'small mb-1' }, 'Nivel: ', el('strong', { translate: 'no' }, name)) : null;
+};
 
 /**
  * "Mi suscripción" (Fases 19-20 y 25): plan, próximo cobro y cancelar. Cancelar NO corta el acceso:
@@ -16,12 +22,13 @@ export function subscriptionCard() {
 
   async function load() {
     let sub;
-    try { sub = await getMySubscription(); }
+    let tierRows = [];
+    try { [sub, tierRows] = await Promise.all([getMySubscription(), listTiers().catch(() => [])]); }
     catch (err) { return mount(body, el('p', { class: 'text-danger small', role: 'alert' }, messageFor(err))); }
     body.setAttribute('aria-busy', 'false');
     const v = describeSubscription(sub);
     const offer = () => (subscriptionOffered()
-      ? subscribeBox({ onActive: () => load() })
+      ? tierPicker({ onActive: () => load() })
       : el('p', { class: 'small text-muted mb-0' }, paymentsEnabled ? 'Pronto vas a poder suscribirte.' : 'Las suscripciones llegan muy pronto.'));
     const cancel = v.canCancel
       ? el('button', {
@@ -38,6 +45,7 @@ export function subscriptionCard() {
       : null;
     mount(body,
       el('p', { class: v.details.length ? 'mb-1' : 'text-muted', 'data-state': v.state }, el('strong', {}, v.headline)),
+      v.canCancel || v.state === 'cancelled' ? tierLine(sub, tierRows) : null,
       ...v.details.map((d) => el('p', { class: 'small text-muted mb-1' }, d)),
       cancel, v.canSubscribe ? offer() : null);
   }

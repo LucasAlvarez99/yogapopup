@@ -22,6 +22,7 @@ export const LIMITS = {
   createPayPalOrder: { max: 10, windowSeconds: 60 },
   capturePayPalOrder: { max: 20, windowSeconds: 60 },
   createSubscription: { max: 5, windowSeconds: 60 },
+  saveTier: { max: 20, windowSeconds: 60 },
   activateSubscription: { max: 20, windowSeconds: 60 },
   cancelSubscription: { max: 5, windowSeconds: 60 },
   reconcile: { max: 30, windowSeconds: 60 },

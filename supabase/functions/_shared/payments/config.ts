@@ -36,7 +36,6 @@ export function loadPaymentsConfig(env: Env): {
     paypal: rawEnv && clientId && clientSecret ? { env: rawEnv, clientId, clientSecret } : null,
     app: {
       allowedOrigins: (env.ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
-      planId: optional(env, "PAYPAL_PLAN_ID"),
       webhookId: optional(env, "PAYPAL_WEBHOOK_ID"),
       cronSecret: optional(env, "RECONCILE_CRON_SECRET"),
       brandName: optional(env, "PAYPAL_BRAND_NAME") ?? "Yoga Pop Up",

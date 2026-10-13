@@ -17,7 +17,6 @@ export const cfg = Object.freeze({
   /** PayPal: el Client ID es público; se valida el formato porque termina en la URL del script de PayPal. */
   PAYPAL: Object.freeze({
     CLIENT_ID: /^[A-Za-z0-9_-]{10,200}$/.test(String(raw.PAYPAL?.CLIENT_ID || '')) ? String(raw.PAYPAL.CLIENT_ID) : '',
-    PLAN_LABEL: String(raw.PAYPAL?.PLAN_LABEL || '').trim().slice(0, 80),
   }),
   PROGRESS_INTERVAL_SECONDS: Math.max(5, Number(raw.PROGRESS_INTERVAL_SECONDS) || 15),
 });

@@ -10,7 +10,8 @@ import { PayPalError } from "../_shared/paypal/paypal.service.ts";
 import { summarizeEvent } from "../_shared/payments/logic.ts";
 import { parseCartItems, safeReturnUrl } from "../_shared/payments/request.ts";
 import { post, USER2_ID, USER_ID } from "./fakes.ts";
-import { CRON_SECRET, makePaymentDeps, PLAN_ID } from "./payments.fakes.ts";
+import { CRON_SECRET, makePaymentDeps, PLAN2_ID, PLAN_ANTERIOR_ID, PLAN_ID } from "./payments.fakes.ts";
+import { createHandler as saveTier } from "../paypal-save-tier/handler.ts";
 
 const code = async (r: Response) => (await r.json()).error?.code;
 const DAY = 86_400_000;
@@ -264,7 +265,7 @@ async function subscribed(
   t: ReturnType<typeof makePaymentDeps>,
   nextBilling = new Date(Date.now() + 30 * DAY).toISOString(),
 ) {
-  const r = await createSub(t.deps)(post({}, "user"));
+  const r = await createSub(t.deps)(post({ tier: 1 }, "user"));
   assert.equal(r.status, 200);
   const { subscription_id } = await r.json();
   t.paypal.activateSub(subscription_id, nextBilling);
@@ -273,35 +274,44 @@ async function subscribed(
   return { subscription_id, nextBilling, activation: await a.json() };
 }
 
-Deno.test("create-subscription: crea la suscripción con el plan del servidor y la persona como custom_id", async () => {
+Deno.test("create-subscription: crea la suscripción con el plan del NIVEL (lo decide el servidor) y la persona como custom_id", async () => {
   const t = makePaymentDeps();
   const r = await createSub(t.deps)(
-    post({ plan_id: "P-OTRO-MAS-BARATO", return_url: "https://evil.example/" }, "user"),
+    post({ tier: 2, plan_id: "P-OTRO-MAS-BARATO", return_url: "https://evil.example/" }, "user"),
   );
   assert.equal(r.status, 200);
   const { subscription_id } = await r.json();
   const sub = t.paypal.subs.get(subscription_id)!;
-  assert.equal(sub.planId, PLAN_ID, "el plan lo decide el servidor, no el navegador");
+  assert.equal(sub.planId, PLAN2_ID, "el plan sale del nivel elegido, no del navegador");
+  assert.equal(t.repo.subs.get(subscription_id)!.tier, 2);
   assert.equal(sub.customId, USER_ID);
   assert.equal(t.repo.subs.get(subscription_id)!.status, "approval_pending");
 });
 
-Deno.test("create-subscription: sin sesión 401; sin plan configurado 503; con una suscripción viva 409", async () => {
+Deno.test("create-subscription: sin sesión 401; sin PayPal 503; nivel inválido 400; nivel sin plan 409; con una suscripción viva 409", async () => {
   const t = makePaymentDeps();
-  assert.equal((await createSub(t.deps)(post({}))).status, 401);
-  const sinPlan = makePaymentDeps({ planId: null });
-  const r = await createSub(sinPlan.deps)(post({}, "user"));
+  assert.equal((await createSub(t.deps)(post({ tier: 1 }))).status, 401);
+  const sinPayPal = makePaymentDeps({}, { paypal: false });
+  const r = await createSub(sinPayPal.deps)(post({ tier: 1 }, "user"));
   assert.equal(r.status, 503);
   assert.equal(await code(r), "payments_not_configured");
+  for (const tier of [undefined, 0, 4, "1", 1.5]) {
+    const fresh = makePaymentDeps(); // cada intento con su propio contador (el límite es de 5 por minuto)
+    assert.equal((await createSub(fresh.deps)(post({ tier }, "user"))).status, 400, `tier ${String(tier)}`);
+  }
+  const sinPlan = await createSub(t.deps)(post({ tier: 3 }, "user"));
+  assert.equal(sinPlan.status, 409);
+  assert.equal(await code(sinPlan), "tier_unavailable");
+  assert.equal(t.paypal.subs.size, 0, "no se crea nada en PayPal");
   await subscribed(t);
-  const again = await createSub(t.deps)(post({}, "user"));
+  const again = await createSub(t.deps)(post({ tier: 2 }, "user"));
   assert.equal(again.status, 409);
   assert.equal(await code(again), "already_subscribed");
 });
 
 Deno.test("activate-subscription: pendiente no da acceso; activa sí (con 2 días de gracia); ajena 404; otro plan 409", async () => {
   const t = makePaymentDeps();
-  const { subscription_id } = await (await createSub(t.deps)(post({}, "user"))).json();
+  const { subscription_id } = await (await createSub(t.deps)(post({ tier: 1 }, "user"))).json();
   const pend = await (await activateSub(t.deps)(post({ subscription_id }, "user"))).json();
   assert.equal(pend.status, "approval_pending");
   assert.equal(t.repo.entitlements.length, 0, "sin aprobar no hay acceso");
@@ -324,7 +334,7 @@ Deno.test("activate-subscription: pendiente no da acceso; activa sí (con 2 día
 
   // Una suscripción a OTRO plan (más barato) no concede nada.
   const t2 = makePaymentDeps();
-  const s2 = await (await createSub(t2.deps)(post({}, "user"))).json();
+  const s2 = await (await createSub(t2.deps)(post({ tier: 1 }, "user"))).json();
   t2.paypal.activateSub(s2.subscription_id, next);
   t2.paypal.subs.get(s2.subscription_id)!.planId = "P-OTRO-PLAN";
   const bad = await activateSub(t2.deps)(post({ subscription_id: s2.subscription_id }, "user"));
@@ -514,7 +524,7 @@ Deno.test("webhook: contracargo (reversed) se trata como reembolso total", async
 
 Deno.test("webhook: suscripción activada / renovada / cancelada / pago fallido", async () => {
   const t = makePaymentDeps();
-  const { subscription_id } = await (await createSub(t.deps)(post({}, "user"))).json();
+  const { subscription_id } = await (await createSub(t.deps)(post({ tier: 1 }, "user"))).json();
   const h = webhook(t.deps);
   const next1 = new Date(Date.now() + 30 * DAY).toISOString();
 
@@ -747,10 +757,128 @@ Deno.test("reconcile: un cron con el secreto correcto dispara SOLO el barrido; c
 
 Deno.test("reconcile: verificar una suscripción desde PayPal", async () => {
   const t = makePaymentDeps();
-  const { subscription_id } = await (await createSub(t.deps)(post({}, "user"))).json();
+  const { subscription_id } = await (await createSub(t.deps)(post({ tier: 1 }, "user"))).json();
   t.paypal.activateSub(subscription_id, new Date(Date.now() + 30 * DAY).toISOString()); // PayPal la activó; no nos enteramos
   const r = await (await reconcile(t.deps)(post({ subscription_id }, "admin"))).json();
   assert.equal(r.status, "active");
   assert.equal(t.repo.entitlements.length, 1);
   assert.equal((await reconcile(t.deps)(post({ subscription_id: "I-NOEXISTE1" }, "admin"))).status, 404);
+});
+
+// =============================================================== niveles de suscripción
+const tierBody = (over: Record<string, unknown> = {}) => ({
+  tier: 1,
+  name: "Esencial",
+  benefits: "Clases básicas",
+  price_cents: 1000,
+  ...over,
+});
+
+Deno.test("save-tier: solo la gestión; valida nombre, beneficios y precio", async () => {
+  const t = makePaymentDeps();
+  assert.equal((await saveTier(t.deps)(post(tierBody()))).status, 401);
+  assert.equal((await saveTier(t.deps)(post(tierBody(), "user"))).status, 403, "un alumno no cambia precios");
+  const bad = [
+    { tier: 4 },
+    { tier: "1" },
+    { name: "" },
+    { name: "x".repeat(41) },
+    { benefits: "x".repeat(401) },
+    { price_cents: 99 },
+    { price_cents: 50001 },
+    { price_cents: 10.5 },
+    { price_cents: "1000" },
+  ];
+  for (const over of bad) {
+    const fresh = makePaymentDeps();
+    const r = await saveTier(fresh.deps)(post(tierBody(over), "admin"));
+    assert.equal(r.status, 400, JSON.stringify(over));
+    assert.equal(fresh.paypal.plans.length, 0, "una entrada inválida no toca PayPal");
+  }
+});
+
+Deno.test("save-tier: cambiar el precio crea un plan NUEVO en PayPal y el viejo sigue siendo nuestro", async () => {
+  const t = makePaymentDeps();
+  const r = await saveTier(t.deps)(post(tierBody({ price_cents: 1500, benefits: " Más clases " }), "admin"));
+  assert.equal(r.status, 200);
+  const out = await r.json();
+  assert.equal(out.new_plan, true);
+  assert.equal(t.paypal.plans.length, 1);
+  assert.equal(t.paypal.plans[0].priceCents, 1500);
+  const tier = t.repo.tiers.get(1)!;
+  assert.equal(tier.price_cents, 1500);
+  assert.equal(tier.benefits, "Más clases", "se guarda sin espacios sobrantes");
+  assert.equal(tier.current_plan_id, t.paypal.plans[0].id, "el plan vigente es el nuevo");
+  assert.ok(t.repo.knownPlans.has(PLAN_ID), "el plan anterior sigue siendo nuestro (quien ya paga lo conserva)");
+  const audit = t.audit.entries.find((e) => e.action === "subscription_tier.save")!;
+  assert.deepEqual(audit.details, { from_price_cents: 1000, to_price_cents: 1500, new_plan: true });
+  assert.equal(audit.actorId !== null, true);
+});
+
+Deno.test("save-tier: solo texto no toca PayPal; un nivel sin plan lo crea aunque el precio no cambie; sin PayPal 503", async () => {
+  const t = makePaymentDeps();
+  const same = await saveTier(t.deps)(post(tierBody({ name: "Básico" }), "admin"));
+  assert.equal(same.status, 200);
+  assert.equal((await same.json()).new_plan, false);
+  assert.equal(t.paypal.plans.length, 0);
+  assert.equal(t.repo.tiers.get(1)!.name, "Básico");
+  assert.equal(t.repo.tiers.get(1)!.current_plan_id, PLAN_ID, "el plan vigente no cambia");
+
+  const first = await saveTier(t.deps)(post(tierBody({ tier: 3, name: "Premium", price_cents: 3000 }), "admin"));
+  assert.equal(first.status, 200);
+  assert.equal(t.paypal.plans.length, 1, "el nivel 3 todavía no tenía plan: se crea");
+  assert.ok(t.repo.tiers.get(3)!.current_plan_id);
+
+  const sinPayPal = makePaymentDeps({}, { paypal: false });
+  const r = await saveTier(sinPayPal.deps)(post(tierBody({ price_cents: 1700 }), "admin"));
+  assert.equal(r.status, 503);
+  assert.equal(sinPayPal.repo.tiers.get(1)!.price_cents, 1000, "sin PayPal no se cambia el precio a medias");
+  const textOnly = await saveTier(sinPayPal.deps)(post(tierBody({ name: "Otro nombre" }), "admin"));
+  assert.equal(textOnly.status, 200, "cambiar solo el texto no necesita PayPal");
+});
+
+Deno.test("save-tier: si PayPal falla no se guarda nada", async () => {
+  const t = makePaymentDeps();
+  t.paypal.failNext = { op: "createPlan", error: new PayPalError("down", 503, "createPlan") };
+  const r = await saveTier(t.deps)(post(tierBody({ price_cents: 1900 }), "admin"));
+  assert.ok(r.status >= 500, `status ${r.status}`);
+  assert.equal(t.repo.tiers.get(1)!.price_cents, 1000);
+});
+
+Deno.test("niveles: una suscripción de un plan ANTERIOR del nivel sigue concediendo acceso con su nivel", async () => {
+  const t = makePaymentDeps();
+  const next = new Date(Date.now() + 30 * DAY).toISOString();
+  t.paypal.subs.set("I-VIEJOPLAN01", {
+    id: "I-VIEJOPLAN01",
+    planId: PLAN_ANTERIOR_ID,
+    status: "ACTIVE",
+    customId: USER2_ID,
+    nextBillingTime: next,
+    lastPaymentTime: null,
+  });
+  const res = await webhook(t.deps)(hook(event("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-VIEJOPLAN01" })));
+  assert.equal((await res.json()).detail, "subscription_ok");
+  assert.equal(t.repo.entitlements[0].tier, 1);
+});
+
+Deno.test("niveles: cada clase dice en qué niveles se ve; el acceso manual sin nivel vale para todos", async () => {
+  const t = makePaymentDeps();
+  const soloPremium = t.repo.addClass({ access_tiers: [3] });
+  const plusYPremium = t.repo.addClass({ access_tiers: [2, 3] });
+  const todos = t.repo.addClass();
+  await subscribed(t); // nivel 1
+  assert.equal(t.repo.hasClassAccess(USER_ID, todos.id), true);
+  assert.equal(t.repo.hasClassAccess(USER_ID, plusYPremium.id), false);
+  assert.equal(t.repo.hasClassAccess(USER_ID, soloPremium.id), false);
+
+  t.repo.entitlements.push({
+    user_id: USER2_ID,
+    scope: "all",
+    class_id: null,
+    source: "manual",
+    external_ref: "m1",
+    expires_at: null,
+    tier: null,
+  });
+  assert.equal(t.repo.hasClassAccess(USER2_ID, soloPremium.id), true);
 });

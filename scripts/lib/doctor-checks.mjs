@@ -119,9 +119,8 @@ export function checkPayments({ frontend = {}, env = {} } = {}) {
   out.push(need('PAYPAL_WEBHOOK_ID')
     ? ok('PAYPAL_WEBHOOK_ID', 'presente')
     : warn('PAYPAL_WEBHOOK_ID', 'falta: sin webhook no se confirman reembolsos, renovaciones ni cobros que el navegador no alcanzó (npm run paypal:webhook)'));
-  const plan = need('PAYPAL_PLAN_ID');
-  if (!plan) out.push(warn('PAYPAL_PLAN_ID', 'falta: las suscripciones están desactivadas (npm run paypal:plan)'));
-  else out.push(/^P-[A-Za-z0-9]+$/.test(plan) ? ok('PAYPAL_PLAN_ID', plan) : warn('PAYPAL_PLAN_ID', `"${plan}" no parece un plan de PayPal (empieza con P-)`));
+  // Los planes de suscripción (3 niveles) ya no salen de una variable: se crean desde el panel (Pagos > Planes de suscripción).
+  if (need('PAYPAL_PLAN_ID')) out.push(ok('PAYPAL_PLAN_ID', 'ya no se usa: los planes se crean desde el panel (Pagos > Planes de suscripción)'));
 
   const origins = need('ALLOWED_ORIGINS');
   if (mode === 'live' && /localhost|127\.0\.0\.1/.test(origins)) {

@@ -1063,6 +1063,15 @@ await test('cuenta · Mi suscripción: activa con próximo cobro; cancelar manti
   assert.equal(await count(page, '#cancelSubscription'), 0);
 });
 
+await test('cuenta · Mi suscripción: muestra el nivel contratado', async (page) => {
+  await be.behavior({ payments: true });
+  await signup('nivel@test.dev', 'Nivel Test');
+  await be.account('nivel@test.dev', { subscription: { status: 'active', tier: 3, current_period_end: iso(20), last_payment_at: iso(-10) } });
+  await openAccount(page, 'nivel@test.dev');
+  await waitFor(page, () => document.querySelector('#accSubscription [data-state]'), null, 10000);
+  assert.match(await text(page, '#accSubscription'), /Nivel: Premium/);
+});
+
 await test('cuenta · Mi suscripción: sin suscripción lo dice y no muestra cancelar', async (page) => {
   await be.behavior({ payments: true });
   await signup('nosub@test.dev', 'No Sub');

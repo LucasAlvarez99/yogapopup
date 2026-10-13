@@ -26,7 +26,6 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
       const res = await syncSubscription(
         { repo: deps.repo, paypal, audit: deps.audit },
         subscriptionId,
-        deps.config.planId,
       );
       if (res.outcome !== "ok") {
         throw new HttpError(409, "subscription_invalid", "The subscription does not match the plan");

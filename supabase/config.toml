@@ -22,6 +22,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.paypal-create-subscription]
 verify_jwt = false
+[functions.paypal-save-tier]
+verify_jwt = false
 [functions.paypal-activate-subscription]
 verify_jwt = false
 [functions.paypal-cancel-subscription]

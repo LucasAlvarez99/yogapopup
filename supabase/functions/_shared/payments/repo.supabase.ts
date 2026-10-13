@@ -1,7 +1,7 @@
 // deno-lint-ignore no-import-prefix -- especificador npm: en línea, válido en Supabase Edge Functions
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { HttpError } from "../http.ts";
-import type { OrderItemRow, OrderRow, PaymentsRepo, SubscriptionRow } from "./ports.ts";
+import type { OrderItemRow, OrderRow, PaymentsRepo, SubscriptionRow, TierRow } from "./ports.ts";
 
 const ORDER_COLUMNS = "id,user_id,kind,status,currency,total_cents,tax_cents,refunded_cents,needs_review,review_note,\
 failure_reason,paypal_order_id,paypal_capture_id,created_at,paid_at";
@@ -150,6 +150,30 @@ export function createSupabasePaymentsRepo(url: string, serviceRoleKey: string):
         .lt("created_at", cutoff).order("created_at", { ascending: true }).limit(limit);
       if (error) fail("listPendingSubscriptions", error);
       return (data ?? []) as SubscriptionRow[];
+    },
+
+    async getTier(tier) {
+      const { data, error } = await db.from("subscription_tiers")
+        .select("tier,name,benefits,price_cents,current_plan_id").eq("tier", tier).maybeSingle();
+      if (error) fail("getTier", error);
+      return (data as TierRow | null) ?? null;
+    },
+
+    async isKnownPlan(planId) {
+      const { data, error } = await db.from("subscription_plans").select("paypal_plan_id").eq("paypal_plan_id", planId)
+        .maybeSingle();
+      if (error) fail("isKnownPlan", error);
+      return !!data;
+    },
+
+    async saveTier(i) {
+      return (await rpc("payments_save_tier", {
+        p_tier: i.tier,
+        p_name: i.name,
+        p_benefits: i.benefits,
+        p_price_cents: i.priceCents,
+        p_plan_id: i.planId,
+      })) as never;
     },
 
     async beginEvent(eventId, eventType, resourceType, resourceId, summary) {

@@ -86,6 +86,14 @@ export interface CreateSubscriptionInput {
   requestId: string;
 }
 
+export interface CreatePlanInput {
+  /** Nombre visible del plan (nivel + precio). */
+  name: string;
+  priceCents: number;
+  /** Idempotencia: el mismo valor no crea dos planes. */
+  requestId: string;
+}
+
 export interface WebhookVerifyInput {
   webhookId: string;
   headers: {
@@ -107,6 +115,8 @@ export interface PayPalPort {
   captureOrder(paypalOrderId: string, requestId: string): Promise<PayPalOrder>;
   getRefund(refundId: string): Promise<PayPalRefund>;
   verifyWebhook(input: WebhookVerifyInput): Promise<boolean>;
+  /** Crea un plan mensual (con su producto) al precio dado, IVA incluido. Un plan existente NO cambia de precio. */
+  createPlan(input: CreatePlanInput): Promise<{ id: string }>;
   createSubscription(input: CreateSubscriptionInput): Promise<{ id: string }>;
   getSubscription(subscriptionId: string): Promise<PayPalSubscription>;
   cancelSubscription(subscriptionId: string, reason: string): Promise<void>;

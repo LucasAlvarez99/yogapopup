@@ -13,6 +13,8 @@ import { storagePathFromPublicUrl } from './product-form.js';
  */
 export const CLASS_COLUMNS =
   'id,title,description,thumbnail_url,duration_seconds,level,category,access_level,sort_order,is_published,published_at,video_status,created_at,updated_at';
+/** Columnas para quien administra: suman los niveles de suscripción (solo las puede leer una persona con sesión). */
+const CLASS_ADMIN_COLUMNS = `${CLASS_COLUMNS},access_tiers`;
 const CARD_COLUMNS = 'id,title,thumbnail_url,duration_seconds,level,category,access_level';
 
 function db() {
@@ -240,7 +242,7 @@ export const getPlayback = (classId) => callFunction('playback', { class_id: cla
 
 // ---------------------------------------------------------------- administración
 export async function adminListClasses() {
-  return unwrap(await db().from('classes').select(CLASS_COLUMNS).order('created_at', { ascending: false })) ?? [];
+  return unwrap(await db().from('classes').select(CLASS_ADMIN_COLUMNS).order('created_at', { ascending: false })) ?? [];
 }
 
 export const adminCreateUpload = (payload) => callFunction('admin-create-upload', payload);
@@ -248,12 +250,12 @@ export const adminSyncVideo = (classId, durationSeconds) =>
   callFunction('admin-sync-video', { class_id: classId, duration_seconds: durationSeconds ?? undefined });
 export const adminDeleteClass = (classId) => callFunction('admin-delete-class', { class_id: classId });
 
-const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'sort_order', 'is_published'];
+const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'sort_order', 'is_published', 'access_tiers'];
 
 /** Edita metadatos y publica/despublica. La base rechaza publicar una clase sin video listo. */
 export async function adminUpdateClass(id, patch) {
   const clean = Object.fromEntries(Object.entries(patch).filter(([k]) => EDITABLE.includes(k)));
-  const { data, error } = await db().from('classes').update(clean).eq('id', id).select(CLASS_COLUMNS).single();
+  const { data, error } = await db().from('classes').update(clean).eq('id', id).select(CLASS_ADMIN_COLUMNS).single();
   if (error) {
     if (error.code === '23514') throw new AppError('video_not_ready', 'No se puede publicar: el video todavía no está listo.');
     throw new AppError('internal_error', error.message);
@@ -269,7 +271,8 @@ export async function adminUpdateClass(id, patch) {
 export const paypalCreateOrder = (items) => callFunction('paypal-create-order', { items });
 /** Cobra una orden ya aprobada en PayPal y la verifica en el servidor. */
 export const paypalCaptureOrder = (paypalOrderId) => callFunction('paypal-capture-order', { paypal_order_id: paypalOrderId });
-export const paypalCreateSubscription = () => callFunction('paypal-create-subscription', { return_url: page('cuenta.html') });
+/** `tier`: 1, 2 o 3. El plan (y su precio) lo decide el servidor según el nivel. */
+export const paypalCreateSubscription = (tier) => callFunction('paypal-create-subscription', { tier, return_url: page('cuenta.html') });
 export const paypalActivateSubscription = (subscriptionId) => callFunction('paypal-activate-subscription', { subscription_id: subscriptionId });
 export const paypalCancelSubscription = () => callFunction('paypal-cancel-subscription', {});
 /** Conciliación (personal de gestión): { order_id } · { subscription_id } · { sweep: true }. */
@@ -285,10 +288,30 @@ export async function getClassOffer(classId) {
   return Number.isSafeInteger(data?.price_cents) && data.price_cents > 0 ? { price_cents: data.price_cents, tax_rate_bps: data.tax_rate_bps ?? 0 } : null;
 }
 
+/** Los 3 niveles con su precio, beneficios y si ya se pueden contratar (`plan_ready`). Públicos: se ven sin iniciar sesión. */
+export async function listTiers() {
+  const { data, error } = await db().from('subscription_tiers').select('tier,name,benefits,price_cents,plan_ready').order('tier');
+  if (error) {
+    if (isSchemaBehind(error)) return [];
+    throw new AppError('internal_error', error.message);
+  }
+  return data ?? [];
+}
+
+/** Niveles en los que se ve una clase (solo con sesión). null = no se pudo saber: no se filtra nada. */
+export async function getClassTiers(classId) {
+  const { data, error } = await db().from('classes').select('access_tiers').eq('id', classId).maybeSingle();
+  return error ? null : (data?.access_tiers ?? null);
+}
+
+/** Panel (gestión): guarda nombre, beneficios y precio mensual de un nivel. Si el precio cambia, el servidor crea un plan NUEVO en PayPal. */
+export const adminSaveTier = ({ tier, name, benefits, priceCents }) =>
+  callFunction('paypal-save-tier', { tier, name, benefits, price_cents: priceCents });
+
 /** La suscripción más reciente de la persona (activa, suspendida o cancelada), o null. Filtra por la propia (la gestión ve todas por RLS). */
 export async function getMySubscription() {
   const { data, error } = await db().from('subscriptions')
-    .select('paypal_subscription_id,status,current_period_end,last_payment_at,cancelled_at,created_at')
+    .select('paypal_subscription_id,status,tier,current_period_end,last_payment_at,cancelled_at,created_at')
     .eq('user_id', myId())
     .in('status', ['active', 'suspended', 'cancelled']).order('created_at', { ascending: false }).limit(1);
   if (error) {
@@ -300,7 +323,7 @@ export async function getMySubscription() {
 
 const ORDER_ADMIN_COLUMNS = 'id,user_id,kind,status,total_cents,tax_cents,refunded_cents,needs_review,review_note,failure_reason,' +
   'paypal_order_id,paypal_status,shipping,created_at,paid_at,profiles(display_name),order_items(title,size,qty,unit_cents)';
-const SUBSCRIPTION_ADMIN_COLUMNS = 'id,user_id,paypal_subscription_id,status,current_period_end,last_payment_at,cancelled_at,created_at,profiles(display_name)';
+const SUBSCRIPTION_ADMIN_COLUMNS = 'id,user_id,paypal_subscription_id,status,tier,current_period_end,last_payment_at,cancelled_at,created_at,profiles(display_name)';
 
 /** Pedidos (solo personal de gestión: la RLS lo exige). Los que piden revisión van primero. */
 export async function adminListOrders(limit = 100) {

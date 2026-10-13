@@ -58,7 +58,7 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
         for (const sub of await deps.repo.listPendingSubscriptions(30, SWEEP_LIMIT)) {
           summary.subscriptions++;
           try {
-            const r = await syncSubscription(ctx, sub.paypal_subscription_id, deps.config.planId);
+            const r = await syncSubscription(ctx, sub.paypal_subscription_id);
             const abandoned = r.outcome === "ok" && r.status === "approval_pending" &&
               Date.now() - Date.parse(sub.created_at) > SUBSCRIPTION_APPROVAL_HOURS * 3_600_000;
             if (abandoned) {
@@ -117,7 +117,7 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
         if (!(await deps.repo.getSubscriptionByPayPalId(id))) {
           throw new HttpError(404, "subscription_not_found", "Subscription not found");
         }
-        const r = await syncSubscription(ctx, id, deps.config.planId);
+        const r = await syncSubscription(ctx, id);
         await deps.audit.record({
           actorId,
           action: "payment.reconcile",

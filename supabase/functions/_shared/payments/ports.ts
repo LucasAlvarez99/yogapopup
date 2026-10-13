@@ -47,6 +47,24 @@ export interface SubscriptionRow {
   created_at: string;
 }
 
+/** Nivel de suscripción (1 a 3) con su plan VIGENTE en PayPal (null = todavía no se creó). */
+export interface TierRow {
+  tier: number;
+  name: string;
+  benefits: string;
+  price_cents: number;
+  current_plan_id: string | null;
+}
+
+export interface SaveTierInput {
+  tier: number;
+  name: string;
+  benefits: string;
+  priceCents: number;
+  /** Plan NUEVO recién creado en PayPal con este precio; null si solo cambian nombre o beneficios. */
+  planId: string | null;
+}
+
 /** Línea del carrito que manda el navegador. Solo ids y cantidad: el precio y el stock salen SIEMPRE de la base. */
 export type CartItemInput =
   | { type: "product"; id: string; variant_id: string | null; qty: number }
@@ -97,6 +115,11 @@ export interface PaymentsRepo {
   syncSubscription(input: SyncSubscriptionInput): Promise<"ok" | "unknown_subscription">;
   listPendingSubscriptions(olderThanMinutes: number, limit: number): Promise<SubscriptionRow[]>;
 
+  getTier(tier: number): Promise<TierRow | null>;
+  /** ¿Este plan de PayPal es uno de los nuestros (alguno de los planes de algún nivel, vigente o anterior)? */
+  isKnownPlan(planId: string): Promise<boolean>;
+  saveTier(input: SaveTierInput): Promise<"ok" | "unknown_tier">;
+
   beginEvent(
     eventId: string,
     eventType: string,
@@ -109,8 +132,6 @@ export interface PaymentsRepo {
 
 export interface PaymentsConfig {
   allowedOrigins: string[];
-  /** Plan de suscripción de PayPal (P-...). null = las suscripciones no están configuradas. */
-  planId: string | null;
   /** Id del webhook registrado en PayPal. null = el webhook no puede verificar firmas. */
   webhookId: string | null;
   /** Secreto opcional para que un cron externo dispare la conciliación (solo el barrido). */

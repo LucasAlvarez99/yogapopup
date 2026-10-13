@@ -37,7 +37,6 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
       const res = await syncSubscription(
         { repo: deps.repo, paypal, audit: deps.audit },
         live.paypal_subscription_id,
-        deps.config.planId,
       );
       return { status: res.status, access_until: res.subscription?.current_period_end ?? null };
     },

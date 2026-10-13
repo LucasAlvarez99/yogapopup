@@ -9,6 +9,14 @@ export function requirePayPal(deps: PaymentDeps): PayPalPort {
   return deps.paypal;
 }
 
+/** Nivel de suscripción: 1, 2 o 3. */
+export function parseTier(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 3) {
+    throw new HttpError(400, "invalid_input", "tier must be 1, 2 or 3");
+  }
+  return value;
+}
+
 const PAYPAL_ID_RE = /^[A-Za-z0-9_-]{5,64}$/;
 
 export function parsePayPalId(value: unknown, field: string): string {

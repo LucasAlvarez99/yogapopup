@@ -1,6 +1,7 @@
 import { centsToValue, valueToCents } from "./money.ts";
 import type {
   CreateOrderInput,
+  CreatePlanInput,
   CreateSubscriptionInput,
   PayPalCapture,
   PayPalConfig,
@@ -246,6 +247,47 @@ export class PayPalService implements PayPalPort {
   }
 
   // ------------------------------------------------------------------ suscripciones (Billing v1)
+
+  /**
+   * Plan mensual sin fin (hasta que la persona cancele), en EUR, con el IVA incluido en el precio (igual que la tienda).
+   * Misma forma que scripts/lib/paypal-setup.mjs (buildProductBody / buildPlanBody), que ya se probó contra PayPal.
+   */
+  async createPlan(input: CreatePlanInput): Promise<{ id: string }> {
+    const name = input.name.slice(0, 127);
+    const product = await this.request("createProduct", "POST", "/v1/catalogs/products", {
+      headers: { "PayPal-Request-Id": `${input.requestId}-product`.slice(0, 108), Prefer: "return=representation" },
+      body: { name, description: "Suscripción a la videoteca", type: "SERVICE" },
+    });
+    const productId = str(product?.id, 64);
+    if (!productId || !ID_RE.test(productId)) {
+      throw new PayPalError("PayPal createProduct returned an invalid id", 502, "createProduct");
+    }
+    const data = await this.request("createPlan", "POST", "/v1/billing/plans", {
+      headers: { "PayPal-Request-Id": `${input.requestId}-plan`.slice(0, 108), Prefer: "return=representation" },
+      body: {
+        product_id: productId,
+        name,
+        description: name,
+        status: "ACTIVE",
+        billing_cycles: [{
+          frequency: { interval_unit: "MONTH", interval_count: 1 },
+          tenure_type: "REGULAR",
+          sequence: 1,
+          total_cycles: 0,
+          pricing_scheme: { fixed_price: { value: centsToValue(input.priceCents), currency_code: "EUR" } },
+        }],
+        payment_preferences: {
+          auto_bill_outstanding: true,
+          setup_fee_failure_action: "CANCEL",
+          payment_failure_threshold: 3,
+        },
+        taxes: { percentage: "21", inclusive: true },
+      },
+    });
+    const id = str(data?.id, 64);
+    if (!id || !ID_RE.test(id)) throw new PayPalError("PayPal createPlan returned an invalid id", 502, "createPlan");
+    return { id };
+  }
 
   async createSubscription(input: CreateSubscriptionInput): Promise<{ id: string }> {
     const data = await this.request("createSubscription", "POST", "/v1/billing/subscriptions", {

@@ -77,7 +77,6 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
         const result = await processWebhookEvent(
           { repo: deps.repo, paypal, audit: deps.audit },
           event,
-          deps.config.planId,
         );
         await deps.repo.finishEvent(event.id, result.status, null);
         return { received: true, status: result.status, detail: result.detail };

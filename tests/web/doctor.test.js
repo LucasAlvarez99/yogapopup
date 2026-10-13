@@ -213,17 +213,14 @@ Deno.test("checkPayments: el Client ID del sitio tiene que ser el mismo que el d
   assert.equal(lvl(checkPayments({ frontend: {}, env: GOOD_ENV }))["js/config.js · PAYPAL.CLIENT_ID"], "warn");
 });
 
-Deno.test("checkPayments: sin webhook o sin plan son avisos con el comando para arreglarlo; plan raro avisa", () => {
+Deno.test("checkPayments: sin webhook es un aviso con el comando para arreglarlo; el plan ya no se pide (se crea desde el panel)", () => {
   const r = checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_WEBHOOK_ID: "", PAYPAL_PLAN_ID: "" } });
   assert.equal(lvl(r).PAYPAL_WEBHOOK_ID, "warn");
-  assert.equal(lvl(r).PAYPAL_PLAN_ID, "warn");
   assert.match(r.find((x) => x.name === "PAYPAL_WEBHOOK_ID").detail, /paypal:webhook/);
-  assert.match(r.find((x) => x.name === "PAYPAL_PLAN_ID").detail, /paypal:plan/);
-  assert.equal(
-    lvl(checkPayments({ frontend: GOOD_SITE, env: { ...GOOD_ENV, PAYPAL_PLAN_ID: "plan-sin-formato" } }))
-      .PAYPAL_PLAN_ID,
-    "warn",
-  );
+  assert.equal(lvl(r).PAYPAL_PLAN_ID, undefined, "sin PAYPAL_PLAN_ID no hay nada que avisar");
+  const legacy = checkPayments({ frontend: GOOD_SITE, env: GOOD_ENV });
+  assert.equal(lvl(legacy).PAYPAL_PLAN_ID, "ok", "si todavía está en el .env, no molesta");
+  assert.match(legacy.find((x) => x.name === "PAYPAL_PLAN_ID").detail, /panel/);
 });
 
 Deno.test("checkPayments: live con localhost en ALLOWED_ORIGINS avisa", () => {

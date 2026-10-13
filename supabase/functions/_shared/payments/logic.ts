@@ -191,18 +191,18 @@ export interface SubscriptionSyncResult {
 }
 
 /**
- * Trae la suscripción de la API de PayPal y la refleja en la base (estado + acceso). `planId` es el plan que el
- * negocio vende: una suscripción a OTRO plan (más barato, de otro producto de la misma cuenta) no concede acceso.
+ * Trae la suscripción de la API de PayPal y la refleja en la base (estado + acceso). Solo se acepta un plan NUESTRO
+ * (el vigente o uno anterior de alguno de los 3 niveles): una suscripción a OTRO plan (más barato, de otro producto
+ * de la misma cuenta) no concede acceso.
  */
 export async function syncSubscription(
   ctx: PaymentsCtx,
   paypalSubscriptionId: string,
-  planId: string | null,
 ): Promise<SubscriptionSyncResult> {
   const sub = await ctx.paypal.getSubscription(paypalSubscriptionId);
   const existing = await ctx.repo.getSubscriptionByPayPalId(sub.id);
 
-  if (planId && sub.planId !== planId) {
+  if (!(await ctx.repo.isKnownPlan(sub.planId))) {
     await safeAudit(ctx.audit, {
       actorId: null,
       action: "payment.mismatch",
@@ -337,7 +337,6 @@ function captureIdOfRefund(r: Record<string, unknown>): string | null {
 export async function processWebhookEvent(
   ctx: PaymentsCtx,
   ev: WebhookEvent,
-  planId: string | null,
 ): Promise<EventResult> {
   const type = ev.event_type;
   const r = ev.resource;
@@ -385,7 +384,7 @@ export async function processWebhookEvent(
     // En un cobro de suscripción el id de la suscripción viene como billing_agreement_id; una venta común no lo trae.
     const subId = type === "PAYMENT.SALE.COMPLETED" ? text(r.billing_agreement_id, 64) : text(r.id, 64);
     if (!subId) return { status: "ignored", detail: "not_a_subscription" };
-    const res = await syncSubscription(ctx, subId, planId);
+    const res = await syncSubscription(ctx, subId);
     return { status: res.outcome === "ok" ? "processed" : "ignored", detail: `subscription_${res.outcome}` };
   }
 

@@ -7,6 +7,7 @@ import { HttpError } from "../_shared/http.ts";
 import { PayPalError } from "../_shared/paypal/paypal.service.ts";
 import type {
   CreateOrderInput,
+  CreatePlanInput,
   CreateSubscriptionInput,
   PayPalCapture,
   PayPalOrder,
@@ -26,9 +27,11 @@ import type {
   PaymentsConfig,
   PaymentsRepo,
   RefundResult,
+  SaveTierInput,
   SubscriptionRow,
   SubscriptionStatus,
   SyncSubscriptionInput,
+  TierRow,
 } from "../_shared/payments/ports.ts";
 import { FakeAudit, FakeAuth, FakeLimiter, FakeRepo, USER_ID } from "./fakes.ts";
 
@@ -121,6 +124,14 @@ export class FakePayPal implements PayPalPort {
     return Promise.resolve(this.webhookValid);
   }
 
+  plans: (CreatePlanInput & { id: string })[] = [];
+  createPlan(input: CreatePlanInput): Promise<{ id: string }> {
+    this.maybeFail("createPlan");
+    const id = `P-FAKEPLAN${++this.seq}`;
+    this.plans.push({ ...input, id });
+    return Promise.resolve({ id });
+  }
+
   createSubscription(input: CreateSubscriptionInput): Promise<{ id: string }> {
     this.maybeFail("createSubscription");
     const id = `I-FAKESUB${++this.seq}`;
@@ -177,6 +188,8 @@ interface FakeClass {
   tax_rate_bps: number;
   access_level: "free" | "restricted";
   is_published: boolean;
+  /** Niveles de suscripción que la ven (por defecto, los tres). */
+  access_tiers?: number[];
 }
 export interface FakeEntitlement {
   user_id: string;
@@ -185,6 +198,8 @@ export interface FakeEntitlement {
   source: string;
   external_ref: string;
   expires_at: string | null;
+  /** Nivel de la suscripción; null = vale para todos (acceso manual). */
+  tier?: number | null;
 }
 
 const err = (status: number, code: string) => new HttpError(status, code, code);
@@ -198,7 +213,16 @@ export class FakePaymentsRepo implements PaymentsRepo {
     (OrderItemRow & { product_id: string | null; variant_id: string | null; class_id: string | null })[]
   >();
   entitlements: FakeEntitlement[] = [];
-  subs = new Map<string, SubscriptionRow>();
+  subs = new Map<string, SubscriptionRow & { tier?: number | null }>();
+  /** Niveles: el 1 y el 2 tienen plan; el 3 todavía no (se puede probar "no disponible"). */
+  tiers = new Map<number, TierRow>([
+    [1, { tier: 1, name: "Esencial", benefits: "", price_cents: 1000, current_plan_id: PLAN_ID }],
+    [2, { tier: 2, name: "Plus", benefits: "", price_cents: 2000, current_plan_id: PLAN2_ID }],
+    [3, { tier: 3, name: "Premium", benefits: "", price_cents: 3000, current_plan_id: null }],
+  ]);
+  /** Todos los planes que alguna vez se vendieron (vigentes y anteriores). */
+  knownPlans = new Set<string>([PLAN_ID, PLAN2_ID, PLAN_ANTERIOR_ID]);
+  tierOfPlan = new Map<string, number>([[PLAN_ID, 1], [PLAN2_ID, 2], [PLAN_ANTERIOR_ID, 1]]);
   events = new Map<string, { status: string; attempts: number; error: string | null }>();
   markPaidCalls = 0;
   /** Si es true, la próxima vez que se aplique un pago o reembolso falla (para probar los reintentos del webhook). */
@@ -235,9 +259,11 @@ export class FakePaymentsRepo implements PaymentsRepo {
     return row;
   }
   hasClassAccess(userId: string, classId: string, now = Date.now()): boolean {
+    const tiers = this.classes.get(classId)?.access_tiers ?? [1, 2, 3];
     return this.entitlements.some((e) =>
       e.user_id === userId && (e.expires_at === null || Date.parse(e.expires_at) > now) &&
-      (e.scope === "all" || e.class_id === classId)
+      ((e.scope === "all" && (e.tier == null || tiers.includes(e.tier))) ||
+        (e.scope === "class" && e.class_id === classId))
     );
   }
 
@@ -452,6 +478,7 @@ export class FakePaymentsRepo implements PaymentsRepo {
       user_id: userId,
       paypal_subscription_id: paypalSubscriptionId,
       plan_id: planId,
+      tier: this.tierOfPlan.get(planId) ?? null,
       status: "approval_pending",
       current_period_end: null,
       last_payment_at: null,
@@ -483,6 +510,7 @@ export class FakePaymentsRepo implements PaymentsRepo {
         user_id: i.userId,
         paypal_subscription_id: i.paypalSubscriptionId,
         plan_id: i.planId,
+        tier: this.tierOfPlan.get(i.planId) ?? null,
         status: "approval_pending",
         current_period_end: null,
         last_payment_at: null,
@@ -492,6 +520,7 @@ export class FakePaymentsRepo implements PaymentsRepo {
       this.subs.set(i.paypalSubscriptionId, s);
     }
     s.plan_id = i.planId;
+    s.tier = this.tierOfPlan.get(i.planId) ?? s.tier ?? null;
     s.status = i.status as SubscriptionStatus;
     if (i.status === "active" && i.nextBilling) s.current_period_end = i.nextBilling;
     if (i.lastPayment) s.last_payment_at = i.lastPayment;
@@ -504,19 +533,40 @@ export class FakePaymentsRepo implements PaymentsRepo {
         Date.parse(i.nextBilling ?? s.current_period_end ?? new Date().toISOString()) + 2 * 86_400_000,
       ).toISOString();
       const e = this.entitlements.find((e) => e.source === "paypal" && e.external_ref === ref);
-      if (e) e.expires_at = until;
-      else {this.entitlements.push({
+      if (e) {
+        e.expires_at = until;
+        e.tier = s.tier ?? null;
+      } else {this.entitlements.push({
           user_id: s.user_id,
           scope: "all",
           class_id: null,
           source: "paypal",
           external_ref: ref,
           expires_at: until,
+          tier: s.tier ?? null,
         });}
     } else if (s.user_id && (i.status === "cancelled" || i.status === "expired")) {
       const e = this.entitlements.find((e) => e.source === "paypal" && e.external_ref === ref);
       if (e) e.expires_at = s.current_period_end ?? new Date().toISOString();
     }
+    return Promise.resolve("ok");
+  }
+  getTier(tier: number) {
+    const t = this.tiers.get(tier);
+    return Promise.resolve(t ? { ...t } : null);
+  }
+  isKnownPlan(planId: string) {
+    return Promise.resolve(this.knownPlans.has(planId));
+  }
+  saveTier(i: SaveTierInput): Promise<"ok" | "unknown_tier"> {
+    const t = this.tiers.get(i.tier);
+    if (!t) return Promise.resolve("unknown_tier");
+    if (i.planId) {
+      this.knownPlans.add(i.planId);
+      this.tierOfPlan.set(i.planId, i.tier);
+      t.current_plan_id = i.planId;
+    }
+    Object.assign(t, { name: i.name, benefits: i.benefits, price_cents: i.priceCents });
     return Promise.resolve("ok");
   }
   listPendingSubscriptions(olderThanMinutes: number, limit: number) {
@@ -554,7 +604,9 @@ export class FakePaymentsRepo implements PaymentsRepo {
 }
 
 // ------------------------------------------------------------------ Armado
-export const PLAN_ID = "P-TESTPLAN123";
+export const PLAN_ID = "P-TESTPLAN123"; // nivel 1
+export const PLAN2_ID = "P-TESTPLAN222"; // nivel 2
+export const PLAN_ANTERIOR_ID = "P-TESTPLANOLD1"; // plan viejo del nivel 1 (precio anterior): sigue siendo nuestro
 export const WEBHOOK_ID = "WH-TEST-WEBHOOK";
 export const CRON_SECRET = "cron-secret-de-prueba";
 
@@ -566,7 +618,6 @@ export function makePaymentDeps(over: Partial<PaymentsConfig> = {}, opts: { payp
   const limiter = new FakeLimiter();
   const config: PaymentsConfig = {
     allowedOrigins: ["https://yogapopup.test"],
-    planId: PLAN_ID,
     webhookId: WEBHOOK_ID,
     cronSecret: CRON_SECRET,
     brandName: "Yoga Pop Up",

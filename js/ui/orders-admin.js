@@ -1,4 +1,5 @@
-import { adminClassPrices, adminListClasses, adminListOrders, adminListSubscriptions, adminSetClassPrice, paypalReconcile } from '../lib/api.js';
+import { adminClassPrices, adminListClasses, adminListOrders, adminListSubscriptions, adminSaveTier, adminSetClassPrice, listTiers, paypalReconcile } from '../lib/api.js';
+import { parseTierPrice, parseTierText, tierName, tierPriceLabel, TIER_BENEFITS_MAX, TIER_NAME_MAX } from '../lib/tiers.js';
 import { messageFor } from '../lib/errors.js';
 import { formatDate, formatPrice } from '../lib/format.js';
 import { el, icon, mount } from '../lib/dom.js';
@@ -62,19 +63,61 @@ function ordersTable(orders) {
     el('tbody', {}, ...rows)));
 }
 
-function subscriptionsTable(subs) {
+function subscriptionsTable(subs, tiers = []) {
   if (subs.length === 0) return el('p', { class: 'text-muted small' }, 'Todavía no hay suscripciones.');
   return el('div', { class: 'table-responsive' }, el('table', { class: 'table align-middle' },
-    el('thead', {}, el('tr', {}, ...['Alta', 'Persona', 'Estado', 'Acceso hasta', ''].map((h) => el('th', {}, h)))),
+    el('thead', {}, el('tr', {}, ...['Alta', 'Persona', 'Nivel', 'Estado', 'Acceso hasta', ''].map((h) => el('th', {}, h)))),
     el('tbody', {}, ...subs.map((s) => el('tr', {},
       el('td', {}, when(s.created_at)),
       el('td', { translate: 'no' }, person(s)),
+      el('td', { translate: 'no' }, tierName(tiers, s.tier) || '—'),
       el('td', {}, badge(statusInfo(SUBSCRIPTION_STATUS, s.status))),
       el('td', {}, when(s.current_period_end)),
       el('td', { class: 'text-end' }, el('button', {
         type: 'button', class: 'btn btn-sm btn-outline-secondary',
         onclick: (e) => verify(e.currentTarget, { subscription_id: s.paypal_subscription_id }, 'Verificar'),
       }, 'Verificar')))))));
+}
+
+/** Un nivel de suscripción: nombre, beneficios y precio mensual. Guardar un precio nuevo crea un plan nuevo en PayPal (lo hace el servidor). */
+function tierEditor(t) {
+  const name = el('input', { class: 'form-control form-control-sm', id: `tierName${t.tier}`, maxlength: TIER_NAME_MAX, value: t.name, 'aria-label': `Nombre del nivel ${t.tier}` });
+  const price = el('input', { class: 'form-control form-control-sm', id: `tierPrice${t.tier}`, inputmode: 'decimal', value: centsToEurosInput(t.price_cents), 'aria-label': `Precio mensual del nivel ${t.tier} en euros` });
+  const benefits = el('textarea', {
+    class: 'form-control form-control-sm', id: `tierBenefits${t.tier}`, rows: 3, maxlength: TIER_BENEFITS_MAX,
+    placeholder: 'Ej.: Todas las clases del nivel + una clase gratis al mes', 'aria-label': `Beneficios del nivel ${t.tier}`,
+  }, t.benefits ?? '');
+  const save = el('button', { type: 'button', class: 'btn btn-sm btn-brand', id: `tierSave${t.tier}` }, 'Guardar');
+  save.addEventListener('click', async () => {
+    const text = parseTierText(name.value, benefits.value);
+    if (!text.ok) return toast(text.error, { type: 'error' });
+    const cents = parseTierPrice(price.value);
+    if (!cents.ok) return toast(cents.error, { type: 'error' });
+    save.disabled = true;
+    try {
+      const res = await adminSaveTier({ tier: t.tier, name: text.name, benefits: text.benefits, priceCents: cents.cents });
+      toast(res.new_plan
+        ? `Nivel guardado: desde ahora se cobra ${tierPriceLabel(cents.cents)}. Quienes ya están suscriptos conservan su precio actual.`
+        : 'Nivel guardado.', { type: 'success' });
+      if (isCurrent()) await load();
+    } catch (err) {
+      toast(messageFor(err), { type: 'error' });
+      save.disabled = false;
+    }
+  });
+  return el('div', { class: 'col-12 col-lg-4' }, el('div', { class: 'yp-card h-100', 'data-tier-editor': String(t.tier) },
+    el('div', { class: 'd-flex justify-content-between align-items-center mb-2' },
+      el('h3', { class: 'h6 m-0' }, `Nivel ${t.tier}`),
+      el('span', { class: `badge text-bg-${t.plan_ready ? 'success' : 'warning'}` }, t.plan_ready ? 'Se puede contratar' : 'Guardalo para crear el plan')),
+    el('label', { class: 'form-label small mb-1', for: name.id }, 'Nombre'), name,
+    el('label', { class: 'form-label small mt-2 mb-1', for: price.id }, 'Precio mensual (€, IVA incluido)'), price,
+    el('label', { class: 'form-label small mt-2 mb-1', for: benefits.id }, 'Beneficios (se muestran al elegir el nivel)'), benefits,
+    el('div', { class: 'text-end mt-3' }, save)));
+}
+
+function tiersSection(tiers) {
+  if (tiers.length === 0) return el('p', { class: 'text-muted small' }, 'Los niveles todavía no están disponibles: falta aplicar la última migración de la base.');
+  return el('div', { class: 'row g-3' }, ...tiers.map(tierEditor));
 }
 
 function priceRow(cls, cents) {
@@ -114,7 +157,7 @@ async function load() {
   if (!root || !isCurrent()) return;
   mount(root, skeletonGrid(3));
   try {
-    const [orders, subs, classes, prices] = await Promise.all([adminListOrders(), adminListSubscriptions(), adminListClasses(), adminClassPrices()]);
+    const [orders, subs, classes, prices, tiers] = await Promise.all([adminListOrders(), adminListSubscriptions(), adminListClasses(), adminClassPrices(), listTiers()]);
     if (!isCurrent()) return;
     const review = orders.filter((o) => o.needs_review).length;
     const sweep = el('button', { type: 'button', class: 'btn btn-sm btn-outline-brand' }, icon('arrow-repeat'), ' Conciliar pendientes');
@@ -135,7 +178,10 @@ async function load() {
         el('h2', { class: 'h5 m-0' }, 'Pedidos'), sweep),
       el('p', { class: 'small text-muted' }, 'Los pedidos sin pagar liberan su stock solos pasada una hora. "Verificar de nuevo" consulta a PayPal y deja el pedido como corresponde.'),
       ordersTable(orders),
-      el('h2', { class: 'h5 mt-4' }, 'Suscripciones'), subscriptionsTable(subs),
+      el('h2', { class: 'h5 mt-4' }, 'Planes de suscripción'),
+      el('p', { class: 'small text-muted' }, 'Tres niveles mensuales. Si cambiás un precio, se crea un plan nuevo en PayPal: quienes ya están suscriptos siguen pagando el precio con el que se anotaron hasta que cancelen. En cada clase elegís en qué niveles se ve.'),
+      tiersSection(tiers),
+      el('h2', { class: 'h5 mt-4' }, 'Suscripciones'), subscriptionsTable(subs, tiers),
       el('h2', { class: 'h5 mt-4' }, 'Precio de las clases sueltas'),
       el('p', { class: 'small text-muted' }, 'Precio final con IVA incluido. Vacío = la clase solo se ve con suscripción. Cada cambio queda registrado.'),
       pricesTable(classes, prices));

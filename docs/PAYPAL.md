@@ -76,24 +76,26 @@ Orden importante: **primero la base y las funciones, después la web.**
    ```
 3. **Aplicar la migración**: `npm run sb:db-push` (crea `orders`, `order_items`, `subscriptions`, `payment_events`, el precio de las
    clases y las reglas atómicas).
-4. **Crear el plan de suscripción** (precio final, IVA incluido):
-   ```
-   npm run paypal:plan -- --price 9,99
-   ```
-   > **PowerShell (Windows):** si ves `"9 99" is being parsed as a normal command line argument`, es que PowerShell partió el `9,99`
-   > por la coma. Usá el punto y comillas: `npm run paypal:plan -- --price "9.99"`, o directamente
-   > `node scripts/paypal-setup.mjs plan --price "9.99"`.
-   Imprime `PAYPAL_PLAN_ID=P-…`: pegalo en `supabase/.env`. (Mensual por defecto; `--interval YEAR` para anual; `--tax 21` es el IVA incluido.)
+4. **Planes de suscripción:** hay **3 niveles** (10, 20 y 30 € por defecto) y se crean y cambian **desde el panel** (paso 8), ya no con un
+   comando ni con `PAYPAL_PLAN_ID`. (`npm run paypal:plan` sigue existiendo para crear un plan suelto, pero el sitio no lo usa.)
 5. **Subir secretos y desplegar**: `npm run sb:secrets` y `npm run sb:deploy`.
 6. **Registrar el webhook** (con las funciones ya desplegadas):
    ```
    npm run paypal:webhook -- --url https://TU-PROYECTO.supabase.co/functions/v1/paypal-webhook
    ```
    Imprime `PAYPAL_WEBHOOK_ID=…`: pegalo en `supabase/.env` y volvé a correr `npm run sb:secrets`.
-7. **`js/config.js`**: completá `PAYPAL.CLIENT_ID` con el **mismo** Client ID. Si querés ofrecer la suscripción, escribí
-   `PAYPAL.PLAN_LABEL` (por ejemplo `'Plan mensual · 9,99 € / mes'`): vacío = no se ofrece.
-8. **Precio de las clases sueltas**: panel → pestaña **Pagos** → *Precio de las clases sueltas*. Solo las clases con acceso
-   *restringido* se pueden vender; vacío = no se vende suelta. Cada cambio queda auditado.
+7. **`js/config.js`**: completá `PAYPAL.CLIENT_ID` con el **mismo** Client ID.
+8. **Panel → pestaña Pagos** (después de desplegar las funciones y aplicar la migración `20261013120000_subscription_tiers.sql`):
+   - **Planes de suscripción:** para cada nivel, nombre, beneficios (texto libre, p. ej. "una clase gratis al mes") y precio mensual con
+     IVA incluido. **Guardar** crea el plan en PayPal y lo deja a la venta (hasta que lo guardes, el nivel figura "Guardalo para crear el plan").
+     PayPal no deja cambiar el precio de un plan: si cambiás un precio se crea un plan **nuevo**; quienes ya están suscriptos siguen pagando el
+     precio con el que se anotaron hasta que cancelen, y las altas nuevas pagan el precio nuevo.
+   - **Niveles de cada clase:** al editar una clase *restringida* se marcan los niveles que la ven (uno o varios). Quien compra la clase
+     suelta la ve siempre. Los **beneficios extra** de un nivel (una charla o una clase gratis al mes, descuentos) los cumplís vos: el sistema
+     solo los muestra.
+   - **Cambiar de nivel:** la persona cancela la suscripción y contrata otra (no se pagan dos a la vez). Mantiene el acceso hasta el fin de lo pagado.
+   - **Precio de las clases sueltas:** *Precio de las clases sueltas*. Solo las clases con acceso *restringido* se pueden vender; vacío = no se
+     vende suelta. Cada cambio queda auditado.
 9. **Construir y publicar la web** (`npm run build`). Con un Client ID configurado, la CSP agrega los hosts de PayPal y la cabecera
    `Cross-Origin-Opener-Policy` pasa a `same-origin-allow-popups` (si no, la ventana de pago no puede hablar con la página).
 10. **`npm run doctor`** y **`npm run doctor:online`**: revisan credenciales, que el Client ID del sitio coincida con el del backend,
@@ -123,7 +125,11 @@ Marcá cada punto con la cuenta *Personal* de pruebas. Es la parte que falta par
 - [ ] Reembolsar el resto → pedido **Reembolsado** y la clase vuelve a bloquearse.
 
 **Suscripción**
-- [ ] *Suscribirme* → aprobar → en unos segundos *Mi cuenta* dice "Suscripción activa" con la próxima renovación, y las clases restringidas se ven.
+- [ ] Panel → Pagos → *Planes de suscripción*: guardar los 3 niveles → cada uno figura "Se puede contratar" y aparecen 3 planes nuevos en PayPal.
+- [ ] *Suscribirme* (elegir un nivel) → aprobar con la cuenta **Personal** de sandbox (el pago de una suscripción con tarjeta sin cuenta de PayPal
+      suele no estar disponible) → en unos segundos *Mi cuenta* dice "Suscripción activa", el nivel y la próxima renovación.
+- [ ] Una clase marcada solo para el nivel 3 **no** se ve con la suscripción de nivel 1, y sí con la de nivel 3.
+- [ ] Cambiar el precio de un nivel: la suscripción ya activa sigue con su plan y precio; una alta nueva paga el precio nuevo.
 - [ ] *Cancelar suscripción* → se cancela **en PayPal** (verificalo en el panel del sandbox) y el acceso sigue hasta la fecha mostrada.
 - [ ] Una segunda suscripción con la misma cuenta mientras hay una activa → "Ya tenés una suscripción activa".
 
@@ -198,8 +204,7 @@ Códigos de error nuevos (los muestra la web en español): `payments_not_configu
 - **Privacidad:** de cada evento del webhook se guarda solo un resumen (ids, estado, monto), no el cuerpo (trae correo y dirección). La dirección
   de envío vive en `orders.shipping` y la ven solo la persona y la gestión.
 - **CSP:** con PayPal activo, `style-src` admite `'unsafe-inline'` (el SDK lo necesita para dimensionar el formulario de tarjeta; sin eso sale
-  cortado). Los scripts siguen sin él. Si algo no aparece, mirá la consola del navegador (violaciones de CSP); los hosts permitidos están en
-  `scripts/lib/security-headers.mjs` (`PAYPAL_HOSTS`).
+  cortado). Los scripts siguen sin él. Si algo no aparece, mirá la consola del navegador (violaciones de CSP); los hosts permitidos están en `scripts/lib/security-headers.mjs` (`PAYPAL_HOSTS`).
 - **`application_context`:** las órdenes y suscripciones se crean con el bloque `application_context` (marcado como heredado por PayPal pero
   vigente). Si el sandbox lo rechazara, el ajuste es mínimo y está en `paypal.service.ts`.
 

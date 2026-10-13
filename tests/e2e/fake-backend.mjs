@@ -51,6 +51,7 @@ function seed() {
     // Profesores y agenda (migración 20261005120000): `teachers` y `liveSessions` (live_sessions) los siembra seedTeachers().
     teachers: [], liveSessions: [], bookings: [],
     testimonials: [], // comentarios de la comunidad (Fases 26-27): { id, user_id, author_name, body, rating, status, created_at }
+    tiers: [{ tier: 1, name: 'Esencial', benefits: '', price_cents: 1000, current_plan_id: 'P-1' }, { tier: 2, name: 'Plus', benefits: '', price_cents: 2000, current_plan_id: 'P-2' }, { tier: 3, name: 'Premium', benefits: 'Una clase gratis al mes', price_cents: 3000, current_plan_id: 'P-3' }],
     orders: [], subscriptions: [], // pedidos ({..., user_id, order_items}) y suscripciones propias (Fases 23-25)
     variants: [], // talles: { id, product_id, size, stock, sort_order, created_at }
     log: { testimonials: [], cancelSubscriptions: 0, saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [], teachers: [], sessions: [], bookings: [] },
@@ -274,7 +275,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     if (table === 'classes' && req.method === 'PATCH') {
       if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
       if (!isStaff(user)) return reply([]); // RLS: sin permiso, el UPDATE no alcanza ninguna fila
-      const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'sort_order', 'is_published'];
+      const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'access_tiers', 'sort_order', 'is_published'];
       const fields = Object.fromEntries(Object.entries(await readBody(req)).filter(([k]) => EDITABLE.includes(k)));
       const targets = applyFilters(db.classes, p);
       for (const c of targets) {
@@ -449,6 +450,10 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       const select = p.get('select') || '';
       const baseCols = select.replace(/,?order_items\([^)]*\)/, '').split(',').filter(Boolean);
       return reply(applyFilters(db.orders.filter((o) => o.user_id === user.id), p).map((o) => ({ ...pick(o, baseCols), order_items: o.order_items ?? [] })));
+    }
+    if (table === 'subscription_tiers' && req.method === 'GET') { // público: los 3 niveles (el id del plan de PayPal no sale)
+      const cols = (p.get('select') || '').split(',').filter(Boolean);
+      return reply(db.tiers.map((t) => pick({ ...t, plan_ready: !!t.current_plan_id }, cols)));
     }
     if (table === 'subscriptions' && req.method === 'GET') {
       if (!user) return send(res, 200, []);

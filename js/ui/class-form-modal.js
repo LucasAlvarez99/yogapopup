@@ -4,6 +4,7 @@ import { LEVEL_LABELS } from '../lib/format.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { assertVideoReady, sanitizeDuration, videoFileProblem } from '../lib/video-upload.js';
 import { adminCreateUpload, adminSyncVideo, adminUpdateClass, deleteThumbnailByUrl, readVideoDuration, resizeImage, uploadThumbnail, uploadVideoToR2 } from '../lib/api.js';
+import { normalizeClassTiers, TIERS } from '../lib/tiers.js';
 import { toast } from './toast.js';
 import * as session from '../lib/session.js';
 
@@ -31,6 +32,9 @@ function build() {
   bsModal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
 }
 
+const withoutTiers = ({ access_tiers: _ignored, ...rest }) => rest;
+const sameTiers = (a, b) => a.length === b.length && a.every((n, i) => n === b[i]);
+
 function showError(form, message) {
   let box = form.querySelector('.yp-form-error');
   if (!box) box = form.insertBefore(el('div', { class: 'alert alert-danger yp-form-error', role: 'alert' }), form.firstChild);
@@ -52,6 +56,20 @@ function accessSelect(current) {
     ...Object.entries(ACCESS_LABELS).map(([v, label]) => el('option', { value: v, selected: v === current }, label)));
 }
 
+/** Niveles de suscripción que ven la clase (uno o varios). Solo se muestra si el acceso es "restringido". */
+function tiersField(current, visible) {
+  const selected = new Set(normalizeClassTiers(current ?? TIERS));
+  return el('fieldset', { class: 'mb-3', id: 'cfTiersBox', hidden: !visible },
+    el('legend', { class: 'form-label fs-6' }, 'Niveles de suscripción que ven esta clase'),
+    el('div', { class: 'd-flex gap-3 flex-wrap' },
+      ...TIERS.map((n) => el('div', { class: 'form-check' },
+        el('input', { class: 'form-check-input', type: 'checkbox', id: `cfTier${n}`, value: String(n), checked: selected.has(n) }),
+        el('label', { class: 'form-check-label', for: `cfTier${n}` }, `Nivel ${n}`)))),
+    el('div', { class: 'form-text' }, 'Marcá uno o varios. Quien compra la clase suelta la ve siempre, sin importar su nivel.'));
+}
+
+const readTiers = (form) => normalizeClassTiers(TIERS.filter((n) => form[`cfTier${n}`]?.checked));
+
 /** @returns {object} los campos de la clase, o `{ error }` si Categoría u Orden no son válidos. */
 function readMetaFromForm(form, { categories = [], previousCategory = null } = {}) {
   const category = cleanCategory(form.cfCategory.value);
@@ -59,12 +77,17 @@ function readMetaFromForm(form, { categories = [], previousCategory = null } = {
   if (categoryError) return { error: categoryError };
   const sort = parseSortOrder(form.cfSort.value);
   if (sort.error) return { error: sort.error };
+  const access = form.cfAccess.value;
+  let tiers = readTiers(form);
+  if (access === 'restricted' && tiers.length === 0) return { error: 'Elegí al menos un nivel de suscripción para esta clase.' };
+  if (tiers.length === 0) tiers = [...TIERS]; // gratis: el nivel no importa; se guarda el valor por defecto
   return {
     title: form.cfTitle.value.trim(),
     description: form.cfDescription.value.trim() || null,
     category: canonicalCategory(category, categories) || null,
     level: form.cfLevel.value,
-    access_level: form.cfAccess.value,
+    access_level: access,
+    access_tiers: tiers,
     sort_order: sort.value,
   };
 }
@@ -108,6 +131,7 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
       el('div', { class: 'row' },
         el('div', { class: 'col-12 col-sm-6' }, field('cfLevel', 'Nivel', levelSelect(row?.level ?? 'todos'))),
         el('div', { class: 'col-12 col-sm-6' }, field('cfAccess', 'Acceso', accessSelect(row?.access_level ?? 'free')))),
+      tiersField(row?.access_tiers, (row?.access_level ?? 'free') === 'restricted'),
       field('cfThumb', mode === 'edit' ? 'Reemplazar miniatura (opcional)' : 'Miniatura (opcional)',
         el('input', { class: 'form-control', id: 'cfThumb', type: 'file', accept: 'image/jpeg,image/png,image/webp' })),
       mode === 'edit' && row?.thumbnail_url ? el('img', { src: row.thumbnail_url, alt: '', class: 'yp-cf-thumb-preview', width: 120 }) : null,
@@ -123,6 +147,7 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
   if (showVideo) form.querySelector('#cfCancel').textContent = 'Cancelar subida';
 
   const cancelBtn = showVideo ? form.querySelector('#cfCancel') : null;
+  form.querySelector('#cfAccess')?.addEventListener('change', (e) => { form.querySelector('#cfTiersBox').hidden = e.target.value !== 'restricted'; });
   let aborter = null, aborted = false;
   // La clase que ya se creó en este formulario. Si la subida falla y se vuelve a intentar, se REANUDA esa clase
   // (misma key en R2) en vez de crear otra: sin esto cada reintento dejaba una clase duplicada sin video.
@@ -171,12 +196,17 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
     try {
       const payload = mode === 'retry'
         ? { class_id: row.id, title: row.title, description: row.description, category: row.category, level: row.level, access_level: row.access_level, sort_order: row.sort_order }
-        : { ...(created ? { class_id: created.id } : {}), title, ...meta };
+        : { ...(created ? { class_id: created.id } : {}), title, ...withoutTiers(meta) };
       progressText.textContent = mode === 'retry' ? 'Preparando la subida…' : 'Creando la clase…';
       progressBox.classList.remove('d-none');
       const firstAttempt = mode === 'create' && !created;
       const { class: cls, upload } = await adminCreateUpload(payload);
       if (mode === 'create') created = cls;
+      // Los niveles no viajan por la función de subida (solo prepara el video): se guardan en la clase ya creada.
+      if (firstAttempt && meta && !sameTiers(meta.access_tiers, TIERS)) {
+        try { await adminUpdateClass(cls.id, { access_tiers: meta.access_tiers }); }
+        catch (err) { toast(`La clase se creó, pero los niveles no se guardaron: ${messageFor(err)}. Editá la clase para elegirlos.`, { type: 'error', ms: 7000 }); }
+      }
 
       const thumbFile = firstAttempt ? form.cfThumb.files[0] : null; // la miniatura se sube una sola vez
       if (thumbFile) {
