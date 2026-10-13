@@ -73,13 +73,17 @@ export const ORDER_STATUS_FOR_USER = Object.freeze({
 
 const COMPLETE = new Set(['paid', 'pending', 'refunded']);
 
-/** Separa lo que importa (pagado, a confirmar, reembolsado) de los intentos que no llegaron a nada. La más reciente primero. */
-export function partitionOrders(orders) {
+/**
+ * Separa lo que importa (pagado, a confirmar, reembolsado) de los intentos que no llegaron a nada. La más reciente primero.
+ * `incompleteDays`: los intentos sin completar más viejos que eso dejan de mostrarse (siguen en la base y en el panel).
+ */
+export function partitionOrders(orders, { incompleteDays = Infinity, now = Date.now() } = {}) {
+  const maxAge = incompleteDays * 86_400_000;
   const sorted = [...(Array.isArray(orders) ? orders : [])].filter(Boolean)
     .sort((a, b) => time(b.created_at) - time(a.created_at));
   return {
     main: sorted.filter((o) => COMPLETE.has(o.status)),
-    incomplete: sorted.filter((o) => !COMPLETE.has(o.status)),
+    incomplete: sorted.filter((o) => !COMPLETE.has(o.status) && now - time(o.created_at) <= maxAge),
   };
 }
 

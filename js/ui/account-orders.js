@@ -16,13 +16,13 @@ function row(order) {
       d.classId ? el('div', {}, el('a', { class: 'small', href: `clase.html?id=${encodeURIComponent(d.classId)}` }, 'Ver clase')) : null));
 }
 
-/** "Mis compras" (Fase 24): pedidos de la tienda y clases sueltas con su estado. Los intentos sin completar quedan plegados. */
+/** "Mis compras" (Fase 24): pedidos de la tienda y clases sueltas con su estado. Los intentos sin completar quedan plegados y se muestran 7 días. */
 export function ordersCard() {
   const body = el('div', { 'aria-busy': 'true' }, el('p', { class: 'text-muted small' }, 'Cargando…'));
   const card = el('section', { class: 'yp-card', id: 'accOrders' }, el('h2', { class: 'yp-block-title' }, 'Mis compras'), body);
   (async () => {
     let parts;
-    try { parts = partitionOrders(await listMyOrders()); }
+    try { parts = partitionOrders(await listMyOrders(), { incompleteDays: 7 }); }
     catch (err) { return mount(body, el('p', { class: 'text-danger small', role: 'alert' }, messageFor(err))); }
     body.setAttribute('aria-busy', 'false');
     if (parts.main.length === 0 && parts.incomplete.length === 0) {

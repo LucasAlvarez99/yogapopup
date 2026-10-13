@@ -52,6 +52,17 @@ Deno.test("compras: separa lo importante de los intentos sin completar y ordena 
   assert.deepEqual(p.incomplete.map((o) => o.id), [1, 4]);
 });
 
+Deno.test("compras: los intentos sin completar se muestran solo unos días", () => {
+  const now = Date.parse("2026-01-10T00:00:00Z");
+  const p = partitionOrders([
+    { id: 1, status: "created", created_at: "2026-01-09T00:00:00Z" },
+    { id: 2, status: "cancelled", created_at: "2026-01-01T00:00:00Z" },
+    { id: 3, status: "paid", created_at: "2025-06-01T00:00:00Z" },
+  ], { incompleteDays: 7, now });
+  assert.deepEqual(p.incomplete.map((o) => o.id), [1], "el de hace 9 días ya no se muestra");
+  assert.deepEqual(p.main.map((o) => o.id), [3], "lo pagado nunca vence");
+});
+
 Deno.test("compras: describeOrder resume renglones y solo ofrece 'ver clase' si está pagada", () => {
   const base = {
     id: "o1",

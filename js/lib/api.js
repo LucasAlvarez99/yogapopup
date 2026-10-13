@@ -1,6 +1,6 @@
 import { cfg, page } from './env.js';
 import { supabase } from './supabase.js';
-import { accessToken } from './session.js';
+import { accessToken, getState } from './session.js';
 import { AppError, agendaError } from './errors.js';
 import { fitImage, storageUploadError } from './image.js';
 import { isSchemaBehind } from './catalog.js';
@@ -164,10 +164,21 @@ export async function listMyProgress() {
   return rows.filter((r) => r.classes);
 }
 
+/**
+ * Id de la persona con sesión. Las consultas "mías" filtran por él ADEMÁS de la RLS: la gestión (admin/developer) puede leer
+ * los pedidos y suscripciones de todos, así que sin este filtro vería los ajenos como si fueran suyos.
+ */
+function myId() {
+  const id = getState().user?.id;
+  if (!id) throw new AppError('unauthenticated');
+  return id;
+}
+
 /** "Mis compras" (Fase 24): pedidos propios (tienda y clases sueltas) con sus renglones. */
 export async function listMyOrders(limit = 50) {
   const { data, error } = await db().from('orders')
     .select('id,kind,status,total_cents,tax_cents,refunded_cents,created_at,paid_at,order_items(title,size,qty,item_type,class_id)')
+    .eq('user_id', myId())
     .order('created_at', { ascending: false }).limit(limit);
   if (error) {
     if (isSchemaBehind(error)) return [];
@@ -274,10 +285,11 @@ export async function getClassOffer(classId) {
   return Number.isSafeInteger(data?.price_cents) && data.price_cents > 0 ? { price_cents: data.price_cents, tax_rate_bps: data.tax_rate_bps ?? 0 } : null;
 }
 
-/** La suscripción más reciente de la persona (activa, suspendida o cancelada), o null. La RLS limita la lectura a la propia. */
+/** La suscripción más reciente de la persona (activa, suspendida o cancelada), o null. Filtra por la propia (la gestión ve todas por RLS). */
 export async function getMySubscription() {
   const { data, error } = await db().from('subscriptions')
     .select('paypal_subscription_id,status,current_period_end,last_payment_at,cancelled_at,created_at')
+    .eq('user_id', myId())
     .in('status', ['active', 'suspended', 'cancelled']).order('created_at', { ascending: false }).limit(1);
   if (error) {
     if (isSchemaBehind(error)) return null;
