@@ -242,7 +242,11 @@ export const getPlayback = (classId) => callFunction('playback', { class_id: cla
 
 // ---------------------------------------------------------------- administración
 export async function adminListClasses() {
-  return unwrap(await db().from('classes').select(CLASS_ADMIN_COLUMNS).order('created_at', { ascending: false })) ?? [];
+  const first = await db().from('classes').select(CLASS_ADMIN_COLUMNS).order('created_at', { ascending: false });
+  if (!isSchemaBehind(first.error)) return unwrap(first) ?? [];
+  // La base aún no tiene min_tier (falta aplicar las migraciones): se listan las clases sin ese dato en vez de romper el panel.
+  console.warn('[niveles] La base no tiene aún min_tier: aplica las migraciones (npm run sb:db-push).');
+  return unwrap(await db().from('classes').select(CLASS_COLUMNS).order('created_at', { ascending: false })) ?? [];
 }
 
 export const adminCreateUpload = (payload) => callFunction('admin-create-upload', payload);
@@ -290,11 +294,14 @@ export async function getClassOffer(classId) {
 
 /** Los 3 niveles con su precio, beneficios y si ya se pueden contratar (`plan_ready`). Públicos: se ven sin iniciar sesión. */
 export async function listTiers() {
-  const { data, error } = await db().from('subscription_tiers').select('tier,name,benefits,price_cents,plan_ready,discount_bps,monthly_free_classes').order('tier');
-  if (error) {
+  let { data, error } = await db().from('subscription_tiers').select('tier,name,benefits,price_cents,plan_ready,discount_bps,monthly_free_classes').order('tier');
+  if (isSchemaBehind(error)) {
+    // Sin las columnas de descuento/clase gratis (migración pendiente): se piden las de antes. Si ni la tabla existe, no hay niveles.
+    console.warn('[niveles] La base no tiene aún descuentos ni clases gratis: aplica las migraciones (npm run sb:db-push).');
+    ({ data, error } = await db().from('subscription_tiers').select('tier,name,benefits,price_cents,plan_ready').order('tier'));
     if (isSchemaBehind(error)) return [];
-    throw new AppError('internal_error', error.message);
   }
+  if (error) throw new AppError('internal_error', error.message);
   return data ?? [];
 }
 
