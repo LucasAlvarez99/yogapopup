@@ -12,7 +12,7 @@ do $$ declare c uuid; o uuid; o2 uuid; e public.entitlements; begin
   assert public.payments_mark_paid(o, 'CAP-ALQ1', 1000, 'EUR', 'P', null, 'COMPLETED', 'COMPLETED') = 'paid', 'pagado';
 
   -- Vence a los 30 días del pago
-  select * into e from public.entitlements where source = 'paypal' and external_ref = o::text;
+  select * into e from public.entitlements where source = 'paypal' and external_ref like o::text || ':%';
   assert e.scope = 'class' and e.class_id = c, 'acceso a esa clase';
   assert e.expires_at between now() + interval '29 days 23 hours' and now() + interval '30 days 1 hour', 'vence a los 30 días';
   assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b7', c), 'durante los 30 días tiene acceso';
@@ -21,7 +21,7 @@ do $$ declare c uuid; o uuid; o2 uuid; e public.entitlements; begin
   perform t.raises(format($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000b7', '[{"type":"class","id":"%s"}]'::jsonb) $q$, c), '23505');
 
   -- Pasados los 30 días: bloqueada (web y backend)
-  update public.entitlements set expires_at = now() - interval '1 minute' where source = 'paypal' and external_ref = o::text;
+  update public.entitlements set expires_at = now() - interval '1 minute' where source = 'paypal' and external_ref like o::text || ':%';
   assert not public.payments_has_class_access('00000000-0000-4000-8000-0000000000b7', c), 'vencido: sin acceso (backend)';
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000b7', true);
   set local role authenticated;
@@ -32,7 +32,7 @@ do $$ declare c uuid; o uuid; o2 uuid; e public.entitlements; begin
   o2 := public.payments_create_order('00000000-0000-4000-8000-0000000000b7', format('[{"type":"class","id":"%s"}]', c)::jsonb);
   assert public.payments_mark_paid(o2, 'CAP-ALQ2', 1000, 'EUR', 'P', null, 'COMPLETED', 'COMPLETED') = 'paid', 'recompra pagada';
   assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b7', c), 'recomprada: vuelve a tener acceso';
-  assert (select expires_at from public.entitlements where source = 'paypal' and external_ref = o2::text) > now() + interval '29 days', 'otros 30 días';
+  assert (select expires_at from public.entitlements where source = 'paypal' and external_ref like o2::text || ':%') > now() + interval '29 days', 'otros 30 días';
   assert (select count(*) from public.entitlements where user_id = '00000000-0000-4000-8000-0000000000b7' and class_id = c) = 2, 'un acceso por compra';
   assert public.payments_mark_paid(o2, 'CAP-ALQ2', 1000, 'EUR', 'P', null, 'COMPLETED', 'COMPLETED') = 'already_paid', 'idempotente: no duplica ni extiende';
 

@@ -104,7 +104,9 @@ do $$ begin
   perform t.raises($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f6', '{"a":1}'::jsonb) $q$, '22023');
   perform t.raises($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f6', '[{"type":"otra","id":"x"}]'::jsonb) $q$, '22023');
   perform t.raises($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f6', '[{"type":"product","id":"no-es-uuid","qty":1}]'::jsonb) $q$, '22P02');
-  perform t.raises(format($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f6', '[{"type":"product","id":"%s","qty":1},{"type":"class","id":"%s"}]'::jsonb) $q$, t.pp('mat'), t.pp('curso')), '22023'); -- mezcla
+  -- Mezclar productos y videos es válido desde 20261018 (ver cart_videos.test.sql); acá solo se prueba que un video inexistente en la mezcla falla:
+  perform t.raises(format($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f6', '[{"type":"product","id":"%s","qty":1},{"type":"class","id":"00000000-0000-4000-8000-00000000c0de"}]'::jsonb) $q$, t.pp('mat')), 'P0002');
+  assert t.pstock('mat') = 2, 'la mezcla rechazada no toca el stock';
   perform t.raises($q$ select public.payments_create_order('00000000-0000-4000-8000-00000000dead', '[]'::jsonb) $q$, 'P0002');
 end $$;
 
@@ -193,7 +195,7 @@ do $$ declare o uuid; begin
   perform t.raises(format($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f5', '[{"type":"class","id":"%s"}]'::jsonb) $q$, t.pp('curso_free')), 'P0002'); -- gratis: no se cobra
   perform t.raises(format($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f5', '[{"type":"class","id":"%s"}]'::jsonb) $q$, t.pp('curso_sin_precio')), 'P0002');
   perform t.raises(format($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f5', '[{"type":"class","id":"%s"}]'::jsonb) $q$, t.pp('curso_borrador')), 'P0002');
-  perform t.raises(format($q$ select public.payments_create_order('00000000-0000-4000-8000-0000000000f5', '[{"type":"class","id":"%s"},{"type":"class","id":"%s"}]'::jsonb) $q$, t.pp('curso'), t.pp('curso')), '22023'); -- una por pedido
+  -- Un mismo video repetido en el pedido se cobra una sola vez (ver cart_videos.test.sql).
 
   o := public.payments_create_order('00000000-0000-4000-8000-0000000000f5', format('[{"type":"class","id":"%s"}]', t.pp('curso'))::jsonb);
   insert into t.paytest values ('o_curso', o);
@@ -208,7 +210,7 @@ do $$ declare o uuid; begin
 
   assert public.payments_mark_paid(o, 'CAP-C1', 1210, 'EUR', 'P', null, 'COMPLETED', 'COMPLETED') = 'paid', 'pagado';
   assert public.payments_mark_paid(o, 'CAP-C1', 1210, 'EUR', 'P', null, 'COMPLETED', 'COMPLETED') = 'already_paid', 'idempotente';
-  assert (select count(*) from public.entitlements where source = 'paypal' and external_ref = o::text) = 1, 'un solo acceso (no se duplica)';
+  assert (select count(*) from public.entitlements where source = 'paypal' and external_ref like o::text || ':%') = 1, 'un solo acceso (no se duplica)';
 
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000f5', true);
   set local role authenticated;
@@ -222,10 +224,10 @@ do $$ declare o uuid; begin
   assert public.payments_apply_refund(o, 'REF-1', 200) = 'applied', 'reembolso parcial';
   assert public.payments_apply_refund(o, 'REF-1', 200) = 'duplicate', 'mismo reembolso reenviado';
   assert (select refunded_cents from public.orders where id = o) = 200 and (select status from public.orders where id = o) = 'paid', 'parcial: sigue pagado';
-  assert exists (select 1 from public.entitlements where external_ref = o::text), 'parcial: conserva el acceso';
+  assert exists (select 1 from public.entitlements where external_ref like o::text || ':%'), 'parcial: conserva el acceso';
   assert public.payments_apply_refund(o, 'REF-2', 5000) = 'applied', 'el resto (topado al total)';
   assert (select refunded_cents from public.orders where id = o) = 1210 and (select status from public.orders where id = o) = 'refunded', 'reembolsado por completo';
-  assert not exists (select 1 from public.entitlements where external_ref = o::text), 'reembolso total: se quita el acceso';
+  assert not exists (select 1 from public.entitlements where external_ref like o::text || ':%'), 'reembolso total: se quita el acceso';
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000f5', true);
   set local role authenticated;
   assert not public.can_access_class(t.pp('curso')), 'sin acceso tras el reembolso';

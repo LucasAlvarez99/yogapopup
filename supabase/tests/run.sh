@@ -28,6 +28,7 @@ done
 "${PSQL[@]}" -f tests/subscription_tiers.test.sql
 "${PSQL[@]}" -f tests/class_rental.test.sql
 "${PSQL[@]}" -f tests/tier_discounts.test.sql
+"${PSQL[@]}" -f tests/cart_videos.test.sql
 "${PSQL[@]}" -f tests/free_class_coupons.test.sql
 "${PSQL[@]}" -f tests/testimonials.test.sql
 "${PSQL[@]}" -f tests/security_invariants.test.sql

@@ -292,8 +292,8 @@ export class FakePaymentsRepo implements PaymentsRepo {
   }
 
   async createOrder(userId: string, input: CartItemInput[]): Promise<string> {
-    const classes = input.filter((i) => i.type === "class").length;
-    if ((classes > 0 && classes !== input.length) || classes > 1) throw err(400, "invalid_cart");
+    const classIds = [...new Set(input.filter((i) => i.type === "class").map((i) => i.id))];
+    const hasProducts = input.some((i) => i.type === "product");
     // Un intento nuevo reemplaza a los anteriores sin pagar.
     for (const o of this.orders.values()) {
       if (o.user_id === userId && o.status === "created") await this.releaseOrder(o.id, "cancelled", "superseded");
@@ -304,8 +304,8 @@ export class FakePaymentsRepo implements PaymentsRepo {
     let total = 0;
     let tax = 0;
     const take: (() => void)[] = [];
-    if (classes === 1) {
-      const c = this.classes.get(input[0].id);
+    for (const classId of classIds) {
+      const c = this.classes.get(classId);
       if (!c || !c.is_published || c.access_level !== "restricted" || c.price_cents === null) {
         throw err(409, "class_unavailable");
       }
@@ -320,9 +320,10 @@ export class FakePaymentsRepo implements PaymentsRepo {
         variant_id: null,
         class_id: c.id,
       });
-      total = c.price_cents;
-      tax = Math.round(total * c.tax_rate_bps / (10000 + c.tax_rate_bps));
-    } else {
+      total += c.price_cents;
+      tax += Math.round(c.price_cents * c.tax_rate_bps / (10000 + c.tax_rate_bps));
+    }
+    {
       const merged = new Map<string, { id: string; variant: string | null; qty: number }>();
       for (const i of input) {
         if (i.type !== "product") continue;
@@ -365,7 +366,7 @@ export class FakePaymentsRepo implements PaymentsRepo {
     this.orders.set(id, {
       id,
       user_id: userId,
-      kind: classes === 1 ? "class" : "shop",
+      kind: hasProducts ? "shop" : "class",
       status: "created",
       currency: "EUR",
       total_cents: total,
@@ -378,7 +379,7 @@ export class FakePaymentsRepo implements PaymentsRepo {
       paypal_capture_id: null,
       created_at: new Date().toISOString(),
       paid_at: null,
-      stock_reserved: classes === 0,
+      stock_reserved: hasProducts,
       refund_ids: [],
     });
     this.items.set(id, lines);
@@ -445,15 +446,16 @@ export class FakePaymentsRepo implements PaymentsRepo {
       paid_at: new Date().toISOString(),
       paypal_capture_id: i.captureId ?? o.paypal_capture_id,
     });
-    if (o.kind === "class" && o.user_id) {
+    if (o.user_id) {
       for (const l of this.items.get(o.id) ?? []) {
-        if (l.class_id && !this.entitlements.some((e) => e.source === "paypal" && e.external_ref === o.id)) {
+        const ref = `${o.id}:${l.class_id}`;
+        if (l.class_id && !this.entitlements.some((e) => e.source === "paypal" && e.external_ref === ref)) {
           this.entitlements.push({
             user_id: o.user_id,
             scope: "class",
             class_id: l.class_id,
             source: "paypal",
-            external_ref: o.id,
+            external_ref: ref,
             // La clase suelta se alquila: el acceso dura 30 días desde el pago (igual que payments_mark_paid).
             expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           });
@@ -472,9 +474,9 @@ export class FakePaymentsRepo implements PaymentsRepo {
     o.refunded_cents = Math.min(o.total_cents, o.refunded_cents + amountCents);
     if (o.refunded_cents >= o.total_cents) {
       o.status = "refunded";
-      if (o.kind === "class") {
-        this.entitlements = this.entitlements.filter((e) => !(e.source === "paypal" && e.external_ref === o.id));
-      }
+      this.entitlements = this.entitlements.filter((e) =>
+        !(e.source === "paypal" && (e.external_ref === o.id || e.external_ref.startsWith(`${o.id}:`)))
+      );
     }
     return Promise.resolve("applied");
   }

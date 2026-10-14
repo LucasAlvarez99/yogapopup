@@ -38,6 +38,50 @@ async function classOrder(t: ReturnType<typeof makePaymentDeps>, token = "user")
 }
 
 // =============================================================== paypal-create-order
+Deno.test("create-order: varios videos en un pedido (digital) y mezclados con productos (con envío)", async () => {
+  const t = makePaymentDeps();
+  const a = t.repo.addClass({ price_cents: 1000 });
+  const b = t.repo.addClass({ price_cents: 2500 });
+  // Solo videos: un pedido digital, sin envío; un video repetido se cobra una vez.
+  const only = await createOrder(t.deps)(post({
+    items: [{ type: "class", id: a.id }, { type: "class", id: b.id }, { type: "class", id: a.id }],
+  }, "user"));
+  assert.equal(only.status, 200);
+  const [o1] = [...t.paypal.orders.values()];
+  assert.equal(o1.input.shipping, "none");
+  assert.equal(o1.input.totalCents, 3500);
+  assert.equal(o1.input.items.length, 2);
+  assert.ok(o1.input.items.every((l: { digital: boolean }) => l.digital));
+  // Pagar da un acceso por video, y un reembolso total los quita a todos.
+  const orderId = (await only.json() as { order_id: string }).order_id;
+  assert.equal(
+    await t.repo.markPaid({
+      orderId,
+      captureId: "CAP-1",
+      amountCents: 3500,
+      currency: "EUR",
+      payerId: null,
+      shipping: null,
+      paypalStatus: "COMPLETED",
+      captureStatus: "COMPLETED",
+    }),
+    "paid",
+  );
+  assert.equal(t.repo.entitlements.filter((e) => e.scope === "class").length, 2);
+  assert.equal(await t.repo.applyRefund(orderId, "REF-1", 3500), "applied");
+  assert.equal(t.repo.entitlements.filter((e) => e.scope === "class").length, 0);
+  // Mezcla con un producto: pedido de tienda (con envío).
+  const p = t.repo.addProduct({ title: "Mat", price_cents: 3000, stock: 5 });
+  const mixed = await createOrder(t.deps)(post({
+    items: [{ type: "product", id: p.id, variant_id: null, qty: 1 }, { type: "class", id: a.id }],
+  }, "user"));
+  assert.equal(mixed.status, 200);
+  const o2 = [...t.paypal.orders.values()].at(-1)!;
+  assert.equal(o2.input.shipping, "address");
+  assert.equal(o2.input.totalCents, 4000);
+  assert.equal(t.repo.products.get(p.id)!.stock, 4, "stock reservado");
+});
+
 Deno.test("create-order: sin sesión 401; sin PayPal configurado 503; mal formado 400", async () => {
   const t = makePaymentDeps();
   const h = createOrder(t.deps);
