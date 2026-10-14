@@ -86,7 +86,7 @@ const exact = {
   'No pudimos completar el pago': 'We could not complete the payment',
   'No se te cobró nada. Probá de nuevo.': 'You have not been charged. Try again.',
   'Comprar esta clase': 'Buy this class',
-  '· IVA incluido · acceso de por vida a esta clase': '· VAT included · lifetime access to this class',
+  '· IVA incluido · acceso por 30 días a esta clase': '· VAT included · 30 days of access to this class',
   'Cómo acceder a esta clase': 'How to get access to this class',
   '— o —': '— or —',
   'Es un contenido restringido. Abajo podés elegir cómo acceder.': 'This is restricted content. You can choose how to get access below.',

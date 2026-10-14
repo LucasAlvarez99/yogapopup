@@ -181,6 +181,13 @@ Deno.test("capture-order: la compra de una clase concede el acceso (y solo a esa
   assert.equal(t.repo.hasClassAccess(USER_ID, crypto.randomUUID()), false, "no abre otras clases");
   await captureOrder(t.deps)(post({ paypal_order_id }, "user"));
   assert.equal(t.repo.entitlements.length, 1, "un solo acceso aunque se repita");
+
+  // La clase suelta se alquila: 30 días desde el pago, y pasado ese plazo se vuelve a bloquear.
+  const hasta = Date.parse(t.repo.entitlements[0].expires_at!);
+  const dias = (hasta - Date.now()) / 86_400_000;
+  assert.ok(dias > 29.99 && dias <= 30, "el acceso vence a los 30 días");
+  assert.equal(t.repo.hasClassAccess(USER_ID, cls.id, hasta - 1000), true);
+  assert.equal(t.repo.hasClassAccess(USER_ID, cls.id, hasta + 1000), false, "vencido: bloqueada");
 });
 
 Deno.test("capture-order: pedido ajeno o inexistente 404; sin sesión 401; id inválido 400; no aprobada 409", async () => {

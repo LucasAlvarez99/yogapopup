@@ -91,6 +91,13 @@ Deno.test("compras: describeOrder resume renglones y solo ofrece 'ver clase' si 
   };
   assert.equal(describeOrder(c).classId, "k1");
   assert.equal(describeOrder(c).kind, "Clase");
+  // La clase suelta se alquila por 30 días desde el pago.
+  const vigente = describeOrder(c, { now: new Date("2026-01-20T00:00:00Z") });
+  assert.match(vigente.accessNote, /^Acceso hasta el /);
+  const vencida = describeOrder(c, { now: new Date("2026-03-01T00:00:00Z") });
+  assert.match(vencida.accessNote, /^El acceso venció el .*comprala de nuevo/);
+  assert.equal(describeOrder(base).accessNote, "", "un pedido de la tienda no vence");
+  assert.equal(describeOrder({ ...c, status: "refunded" }).accessNote, "");
   assert.equal(describeOrder({ ...c, status: "refunded" }).classId, null);
   assert.equal(describeOrder({ ...c, status: "pending" }).classId, null);
   assert.match(

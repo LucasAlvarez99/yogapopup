@@ -430,7 +430,8 @@ export class FakePaymentsRepo implements PaymentsRepo {
             class_id: l.class_id,
             source: "paypal",
             external_ref: o.id,
-            expires_at: null,
+            // La clase suelta se alquila: el acceso dura 30 días desde el pago (igual que payments_mark_paid).
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           });
         }
       }

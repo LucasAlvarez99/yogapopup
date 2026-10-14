@@ -96,12 +96,21 @@ export function describeOrderItems(items = []) {
  * Una fila del historial. `classId` solo aparece en una clase suelta YA pagada (para ofrecer "Ver clase"); un pedido
  * reembolsado ya no da acceso, así que no ofrece el enlace.
  */
-export function describeOrder(order) {
+export const CLASS_ACCESS_DAYS = 30; // igual que payments_mark_paid: la clase suelta se alquila por 30 días desde el pago
+
+export function describeOrder(order, { now = new Date() } = {}) {
   const status = ORDER_STATUS_FOR_USER[order.status] ??
     { label: String(order.status ?? ''), tone: 'secondary', note: '' };
   const items = order.order_items ?? [];
   const classItem = order.kind === 'class' ? items.find((i) => i.class_id) : null;
   const refunded = Number(order.refunded_cents) || 0;
+  let accessNote = '';
+  if (order.status === 'paid' && classItem && order.paid_at) {
+    const until = new Date(new Date(order.paid_at).getTime() + CLASS_ACCESS_DAYS * 86_400_000);
+    accessNote = until > now
+      ? `Acceso hasta el ${formatDate(until)}`
+      : `El acceso venció el ${formatDate(until)}. Para volver a verla, comprala de nuevo.`;
+  }
   return {
     id: order.id,
     date: formatDate(order.paid_at || order.created_at),
@@ -110,6 +119,7 @@ export function describeOrder(order) {
       (order.kind === 'class' ? 'Clase suelta' : 'Pedido'),
     total: formatPrice(order.total_cents),
     status,
+    accessNote,
     refundNote: refunded > 0 && order.status !== 'refunded' ? `Reembolsado parcialmente: ${formatPrice(refunded)}` : '',
     classId: order.status === 'paid' && classItem ? classItem.class_id : null,
   };

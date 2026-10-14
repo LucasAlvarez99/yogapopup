@@ -26,6 +26,7 @@ done
 "${PSQL[@]}" -f tests/profesores_agenda.test.sql
 "${PSQL[@]}" -f tests/payments.test.sql
 "${PSQL[@]}" -f tests/subscription_tiers.test.sql
+"${PSQL[@]}" -f tests/class_rental.test.sql
 "${PSQL[@]}" -f tests/testimonials.test.sql
 "${PSQL[@]}" -f tests/security_invariants.test.sql
 

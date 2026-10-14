@@ -16,7 +16,7 @@ export function buyClassBox({ classId, offer, onPurchased }) {
   const slot = el('div', { class: 'pp-buttons' });
   const box = el('div', { class: 'pp-box' },
     el('p', { class: 'fw-semibold mb-1' }, 'Comprar esta clase'),
-    el('p', { class: 'mb-2' }, el('strong', {}, formatPrice(offer.price_cents)), el('span', { class: 'small ms-1' }, '· IVA incluido · acceso de por vida a esta clase')),
+    el('p', { class: 'mb-2' }, el('strong', {}, formatPrice(offer.price_cents)), el('span', { class: 'small ms-1' }, '· IVA incluido · acceso por 30 días a esta clase')),
     status, slot);
 
   const busy = (text) => { status.textContent = text; slot.style.opacity = text ? '.4' : ''; slot.style.pointerEvents = text ? 'none' : ''; };

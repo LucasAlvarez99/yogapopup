@@ -10,6 +10,7 @@ function row(order) {
       el('div', { class: 'acc-row-title' }, el('span', { class: 'badge text-bg-light me-1' }, d.kind), d.summary),
       el('div', { class: 'acc-sub small text-muted' }, `${d.date} · ${d.total}`),
       d.status.note ? el('div', { class: 'acc-sub small text-muted' }, d.status.note) : null,
+      d.accessNote ? el('div', { class: 'acc-sub small text-muted' }, d.accessNote) : null,
       d.refundNote ? el('div', { class: 'acc-sub small text-muted' }, d.refundNote) : null),
     el('div', { class: 'text-end' },
       el('span', { class: `badge text-bg-${d.status.tone}` }, d.status.label),
