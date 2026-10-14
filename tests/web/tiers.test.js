@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import {
+  discountedCents,
+  discountLabel,
   minTierLabel,
   normalizeMinTier,
+  parseTierDiscount,
+  parseTierFreeClasses,
   parseTierPrice,
   parseTierText,
   sellableTiers,
   sortTiers,
+  tierBenefitLines,
+  tierDiscountBps,
   tierName,
   tierPriceLabel,
   tiersFromMin,
@@ -83,4 +89,52 @@ Deno.test("niveles: el nombre de un nivel se busca por número", () => {
   assert.equal(tierName(rows, 3), "Premium");
   assert.equal(tierName(rows, 5), "");
   assert.equal(tierName([], 1), "");
+});
+
+Deno.test("descuento del nivel: porcentaje del panel -> puntos básicos, con los mismos límites que la base", () => {
+  assert.deepEqual(parseTierDiscount("5"), { ok: true, bps: 500 });
+  assert.deepEqual(parseTierDiscount("7,5"), { ok: true, bps: 750 });
+  assert.deepEqual(parseTierDiscount("7.25"), { ok: true, bps: 725 });
+  assert.deepEqual(parseTierDiscount(""), { ok: true, bps: 0 }, "vacío = sin descuento");
+  assert.deepEqual(parseTierDiscount("50"), { ok: true, bps: 5000 });
+  for (const bad of ["51", "-1", "abc", "5%", "1,234", "100"]) {
+    assert.equal(parseTierDiscount(bad).ok, false, bad);
+  }
+  assert.equal(discountLabel(500), "5 %");
+  assert.equal(discountLabel(750), "7,5 %");
+  assert.equal(discountLabel(0), "0 %");
+});
+
+Deno.test("clases gratis por mes: de 0 a 5", () => {
+  assert.deepEqual(parseTierFreeClasses("1"), { ok: true, count: 1 });
+  assert.deepEqual(parseTierFreeClasses(""), { ok: true, count: 0 });
+  assert.deepEqual(parseTierFreeClasses("5"), { ok: true, count: 5 });
+  for (const bad of ["6", "-1", "1,5", "x"]) assert.equal(parseTierFreeClasses(bad).ok, false, bad);
+});
+
+Deno.test("precio con descuento: igual que el servidor (por unidad, nunca menos de 1 céntimo)", () => {
+  assert.equal(discountedCents(1000, 500), 950);
+  assert.equal(discountedCents(2000, 700), 1860);
+  assert.equal(discountedCents(999, 0), 999);
+  assert.equal(discountedCents(1, 700), 1);
+  assert.equal(discountedCents(1999, 500), 1899, "1899,05 se redondea al céntimo");
+  assert.equal(tierDiscountBps([{ tier: 2, price_cents: 2000, discount_bps: 500 }], 2), 500);
+  assert.equal(tierDiscountBps([], 2), 0);
+});
+
+Deno.test("beneficios del nivel: los videos suman y el resto sale de lo que dice la base", () => {
+  assert.deepEqual(tierBenefitLines({ tier: 1, discount_bps: 0, monthly_free_classes: 0 }), ["Los videos del nivel 1"]);
+  assert.deepEqual(tierBenefitLines({ tier: 2, discount_bps: 500, monthly_free_classes: 0 }), [
+    "Los videos de los niveles 1 y 2",
+    "5 % de descuento en toda la tienda",
+  ]);
+  assert.deepEqual(tierBenefitLines({ tier: 3, discount_bps: 700, monthly_free_classes: 1 }), [
+    "Todos los videos, sin excepciones",
+    "7 % de descuento en toda la tienda",
+    "1 clase virtual gratis por mes",
+  ]);
+  assert.deepEqual(
+    tierBenefitLines({ tier: 3, discount_bps: 0, monthly_free_classes: 2 }).at(-1),
+    "2 clases virtuales gratis por mes",
+  );
 });

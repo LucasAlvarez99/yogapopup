@@ -216,9 +216,33 @@ export class FakePaymentsRepo implements PaymentsRepo {
   subs = new Map<string, SubscriptionRow & { tier?: number | null }>();
   /** Niveles: el 1 y el 2 tienen plan; el 3 todavía no (se puede probar "no disponible"). */
   tiers = new Map<number, TierRow>([
-    [1, { tier: 1, name: "Esencial", benefits: "", price_cents: 1000, current_plan_id: PLAN_ID }],
-    [2, { tier: 2, name: "Plus", benefits: "", price_cents: 2000, current_plan_id: PLAN2_ID }],
-    [3, { tier: 3, name: "Premium", benefits: "", price_cents: 3000, current_plan_id: null }],
+    [1, {
+      tier: 1,
+      name: "Esencial",
+      benefits: "",
+      price_cents: 1000,
+      current_plan_id: PLAN_ID,
+      discount_bps: 0,
+      monthly_free_classes: 0,
+    }],
+    [2, {
+      tier: 2,
+      name: "Plus",
+      benefits: "",
+      price_cents: 2000,
+      current_plan_id: PLAN2_ID,
+      discount_bps: 500,
+      monthly_free_classes: 0,
+    }],
+    [3, {
+      tier: 3,
+      name: "Premium",
+      benefits: "",
+      price_cents: 3000,
+      current_plan_id: null,
+      discount_bps: 700,
+      monthly_free_classes: 1,
+    }],
   ]);
   /** Todos los planes que alguna vez se vendieron (vigentes y anteriores). */
   knownPlans = new Set<string>([PLAN_ID, PLAN2_ID, PLAN_ANTERIOR_ID]);
@@ -568,6 +592,8 @@ export class FakePaymentsRepo implements PaymentsRepo {
       t.current_plan_id = i.planId;
     }
     Object.assign(t, { name: i.name, benefits: i.benefits, price_cents: i.priceCents });
+    if (i.discountBps !== undefined) t.discount_bps = i.discountBps;
+    if (i.monthlyFreeClasses !== undefined) t.monthly_free_classes = i.monthlyFreeClasses;
     return Promise.resolve("ok");
   }
   listPendingSubscriptions(olderThanMinutes: number, limit: number) {

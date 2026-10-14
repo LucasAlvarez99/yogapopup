@@ -7,9 +7,21 @@ export const TIER_NAME_MAX = 40;
 export const TIER_BENEFITS_MAX = 400;
 export const TIER_PRICE_MIN_CENTS = 100; // 1 €
 export const TIER_PRICE_MAX_CENTS = 50000; // 500 €
+export const TIER_DISCOUNT_MAX_BPS = 5000; // 50 %
+export const TIER_FREE_CLASSES_MAX = 5;
+
+/** Entero opcional dentro de un rango: `undefined` = no se manda (se conserva lo que hay). */
+function optionalInt(value: unknown, max: number, field: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > max) {
+    throw new HttpError(400, "invalid_input", `${field} must be an integer between 0 and ${max}`);
+  }
+  return value;
+}
 
 /**
- * Panel de negocio · guarda un nivel de suscripción (nombre, beneficios y precio mensual). Solo el personal de gestión.
+ * Panel de negocio · guarda un nivel de suscripción (nombre, beneficios, precio mensual y, opcionalmente, el descuento
+ * y las clases gratis por mes). Solo el personal de gestión.
  * PayPal fija el precio en el PLAN y un plan no cambia de precio: si el precio cambia (o el nivel todavía no tiene plan),
  * se crea un plan NUEVO en PayPal y pasa a ser el vigente. Las personas que ya están suscriptas siguen con su plan (y su
  * precio) hasta que cancelen; las que contraten desde ahora pagan el nuevo. Cambiar solo el nombre o los beneficios no
@@ -41,6 +53,9 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
         throw new HttpError(400, "invalid_price", "price_cents must be between 100 and 50000");
       }
 
+      const discountBps = optionalInt(body.discount_bps, TIER_DISCOUNT_MAX_BPS, "discount_bps");
+      const monthlyFreeClasses = optionalInt(body.monthly_free_classes, TIER_FREE_CLASSES_MAX, "monthly_free_classes");
+
       const current = await deps.repo.getTier(tierNumber);
       if (!current) throw new HttpError(404, "tier_not_found", "Subscription level not found");
 
@@ -53,7 +68,15 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
           requestId: `yp-plan-${tierNumber}-${price}-${crypto.randomUUID()}`,
         })).id;
       }
-      const saved = await deps.repo.saveTier({ tier: tierNumber, name, benefits, priceCents: price, planId });
+      const saved = await deps.repo.saveTier({
+        tier: tierNumber,
+        name,
+        benefits,
+        priceCents: price,
+        discountBps,
+        monthlyFreeClasses,
+        planId,
+      });
       if (saved !== "ok") throw new HttpError(404, "tier_not_found", "Subscription level not found");
 
       await deps.audit.record({
@@ -61,10 +84,27 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
         action: "subscription_tier.save",
         entityType: "subscription_tier",
         entityId: String(tierNumber),
-        details: { from_price_cents: current.price_cents, to_price_cents: price, new_plan: planId !== null },
+        details: {
+          from_price_cents: current.price_cents,
+          to_price_cents: price,
+          new_plan: planId !== null,
+          from_discount_bps: current.discount_bps,
+          to_discount_bps: discountBps ?? current.discount_bps,
+          from_free_classes: current.monthly_free_classes,
+          to_free_classes: monthlyFreeClasses ?? current.monthly_free_classes,
+        },
       }).catch((e) => console.error("[payments] audit failed:", e instanceof Error ? e.message : e));
 
-      return { tier: tierNumber, name, benefits, price_cents: price, plan_ready: true, new_plan: planId !== null };
+      return {
+        tier: tierNumber,
+        name,
+        benefits,
+        price_cents: price,
+        discount_bps: discountBps ?? current.discount_bps,
+        monthly_free_classes: monthlyFreeClasses ?? current.monthly_free_classes,
+        plan_ready: true,
+        new_plan: planId !== null,
+      };
     },
   });
 }

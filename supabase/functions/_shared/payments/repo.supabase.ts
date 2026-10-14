@@ -154,7 +154,8 @@ export function createSupabasePaymentsRepo(url: string, serviceRoleKey: string):
 
     async getTier(tier) {
       const { data, error } = await db.from("subscription_tiers")
-        .select("tier,name,benefits,price_cents,current_plan_id").eq("tier", tier).maybeSingle();
+        .select("tier,name,benefits,price_cents,current_plan_id,discount_bps,monthly_free_classes").eq("tier", tier)
+        .maybeSingle();
       if (error) fail("getTier", error);
       return (data as TierRow | null) ?? null;
     },
@@ -173,6 +174,8 @@ export function createSupabasePaymentsRepo(url: string, serviceRoleKey: string):
         p_benefits: i.benefits,
         p_price_cents: i.priceCents,
         p_plan_id: i.planId,
+        p_discount_bps: i.discountBps ?? null,
+        p_monthly_free: i.monthlyFreeClasses ?? null,
       })) as never;
     },
 

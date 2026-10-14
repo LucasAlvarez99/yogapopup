@@ -3,7 +3,8 @@ import { cartCount, createCartStore, limitFor, validateCart } from '../lib/cart.
 import { addFeedback, badgeText, canIncrease, isRemovableOnly, lineNotice } from '../lib/cart-view.js';
 import { formatPrice } from '../lib/format.js';
 import { cartOptionsFor } from '../lib/sizes.js';
-import { listActiveProducts } from '../lib/api.js';
+import { getMyActiveTier, listActiveProducts, listTiers } from '../lib/api.js';
+import { discountedCents, discountLabel, tierDiscountBps } from '../lib/tiers.js';
 import { messageFor } from '../lib/errors.js';
 import { page, paymentsEnabled } from '../lib/env.js';
 import { canCheckout } from '../lib/checkout.js';
@@ -34,6 +35,7 @@ let seenIds = new Set(); // ids del carrito que ya se pidieron a la base
 let loading = false;
 let failure = null;
 let generation = 0; // para descartar respuestas viejas si se pide de nuevo
+let discountBps = 0; // descuento de la suscripción de la persona (solo para MOSTRAR: el servidor calcula el real)
 let mode = 'cart'; // 'cart' | 'checkout' | 'done': mientras se paga, el cajón NO se redibuja (destruiría los botones de PayPal)
 
 /**
@@ -109,6 +111,18 @@ function emptyView() {
     el('a', { class: 'btn btn-outline-brand btn-sm', href: page('tienda.html') }, 'Ir a la tienda'));
 }
 
+/** Descuento de la suscripción: se calcula por unidad, igual que el servidor, pero el importe final lo confirma PayPal. */
+function discountRows(validation) {
+  if (discountBps <= 0 || validation.subtotalCents <= 0) return null;
+  const total = validation.lines.reduce((sum, l) => sum + discountedCents(l.unitCents, discountBps) * l.qty, 0);
+  if (total >= validation.subtotalCents) return null;
+  return el('div', { id: 'cartDiscountBox' },
+    el('div', { class: 'subtotal text-success' },
+      el('span', {}, `Descuento por tu suscripción (${discountLabel(discountBps)})`),
+      el('strong', { id: 'cartDiscount' }, `-${formatPrice(validation.subtotalCents - total)}`)),
+    el('div', { class: 'subtotal' }, el('span', {}, 'Total estimado'), el('strong', { id: 'cartTotalEstimated' }, formatPrice(total))));
+}
+
 function footer(validation) {
   const fix = validation.issues > 0
     ? el('div', { class: 'cart-alert', role: 'alert' },
@@ -119,6 +133,7 @@ function footer(validation) {
   return el('div', { class: 'cart-footer mt-auto' },
     fix,
     el('div', { class: 'subtotal' }, el('span', {}, 'Subtotal'), el('strong', { id: 'cartSubtotal' }, formatPrice(validation.subtotalCents))),
+    discountRows(validation),
     validation.taxCents > 0
       ? el('p', { class: 'cart-tax', id: 'cartTax' }, `IVA incluido: ${formatPrice(validation.taxCents)} · sin IVA: ${formatPrice(validation.netCents)}`)
       : null,
@@ -190,12 +205,21 @@ async function refresh() {
   renderDrawer();
   let next = null;
   let error = null;
+  let nextDiscount = 0;
   try {
     next = await listActiveProducts();
   } catch (err) {
     error = err;
   }
+  // El descuento es un aviso: si no se puede leer, el carrito se muestra igual (sin descuento).
+  if (!error && session.isLoggedIn()) {
+    try {
+      const tier = await getMyActiveTier();
+      if (tier) nextDiscount = tierDiscountBps(await listTiers(), tier);
+    } catch { nextDiscount = 0; }
+  }
   if (mine !== generation) return; // llegó una respuesta más nueva
+  discountBps = nextDiscount;
   loading = false;
   products = error ? null : next; // si falló, no se muestran precios viejos
   failure = error;

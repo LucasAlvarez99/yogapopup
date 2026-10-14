@@ -9,6 +9,8 @@ export const TIER_NAME_MAX = 40; // iguales a los CHECK de subscription_tiers y 
 export const TIER_BENEFITS_MAX = 400;
 export const TIER_MIN_PRICE_CENTS = 100; // 1 €
 export const TIER_MAX_PRICE_CENTS = 50000; // 500 €
+export const TIER_MAX_DISCOUNT_BPS = 5000; // 50 %, igual que el CHECK de subscription_tiers y la Edge Function paypal-save-tier
+export const TIER_MAX_FREE_CLASSES = 5;
 
 /** Niveles ordenados y sin basura (una fila rara de la base no rompe la pantalla). */
 export function sortTiers(rows) {
@@ -74,4 +76,58 @@ export function minTierLabel(minTier) {
 /** Nombre del nivel de una suscripción ("Plus"), o '' si no se conoce. */
 export function tierName(rows, tier) {
   return sortTiers(rows).find((r) => r.tier === tier)?.name ?? '';
+}
+
+/** Descuento en puntos básicos -> "5 %" · "7,5 %". */
+export function discountLabel(bps) {
+  const pct = (Number(bps) || 0) / 100;
+  return `${Number.isInteger(pct) ? pct : pct.toFixed(2).replace(/0$/, '').replace('.', ',')} %`;
+}
+
+/** Descuento escrito en el panel ("5", "7,5", vacío = sin descuento) -> puntos básicos. @returns {{ ok: true, bps: number } | { ok: false, error: string }} */
+export function parseTierDiscount(input) {
+  const text = String(input ?? '').trim().replace(',', '.');
+  if (text === '') return { ok: true, bps: 0 };
+  const bad = { ok: false, error: 'Escribí el descuento como porcentaje, entre 0 y 50 (ej.: 5 o 7,5).' };
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(text)) return bad;
+  const bps = Math.round(Number(text) * 100);
+  return bps > TIER_MAX_DISCOUNT_BPS ? bad : { ok: true, bps };
+}
+
+/** Clases gratis por mes escritas en el panel (vacío = 0). @returns {{ ok: true, count: number } | { ok: false, error: string }} */
+export function parseTierFreeClasses(input) {
+  const text = String(input ?? '').trim();
+  if (text === '') return { ok: true, count: 0 };
+  const count = Number(text);
+  if (!/^\d{1,2}$/.test(text) || count > TIER_MAX_FREE_CLASSES) {
+    return { ok: false, error: `Las clases gratis por mes van de 0 a ${TIER_MAX_FREE_CLASSES}.` };
+  }
+  return { ok: true, count };
+}
+
+/** Precio de una unidad con el descuento del nivel. Igual que payments_discounted_cents (nunca menos de 1 céntimo). */
+export function discountedCents(cents, bps) {
+  const off = Math.min(Math.max(Number(bps) || 0, 0), 10000);
+  return Math.max(1, Math.round((cents * (10000 - off)) / 10000));
+}
+
+/** Descuento del nivel `tier` (puntos básicos), 0 si no se conoce. */
+export function tierDiscountBps(rows, tier) {
+  return sortTiers(rows).find((r) => r.tier === tier)?.discount_bps ?? 0;
+}
+
+/**
+ * Lo que da cada nivel, listo para mostrar: los videos que ve (los niveles suman), el descuento y la clase gratis al mes.
+ * Se arma con los datos de la base, así que cambiar el descuento en el panel cambia lo que se muestra.
+ */
+export function tierBenefitLines(t) {
+  const lines = [];
+  if (t.tier === 1) lines.push('Los videos del nivel 1');
+  else if (t.tier === 2) lines.push('Los videos de los niveles 1 y 2');
+  else lines.push('Todos los videos, sin excepciones');
+  if (t.discount_bps > 0) lines.push(`${discountLabel(t.discount_bps)} de descuento en toda la tienda`);
+  if (t.monthly_free_classes > 0) {
+    lines.push(t.monthly_free_classes === 1 ? '1 clase virtual gratis por mes' : `${t.monthly_free_classes} clases virtuales gratis por mes`);
+  }
+  return lines;
 }

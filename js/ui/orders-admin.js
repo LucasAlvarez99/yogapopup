@@ -1,5 +1,5 @@
 import { adminClassPrices, adminListClasses, adminListOrders, adminListSubscriptions, adminSaveTier, adminSetClassPrice, listTiers, paypalReconcile } from '../lib/api.js';
-import { parseTierPrice, parseTierText, tierName, tierPriceLabel, TIER_BENEFITS_MAX, TIER_NAME_MAX } from '../lib/tiers.js';
+import { parseTierDiscount, parseTierFreeClasses, parseTierPrice, parseTierText, tierName, tierPriceLabel, TIER_BENEFITS_MAX, TIER_NAME_MAX } from '../lib/tiers.js';
 import { messageFor } from '../lib/errors.js';
 import { formatDate, formatPrice } from '../lib/format.js';
 import { el, icon, mount } from '../lib/dom.js';
@@ -79,7 +79,10 @@ function subscriptionsTable(subs, tiers = []) {
       }, 'Verificar')))))));
 }
 
-/** Un nivel de suscripción: nombre, beneficios y precio mensual. Guardar un precio nuevo crea un plan nuevo en PayPal (lo hace el servidor). */
+/** Descuento en puntos básicos -> lo que se escribe en el panel (500 -> "5", 750 -> "7,5"). */
+const discountInput = (bps) => String((Number(bps) || 0) / 100).replace('.', ',');
+
+/** Un nivel de suscripción: nombre, precio mensual, descuento, clases gratis y beneficios. Guardar un precio nuevo crea un plan nuevo en PayPal (lo hace el servidor). */
 function tierEditor(t) {
   const name = el('input', { class: 'form-control form-control-sm', id: `tierName${t.tier}`, maxlength: TIER_NAME_MAX, value: t.name, 'aria-label': `Nombre del nivel ${t.tier}` });
   const price = el('input', { class: 'form-control form-control-sm', id: `tierPrice${t.tier}`, inputmode: 'decimal', value: centsToEurosInput(t.price_cents), 'aria-label': `Precio mensual del nivel ${t.tier} en euros` });
@@ -87,15 +90,21 @@ function tierEditor(t) {
     class: 'form-control form-control-sm', id: `tierBenefits${t.tier}`, rows: 3, maxlength: TIER_BENEFITS_MAX,
     placeholder: 'Ej.: Todas las clases del nivel + una clase gratis al mes', 'aria-label': `Beneficios del nivel ${t.tier}`,
   }, t.benefits ?? '');
+  const discount = el('input', { class: 'form-control form-control-sm', id: `tierDiscount${t.tier}`, inputmode: 'decimal', value: discountInput(t.discount_bps), placeholder: '0', 'aria-label': `Descuento en la tienda del nivel ${t.tier}, en porcentaje` });
+  const freeClasses = el('input', { class: 'form-control form-control-sm', id: `tierFree${t.tier}`, inputmode: 'numeric', value: String(t.monthly_free_classes ?? 0), placeholder: '0', 'aria-label': `Clases virtuales gratis por mes del nivel ${t.tier}` });
   const save = el('button', { type: 'button', class: 'btn btn-sm btn-brand', id: `tierSave${t.tier}` }, 'Guardar');
   save.addEventListener('click', async () => {
     const text = parseTierText(name.value, benefits.value);
     if (!text.ok) return toast(text.error, { type: 'error' });
     const cents = parseTierPrice(price.value);
     if (!cents.ok) return toast(cents.error, { type: 'error' });
+    const disc = parseTierDiscount(discount.value);
+    if (!disc.ok) return toast(disc.error, { type: 'error' });
+    const free = parseTierFreeClasses(freeClasses.value);
+    if (!free.ok) return toast(free.error, { type: 'error' });
     save.disabled = true;
     try {
-      const res = await adminSaveTier({ tier: t.tier, name: text.name, benefits: text.benefits, priceCents: cents.cents });
+      const res = await adminSaveTier({ tier: t.tier, name: text.name, benefits: text.benefits, priceCents: cents.cents, discountBps: disc.bps, monthlyFreeClasses: free.count });
       toast(res.new_plan
         ? `Nivel guardado: desde ahora se cobra ${tierPriceLabel(cents.cents)}. Quienes ya están suscriptos conservan su precio actual.`
         : 'Nivel guardado.', { type: 'success' });
@@ -111,7 +120,10 @@ function tierEditor(t) {
       el('span', { class: `badge text-bg-${t.plan_ready ? 'success' : 'warning'}` }, t.plan_ready ? 'Se puede contratar' : 'Guardalo para crear el plan')),
     el('label', { class: 'form-label small mb-1', for: name.id }, 'Nombre'), name,
     el('label', { class: 'form-label small mt-2 mb-1', for: price.id }, 'Precio mensual (€, IVA incluido)'), price,
-    el('label', { class: 'form-label small mt-2 mb-1', for: benefits.id }, 'Beneficios (se muestran al elegir el nivel)'), benefits,
+    el('div', { class: 'row g-2 mt-0' },
+      el('div', { class: 'col-6' }, el('label', { class: 'form-label small mt-2 mb-1', for: discount.id }, 'Descuento en la tienda (%)'), discount),
+      el('div', { class: 'col-6' }, el('label', { class: 'form-label small mt-2 mb-1', for: freeClasses.id }, 'Clases gratis por mes'), freeClasses)),
+    el('label', { class: 'form-label small mt-2 mb-1', for: benefits.id }, 'Otros beneficios (texto libre, se muestra al elegir el nivel)'), benefits,
     el('div', { class: 'text-end mt-3' }, save)));
 }
 

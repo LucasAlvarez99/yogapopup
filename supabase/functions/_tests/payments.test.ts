@@ -795,6 +795,13 @@ Deno.test("save-tier: solo la gestión; valida nombre, beneficios y precio", asy
     { price_cents: 50001 },
     { price_cents: 10.5 },
     { price_cents: "1000" },
+    { discount_bps: -1 },
+    { discount_bps: 5001 },
+    { discount_bps: 5.5 },
+    { discount_bps: "500" },
+    { monthly_free_classes: 6 },
+    { monthly_free_classes: -1 },
+    { monthly_free_classes: 1.5 },
   ];
   for (const over of bad) {
     const fresh = makePaymentDeps();
@@ -802,6 +809,32 @@ Deno.test("save-tier: solo la gestión; valida nombre, beneficios y precio", asy
     assert.equal(r.status, 400, JSON.stringify(over));
     assert.equal(fresh.paypal.plans.length, 0, "una entrada inválida no toca PayPal");
   }
+});
+
+Deno.test("save-tier: el descuento y las clases gratis se guardan (y si no se mandan, se conservan)", async () => {
+  const t = makePaymentDeps();
+  const r = await saveTier(t.deps)(
+    post(tierBody({ tier: 2, name: "Plus", price_cents: 2000, discount_bps: 600, monthly_free_classes: 2 }), "admin"),
+  );
+  assert.equal(r.status, 200);
+  const out = await r.json();
+  assert.equal(out.discount_bps, 600);
+  assert.equal(out.monthly_free_classes, 2);
+  assert.equal(out.new_plan, false, "cambiar beneficios no toca PayPal");
+  assert.equal(t.paypal.plans.length, 0);
+  assert.equal(t.repo.tiers.get(2)!.discount_bps, 600);
+  assert.equal(t.repo.tiers.get(2)!.monthly_free_classes, 2);
+
+  const sinMandar = await saveTier(t.deps)(post(tierBody({ tier: 2, name: "Plus", price_cents: 2000 }), "admin"));
+  assert.equal(sinMandar.status, 200);
+  assert.equal(t.repo.tiers.get(2)!.discount_bps, 600, "sin mandarlo se conserva");
+  assert.equal(t.repo.tiers.get(2)!.monthly_free_classes, 2);
+
+  const cero = await saveTier(t.deps)(
+    post(tierBody({ tier: 2, name: "Plus", price_cents: 2000, discount_bps: 0, monthly_free_classes: 0 }), "admin"),
+  );
+  assert.equal(cero.status, 200);
+  assert.equal(t.repo.tiers.get(2)!.discount_bps, 0, "0 es un valor válido: sin descuento");
 });
 
 Deno.test("save-tier: cambiar el precio crea un plan NUEVO en PayPal y el viejo sigue siendo nuestro", async () => {
@@ -818,7 +851,15 @@ Deno.test("save-tier: cambiar el precio crea un plan NUEVO en PayPal y el viejo 
   assert.equal(tier.current_plan_id, t.paypal.plans[0].id, "el plan vigente es el nuevo");
   assert.ok(t.repo.knownPlans.has(PLAN_ID), "el plan anterior sigue siendo nuestro (quien ya paga lo conserva)");
   const audit = t.audit.entries.find((e) => e.action === "subscription_tier.save")!;
-  assert.deepEqual(audit.details, { from_price_cents: 1000, to_price_cents: 1500, new_plan: true });
+  assert.deepEqual(audit.details, {
+    from_price_cents: 1000,
+    to_price_cents: 1500,
+    new_plan: true,
+    from_discount_bps: 0,
+    to_discount_bps: 0,
+    from_free_classes: 0,
+    to_free_classes: 0,
+  });
   assert.equal(audit.actorId !== null, true);
 });
 

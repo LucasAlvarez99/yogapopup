@@ -54,6 +54,10 @@ export interface TierRow {
   benefits: string;
   price_cents: number;
   current_plan_id: string | null;
+  /** Descuento del nivel en toda la tienda y en los videos sueltos, en puntos básicos (500 = 5 %). */
+  discount_bps: number;
+  /** Clases virtuales gratis por mes que da el nivel. */
+  monthly_free_classes: number;
 }
 
 export interface SaveTierInput {
@@ -61,6 +65,9 @@ export interface SaveTierInput {
   name: string;
   benefits: string;
   priceCents: number;
+  /** Beneficios opcionales: si no se mandan, el nivel conserva los que ya tiene. */
+  discountBps?: number;
+  monthlyFreeClasses?: number;
   /** Plan NUEVO recién creado en PayPal con este precio; null si solo cambian nombre o beneficios. */
   planId: string | null;
 }

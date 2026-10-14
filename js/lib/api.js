@@ -290,7 +290,7 @@ export async function getClassOffer(classId) {
 
 /** Los 3 niveles con su precio, beneficios y si ya se pueden contratar (`plan_ready`). Públicos: se ven sin iniciar sesión. */
 export async function listTiers() {
-  const { data, error } = await db().from('subscription_tiers').select('tier,name,benefits,price_cents,plan_ready').order('tier');
+  const { data, error } = await db().from('subscription_tiers').select('tier,name,benefits,price_cents,plan_ready,discount_bps,monthly_free_classes').order('tier');
   if (error) {
     if (isSchemaBehind(error)) return [];
     throw new AppError('internal_error', error.message);
@@ -305,8 +305,24 @@ export async function getClassMinTier(classId) {
 }
 
 /** Panel (gestión): guarda nombre, beneficios y precio mensual de un nivel. Si el precio cambia, el servidor crea un plan NUEVO en PayPal. */
-export const adminSaveTier = ({ tier, name, benefits, priceCents }) =>
-  callFunction('paypal-save-tier', { tier, name, benefits, price_cents: priceCents });
+export const adminSaveTier = ({ tier, name, benefits, priceCents, discountBps, monthlyFreeClasses }) =>
+  callFunction('paypal-save-tier', { tier, name, benefits, price_cents: priceCents, discount_bps: discountBps, monthly_free_classes: monthlyFreeClasses });
+
+/**
+ * Nivel de suscripción VIGENTE de la persona (el más alto con acceso hoy) o null. Solo sirve para MOSTRAR (el descuento
+ * del carrito es un estimado): el servidor decide el descuento real al crear el pedido.
+ */
+export async function getMyActiveTier() {
+  const { data, error } = await db().from('entitlements').select('tier,expires_at')
+    .eq('user_id', myId()).eq('scope', 'all').not('tier', 'is', null);
+  if (error) {
+    if (isSchemaBehind(error)) return null;
+    throw new AppError('internal_error', error.message);
+  }
+  const now = Date.now();
+  const tiers = (data ?? []).filter((e) => !e.expires_at || Date.parse(e.expires_at) > now).map((e) => e.tier);
+  return tiers.length ? Math.max(...tiers) : null;
+}
 
 /** La suscripción más reciente de la persona (activa, suspendida o cancelada), o null. Filtra por la propia (la gestión ve todas por RLS). */
 export async function getMySubscription() {
