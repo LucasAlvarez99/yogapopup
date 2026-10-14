@@ -369,6 +369,35 @@ await test('home: productos reales (no los de ejemplo) que se agregan al carrito
   assert.equal(norm(await text(page, '#cartSubtotal')), '18,99 €');
 });
 
+await test('home: suscripciones con lo que da cada nivel (videos que suman, descuento, clase gratis) y el aviso de PayPal', async (page) => {
+  await page.goto(S);
+  await waitFor(page, () => document.querySelectorAll('#homeTiers .tier-card').length === 3);
+  assert.equal(await page.$eval('#homeTiers', (n) => n.getAttribute('aria-busy')), 'false');
+  const cards = await page.$$eval('#homeTiers .tier-card', (n) => n.map((c) => ({
+    name: c.querySelector('.tier-name').textContent.trim(),
+    price: c.querySelector('.tier-price').textContent.replace(/\s+/g, ' ').trim(),
+    lines: [...c.querySelectorAll('.tier-lines li')].map((li) => li.textContent.trim()),
+    extra: c.querySelector('.tier-benefits')?.textContent.trim() ?? null,
+  })));
+  assert.deepEqual(cards.map((c) => [c.name, c.price]), [['Esencial', '10 € / mes'], ['Plus', '20 € / mes'], ['Premium', '30 € / mes']]);
+  assert.deepEqual(cards[0].lines, ['Los videos del nivel 1']);
+  assert.deepEqual(cards[1].lines, ['Los videos de los niveles 1 y 2', '5 % de descuento en toda la tienda']);
+  assert.deepEqual(cards[2].lines, ['Todos los videos, sin excepciones', '7 % de descuento en toda la tienda', '1 clase virtual gratis por mes']);
+  assert.equal(cards[2].extra, 'Acceso prioritario a novedades', 'el texto libre del panel también se muestra');
+  // El aviso de PayPal es fijo y se ve siempre, y la home enlaza a la videoteca para comprar videos sueltos (30 días)
+  assert.match(await text(page, '.tier-notice'), /necesitás una cuenta de PayPal/);
+  assert.match(await text(page, '.tiers-single'), /30 días/);
+  assert.ok(await page.$('a[href="#suscripciones"]'), 'el menú lleva a las suscripciones');
+  // Sin sesión, "Suscribirme" abre el acceso (no empieza ningún pago)
+  const enabled = await page.$('#homeTiers [data-choose-tier]:not([disabled])');
+  if (enabled) {
+    await enabled.click();
+    await page.waitForSelector('#authEmail', { visible: true });
+  } else {
+    assert.equal(await text(page, '#homeTiers [data-choose-tier]'), 'Próximamente', 'sin PayPal configurado no se simula ningún pago');
+  }
+});
+
 await test('carrito: dos pestañas del mismo navegador se mantienen sincronizadas', async (page) => {
   await page.goto(`${S}/tienda.html`);
   await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
@@ -1393,6 +1422,8 @@ await test('panel · profesor: edita su perfil y sube su foto (que se ve en la h
   await waitFor(page, () => document.querySelector('.ag-teacher-info h3')?.textContent === 'Profe Dos');
   assert.equal(await text(page, '.ag-bio'), 'Profe de Hatha y meditación.');
   assert.deepEqual(await page.$$eval('.ag-chips li', (n) => n.map((x) => x.textContent)), ['Hatha', 'Meditación'], 'sin repetidas');
+  // La foto es `loading="lazy"`: el navegador la pide recién cuando se la ve. Como en la web real, se baja hasta ella.
+  await page.$eval('.ag-photo', (n) => n.scrollIntoView({ block: 'center' }));
   await waitFor(page, () => { const i = document.querySelector('.ag-photo img'); return i && i.complete && i.naturalWidth > 0; }, null, 8000);
 });
 

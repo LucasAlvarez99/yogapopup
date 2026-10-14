@@ -13,6 +13,7 @@ import { productCard } from '../components/product-card.js';
 import { addToCart, initCartUi } from '../ui/cart-drawer.js';
 import { emptyState, errorState } from '../ui/states.js';
 import { loadPublicTestimonials, mountTestimonialModal } from '../ui/testimonials.js';
+import { mountHomeTiers } from '../ui/home-tiers.js';
 import { page } from '../lib/env.js';
 import { el, mount } from '../lib/dom.js';
 
@@ -47,6 +48,7 @@ async function loadVideos() {
   box.setAttribute('aria-busy', 'false');
 }
 loadVideos();
+if (supabase) mountHomeTiers(document.getElementById('homeTiers'));
 
 const shopBox = document.getElementById('homeProducts');
 

@@ -51,7 +51,7 @@ function seed() {
     // Profesores y agenda (migración 20261005120000): `teachers` y `liveSessions` (live_sessions) los siembra seedTeachers().
     teachers: [], liveSessions: [], bookings: [],
     testimonials: [], // comentarios de la comunidad (Fases 26-27): { id, user_id, author_name, body, rating, status, created_at }
-    tiers: [{ tier: 1, name: 'Esencial', benefits: '', price_cents: 1000, current_plan_id: 'P-1' }, { tier: 2, name: 'Plus', benefits: '', price_cents: 2000, current_plan_id: 'P-2' }, { tier: 3, name: 'Premium', benefits: 'Una clase gratis al mes', price_cents: 3000, current_plan_id: 'P-3' }],
+    tiers: [{ tier: 1, name: 'Esencial', benefits: '', price_cents: 1000, current_plan_id: 'P-1', discount_bps: 0, monthly_free_classes: 0 }, { tier: 2, name: 'Plus', benefits: '', price_cents: 2000, current_plan_id: 'P-2', discount_bps: 500, monthly_free_classes: 0 }, { tier: 3, name: 'Premium', benefits: 'Acceso prioritario a novedades', price_cents: 3000, current_plan_id: 'P-3', discount_bps: 700, monthly_free_classes: 1 }],
     orders: [], subscriptions: [], // pedidos ({..., user_id, order_items}) y suscripciones propias (Fases 23-25)
     variants: [], // talles: { id, product_id, size, stock, sort_order, created_at }
     log: { testimonials: [], cancelSubscriptions: 0, saves: [], playbackCalls: [], r2: [], products: [], storage: [], classes: [], teachers: [], sessions: [], bookings: [] },

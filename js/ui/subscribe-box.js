@@ -1,7 +1,7 @@
 import { el, icon, mount } from '../lib/dom.js';
 import { paymentsEnabled } from '../lib/env.js';
 import { listTiers, paypalActivateSubscription, paypalCreateSubscription } from '../lib/api.js';
-import { sellableTiers, tierPriceLabel } from '../lib/tiers.js';
+import { sellableTiers, tierBenefitLines, tierPriceLabel } from '../lib/tiers.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { renderSubscriptionButtons } from '../lib/paypal.js';
 import { toast } from './toast.js';
@@ -65,21 +65,26 @@ export function subscribeBox({ tier, onActive } = {}) {
  */
 export function tierPicker({ onActive, allowedTiers = null } = {}) {
   const box = el('div', { class: 'tier-picker', id: 'tierPicker', 'aria-busy': 'true' }, el('p', { class: 'small text-muted mb-0', role: 'status' }, 'Cargando suscripciones…'));
+  // Se avisa SIEMPRE, antes de elegir: sin cuenta de PayPal no se puede pagar la suscripción.
+  const paypalNotice = () => el('p', { class: 'tier-notice-inline', role: 'note' }, icon('paypal'), ' ', el('strong', {}, 'Necesitás una cuenta de PayPal para suscribirte.'),
+    ' Por ahora es el único medio de pago de las suscripciones.');
   let tiers = [];
 
   const card = (t, children) => el('div', { class: 'tier-card', 'data-tier': String(t.tier) },
     el('h3', { class: 'tier-name', translate: 'no' }, t.name),
     el('p', { class: 'tier-price' }, tierPriceLabel(t.price_cents)),
+    el('ul', { class: 'tier-lines' }, ...tierBenefitLines(t).map((line) => el('li', {}, icon('check2'), ' ', line))),
     t.benefits ? el('p', { class: 'tier-benefits' }, t.benefits) : null,
     ...children);
 
   function showList() {
-    mount(box, el('div', { class: 'tier-grid' }, ...tiers.map((t) => card(t, [
+    mount(box, paypalNotice(), el('div', { class: 'tier-grid' }, ...tiers.map((t) => card(t, [
       el('button', { type: 'button', class: 'btn btn-brand btn-sm w-100', 'data-choose-tier': String(t.tier), onclick: () => showPay(t) }, 'Elegir'),
     ]))));
   }
   function showPay(t) {
     mount(box,
+      paypalNotice(),
       card(t, [subscribeBox({ tier: t.tier, onActive })]),
       el('button', { type: 'button', class: 'btn btn-link btn-sm px-0 mt-2', id: 'tierBack', onclick: showList }, 'Elegir otro nivel'));
   }

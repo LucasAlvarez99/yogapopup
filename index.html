@@ -43,6 +43,7 @@
         <ul class="navbar-nav mx-lg-auto gap-lg-2">
           <li class="nav-item"><a class="nav-link active" href="#inicio">Inicio</a></li>
           <li class="nav-item"><a class="nav-link" href="#cursos">Cursos</a></li>
+          <li class="nav-item"><a class="nav-link" href="#suscripciones">Suscripciones</a></li>
           <li class="nav-item"><a class="nav-link" href="#clases">Clases</a></li>
           <li class="nav-item"><a class="nav-link" href="videoteca.html">Videoteca</a></li>
           <li class="nav-item"><a class="nav-link" href="tienda.html">Merchandising</a></li>
@@ -136,6 +137,32 @@
         <div class="col-6 col-lg-3 reveal"><div class="benefit"><span class="benefit-icon"><i class="bi bi-truck"></i></span><div><h3>Envíos a todo el país</h3><p>Tu pedido, donde estés</p></div></div></div>
         <div class="col-6 col-lg-3 reveal"><div class="benefit"><span class="benefit-icon"><i class="bi bi-chat-dots"></i></span><div><h3>Soporte personalizado</h3><p>Estamos para ayudarte</p></div></div></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ SUSCRIPCIONES ============
+       Los niveles, sus precios y beneficios salen de la base (tabla `subscription_tiers`, editable desde el panel):
+       js/ui/home-tiers.js los dibuja acá. El aviso de PayPal es fijo: tiene que verse siempre. -->
+  <section class="section" id="suscripciones">
+    <div class="container-xl">
+      <div class="section-head reveal">
+        <h2>Elegí tu suscripción</h2>
+      </div>
+      <p class="tiers-intro reveal">Los niveles suman: cada uno incluye todo lo del anterior.</p>
+      <div class="tier-notice" role="note">
+        <i class="bi bi-paypal" aria-hidden="true"></i>
+        <div>
+          <strong>Para suscribirte necesitás una cuenta de PayPal.</strong>
+          <span>Por ahora las suscripciones se pagan solo con PayPal: se renuevan solas cada mes y podés cancelarlas cuando quieras. Estamos trabajando para aceptar más medios de pago.</span>
+        </div>
+      </div>
+      <div class="home-tiers" id="homeTiers" aria-live="polite" aria-busy="true">
+        <div class="yp-skeleton"></div>
+        <div class="yp-skeleton d-none d-md-block"></div>
+        <div class="yp-skeleton d-none d-lg-block"></div>
+      </div>
+      <p class="tiers-single">¿Preferís no suscribirte? También podés comprar cada video por separado: se puede ver durante 30 días. <a href="videoteca.html" class="link-brand">Ver la videoteca <i class="bi bi-arrow-right"></i></a></p>
+      <noscript><p class="text-muted">Activa JavaScript para ver las suscripciones.</p></noscript>
     </div>
   </section>
 

@@ -11,6 +11,31 @@ const MONTHS_EN = {
 };
 
 const exact = {
+  // ---- Suscripciones (home, cuenta y clase)
+  'Suscripciones': 'Subscriptions',
+  'Activa JavaScript para ver las suscripciones.': 'Turn on JavaScript to see the subscriptions.',
+  'Elegí tu suscripción': 'Choose your subscription',
+  'Los niveles suman: cada uno incluye todo lo del anterior.': 'Levels add up: each one includes everything in the previous one.',
+  'Para suscribirte necesitás una cuenta de PayPal.': 'You need a PayPal account to subscribe.',
+  'Por ahora las suscripciones se pagan solo con PayPal: se renuevan solas cada mes y podés cancelarlas cuando quieras. Estamos trabajando para aceptar más medios de pago.':
+    'For now, subscriptions are paid with PayPal only: they renew automatically every month and you can cancel any time. We are working on accepting more payment methods.',
+  'Necesitás una cuenta de PayPal para suscribirte.': 'You need a PayPal account to subscribe.',
+  'Por ahora es el único medio de pago de las suscripciones.': 'For now it is the only payment method for subscriptions.',
+  '¿Preferís no suscribirte? También podés comprar cada video por separado: se puede ver durante 30 días.':
+    'Prefer not to subscribe? You can also buy each video separately: you can watch it for 30 days.',
+  'Ver la videoteca': 'View the video library',
+  'Suscribirme': 'Subscribe', 'Próximamente': 'Coming soon', 'Elegir': 'Choose', 'Elegir otro nivel': 'Choose another level',
+  'Pronto vas a poder suscribirte.': 'You will be able to subscribe soon.',
+  'Los videos del nivel 1': 'Level 1 videos',
+  'Los videos de los niveles 1 y 2': 'Level 1 and 2 videos',
+  'Todos los videos, sin excepciones': 'All videos, no exceptions',
+  '1 clase virtual gratis por mes': '1 free virtual class per month',
+  'Mi clase virtual gratis': 'My free virtual class',
+  'Usar mi clase gratis': 'Use my free class',
+  'Reservar gratis': 'Book for free',
+  'Tenés 1 clase virtual gratis este mes.': 'You have 1 free virtual class this month.',
+  'Ya usaste tu clase virtual gratis de este mes. El mes que viene tenés otra.': 'You already used your free virtual class this month. You get another one next month.',
+
   // ---- Encabezado, pie y navegación
   'Yoga Pop Up · Yoga & Conexión': 'Yoga Pop Up · Yoga & Connection',
   'Inicio': 'Home', 'Cursos': 'Courses', 'Clases': 'Classes', 'Videoteca': 'Video library',
@@ -318,6 +343,13 @@ const exact = {
 
 /** Textos con datos: [expresión sobre el texto en español, reemplazo con $1, $2…]. Van anclados (^…$). */
 const patterns = [
+  [/^(\d+(?:,\d+)?) % de descuento en toda la tienda$/, '$1 % off the whole shop'],
+  [/^(\d+) clases virtuales gratis por mes$/, '$1 free virtual classes per month'],
+  [/^(\d+(?:,\d{1,2})?) € \/ mes$/, '€$1 / month'],
+  [/^Descuento por tu suscripción \((.+)\)$/, 'Subscription discount ($1)'],
+  [/^Acceso hasta el (.+)$/, 'Access until $1'],
+  [/^Podés usarla hasta el (.+)\. Si no la usás, se pierde: no se acumula para el mes siguiente\.$/, 'You can use it until $1. If you do not use it, it is lost: it does not carry over to next month.'],
+
   [/^(\d+) semanas?$/, '$1 weeks'],
   [new RegExp(`^(${Object.keys(MONTHS_EN).join('|')}) (\\d{4})$`), (_all, month, year) => `${MONTHS_EN[month]} ${year}`],
   [/^(\d+), con clases$/, '$1, has classes'],

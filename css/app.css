@@ -363,3 +363,21 @@
 .tier-price { font-weight: 600; margin: 0 0 .4rem; }
 .tier-benefits { font-size: .85rem; color: var(--color-text-muted); white-space: pre-line; margin: 0 0 .6rem; }
 .pp-options .tier-picker { text-align: left; }
+.tier-lines { list-style: none; padding: 0; margin: 0 0 .7rem; font-size: .88rem; }
+.tier-lines li { display: flex; gap: .45rem; align-items: baseline; margin-bottom: .3rem; }
+.tier-lines .bi { color: var(--color-primary-dark, var(--color-primary)); flex: none; }
+.tier-notice-inline { font-size: .85rem; background: #fff7e0; border: 1px solid #f0dfa8; border-radius: .7rem; padding: .55rem .8rem; margin: 0 0 .75rem; }
+
+/* Suscripciones en la home */
+.tiers-intro { color: var(--color-text-muted); margin: -1rem 0 1.25rem; }
+.tier-notice { display: flex; gap: .8rem; align-items: flex-start; background: #fff7e0; border: 1px solid #f0dfa8; border-radius: var(--radius-sm, .8rem); padding: .85rem 1.1rem; margin-bottom: 1.5rem; }
+.tier-notice > .bi { font-size: 1.4rem; line-height: 1.2; color: #003087; flex: none; }
+.tier-notice strong { display: block; }
+.tier-notice span { font-size: .92rem; color: var(--color-text-muted); }
+.home-tiers { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); align-items: stretch; }
+.tier-card-home { display: flex; flex-direction: column; padding: 1.5rem; box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, .06)); }
+.tier-card-home .tier-name { font-size: 1.25rem; }
+.tier-card-home .tier-price { font-size: 1.6rem; font-weight: 700; margin-bottom: 1rem; }
+.tier-card-home .tier-lines { font-size: .95rem; flex: 1 1 auto; }
+.tier-card-home .btn { margin-top: auto; }
+.tiers-single { margin: 1.5rem 0 0; color: var(--color-text-muted); }
