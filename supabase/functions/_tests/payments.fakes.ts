@@ -188,8 +188,8 @@ interface FakeClass {
   tax_rate_bps: number;
   access_level: "free" | "restricted";
   is_published: boolean;
-  /** Niveles de suscripción que la ven (por defecto, los tres). */
-  access_tiers?: number[];
+  /** Nivel de suscripción mínimo para verla (por defecto 1: la ven todos; el nivel 3 ve siempre todo). */
+  min_tier?: number;
 }
 export interface FakeEntitlement {
   user_id: string;
@@ -259,10 +259,10 @@ export class FakePaymentsRepo implements PaymentsRepo {
     return row;
   }
   hasClassAccess(userId: string, classId: string, now = Date.now()): boolean {
-    const tiers = this.classes.get(classId)?.access_tiers ?? [1, 2, 3];
+    const minTier = this.classes.get(classId)?.min_tier ?? 1;
     return this.entitlements.some((e) =>
       e.user_id === userId && (e.expires_at === null || Date.parse(e.expires_at) > now) &&
-      ((e.scope === "all" && (e.tier == null || tiers.includes(e.tier))) ||
+      ((e.scope === "all" && (e.tier == null || e.tier >= minTier)) ||
         (e.scope === "class" && e.class_id === classId))
     );
   }

@@ -14,7 +14,7 @@ import { storagePathFromPublicUrl } from './product-form.js';
 export const CLASS_COLUMNS =
   'id,title,description,thumbnail_url,duration_seconds,level,category,access_level,sort_order,is_published,published_at,video_status,created_at,updated_at';
 /** Columnas para quien administra: suman los niveles de suscripción (solo las puede leer una persona con sesión). */
-const CLASS_ADMIN_COLUMNS = `${CLASS_COLUMNS},access_tiers`;
+const CLASS_ADMIN_COLUMNS = `${CLASS_COLUMNS},min_tier`;
 const CARD_COLUMNS = 'id,title,thumbnail_url,duration_seconds,level,category,access_level';
 
 function db() {
@@ -250,7 +250,7 @@ export const adminSyncVideo = (classId, durationSeconds) =>
   callFunction('admin-sync-video', { class_id: classId, duration_seconds: durationSeconds ?? undefined });
 export const adminDeleteClass = (classId) => callFunction('admin-delete-class', { class_id: classId });
 
-const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'sort_order', 'is_published', 'access_tiers'];
+const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'sort_order', 'is_published', 'min_tier'];
 
 /** Edita metadatos y publica/despublica. La base rechaza publicar una clase sin video listo. */
 export async function adminUpdateClass(id, patch) {
@@ -298,10 +298,10 @@ export async function listTiers() {
   return data ?? [];
 }
 
-/** Niveles en los que se ve una clase (solo con sesión). null = no se pudo saber: no se filtra nada. */
-export async function getClassTiers(classId) {
-  const { data, error } = await db().from('classes').select('access_tiers').eq('id', classId).maybeSingle();
-  return error ? null : (data?.access_tiers ?? null);
+/** Nivel mínimo para ver una clase (1, 2 o 3; solo con sesión). null = no se pudo saber: no se filtra nada. */
+export async function getClassMinTier(classId) {
+  const { data, error } = await db().from('classes').select('min_tier').eq('id', classId).maybeSingle();
+  return error ? null : (data?.min_tier ?? null);
 }
 
 /** Panel (gestión): guarda nombre, beneficios y precio mensual de un nivel. Si el precio cambia, el servidor crea un plan NUEVO en PayPal. */

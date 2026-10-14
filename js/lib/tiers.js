@@ -17,7 +17,7 @@ export function sortTiers(rows) {
     .sort((a, b) => a.tier - b.tier);
 }
 
-/** Los niveles que se pueden contratar hoy: tienen plan en PayPal y, si se pide, entran en `allowed` (niveles de una clase). */
+/** Los niveles que se pueden contratar hoy: tienen plan en PayPal y, si se pide, entran en `allowed` (los niveles que ven una clase). */
 export function sellableTiers(rows, allowed = null) {
   const only = Array.isArray(allowed) && allowed.length > 0 ? new Set(allowed) : null;
   return sortTiers(rows).filter((r) => r.plan_ready === true && (!only || only.has(r.tier)));
@@ -51,17 +51,24 @@ export function parseTierText(name, benefits) {
   return { ok: true, name: n, benefits: b };
 }
 
-/** Niveles marcados en el formulario de una clase (números sueltos, sin repetir, ordenados). Vacío = inválido. */
-export function normalizeClassTiers(values) {
-  return [...new Set((Array.isArray(values) ? values : []).map(Number).filter((n) => TIERS.includes(n)))].sort((a, b) => a - b);
+/** Nivel mínimo de una clase (1, 2 o 3). Cualquier otra cosa = 1: la ven todos los niveles. */
+export function normalizeMinTier(value) {
+  const n = Number(value);
+  return TIERS.includes(n) ? n : 1;
 }
 
-/** "Todos los niveles" · "Nivel 3" · "Niveles 2 y 3". Una clase libre no depende de ningún nivel. */
-export function classTiersLabel(tiers) {
-  const t = normalizeClassTiers(tiers);
-  if (t.length === 0 || t.length === TIERS.length) return 'Todos los niveles';
-  if (t.length === 1) return `Nivel ${t[0]}`;
-  return `Niveles ${t.slice(0, -1).join(', ')} y ${t.at(-1)}`;
+/** Niveles que ven una clase con ese nivel mínimo. Son acumulativos: del mínimo al 3 (2 -> [2, 3]; el 3 ve siempre todo). */
+export function tiersFromMin(minTier) {
+  const min = normalizeMinTier(minTier);
+  return TIERS.filter((n) => n >= min);
+}
+
+/** "Todos los niveles" · "Niveles 2 y 3" · "Solo nivel 3". Una clase libre no depende de ningún nivel. */
+export function minTierLabel(minTier) {
+  const min = normalizeMinTier(minTier);
+  if (min === 1) return 'Todos los niveles';
+  if (min === 2) return 'Niveles 2 y 3';
+  return 'Solo nivel 3';
 }
 
 /** Nombre del nivel de una suscripción ("Plus"), o '' si no se conoce. */

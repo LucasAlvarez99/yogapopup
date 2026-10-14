@@ -861,10 +861,10 @@ Deno.test("niveles: una suscripción de un plan ANTERIOR del nivel sigue concedi
   assert.equal(t.repo.entitlements[0].tier, 1);
 });
 
-Deno.test("niveles: cada clase dice en qué niveles se ve; el acceso manual sin nivel vale para todos", async () => {
+Deno.test("niveles: cada clase pide un nivel mínimo y los niveles suman; el acceso manual sin nivel vale para todos", async () => {
   const t = makePaymentDeps();
-  const soloPremium = t.repo.addClass({ access_tiers: [3] });
-  const plusYPremium = t.repo.addClass({ access_tiers: [2, 3] });
+  const soloPremium = t.repo.addClass({ min_tier: 3 });
+  const plusYPremium = t.repo.addClass({ min_tier: 2 });
   const todos = t.repo.addClass();
   await subscribed(t); // nivel 1
   assert.equal(t.repo.hasClassAccess(USER_ID, todos.id), true);
@@ -881,4 +881,23 @@ Deno.test("niveles: cada clase dice en qué niveles se ve; el acceso manual sin 
     tier: null,
   });
   assert.equal(t.repo.hasClassAccess(USER2_ID, soloPremium.id), true);
+
+  // Los niveles suman: el 2 ve lo del 1 y lo del 2; el 3 ve todo, sin excepciones.
+  for (const tier of [2, 3]) {
+    t.repo.entitlements.push({
+      user_id: `nivel-${tier}`,
+      scope: "all",
+      class_id: null,
+      source: "paypal",
+      external_ref: `I-NIVEL-${tier}`,
+      expires_at: null,
+      tier,
+    });
+  }
+  assert.equal(t.repo.hasClassAccess("nivel-2", todos.id), true);
+  assert.equal(t.repo.hasClassAccess("nivel-2", plusYPremium.id), true);
+  assert.equal(t.repo.hasClassAccess("nivel-2", soloPremium.id), false);
+  assert.equal(t.repo.hasClassAccess("nivel-3", todos.id), true);
+  assert.equal(t.repo.hasClassAccess("nivel-3", plusYPremium.id), true);
+  assert.equal(t.repo.hasClassAccess("nivel-3", soloPremium.id), true);
 });

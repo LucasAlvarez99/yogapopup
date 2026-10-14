@@ -1,6 +1,6 @@
 import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
-import { getClass, getClassOffer, getClassTiers, getPlayback, listPublishedClasses, saveProgress, saveProgressOnUnload } from '../lib/api.js';
+import { getClass, getClassOffer, getClassMinTier, getPlayback, listPublishedClasses, saveProgress, saveProgressOnUnload } from '../lib/api.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { formatClock, formatMinutes, isUuid, levelLabel, percent } from '../lib/format.js';
 import { cfg, page, paymentsEnabled } from '../lib/env.js';
@@ -13,6 +13,7 @@ import { ProgressReporter } from '../lib/progress-reporter.js';
 import { classCard } from '../components/class-card.js';
 import { buyClassBox } from '../ui/pay-class.js';
 import { subscriptionOffered, tierPicker } from '../ui/subscribe-box.js';
+import { tiersFromMin } from '../lib/tiers.js';
 
 /**
  * Detalle de clase + reproductor de un video.
@@ -47,7 +48,8 @@ async function offerAccess() {
   if (offer) boxes.push(buyClassBox({ classId, offer, onPurchased: () => { toast('¡Gracias! Ya podés ver la clase.', { type: 'success' }); start(); } }));
   if (subscriptionOffered()) {
     // Solo se ofrecen los niveles que ven ESTA clase (si no se pudieron leer, se ofrecen todos).
-    const allowedTiers = session.isLoggedIn() ? await getClassTiers(classId) : null;
+    const minTier = session.isLoggedIn() ? await getClassMinTier(classId) : null;
+    const allowedTiers = minTier == null ? null : tiersFromMin(minTier);
     boxes.push(tierPicker({ allowedTiers, onActive: (r) => { if (r === 'active') start(); } }));
   }
   if (boxes.length === 0) return false;

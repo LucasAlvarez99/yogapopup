@@ -5,7 +5,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-0000000000b2', 'nivel1@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000b3', 'nivel3@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000b4', 'manual@test.dev', '{}'),
-  ('00000000-0000-4000-8000-0000000000b5', 'admin-niveles@test.dev', '{}');
+  ('00000000-0000-4000-8000-0000000000b5', 'admin-niveles@test.dev', '{}'),
+  ('00000000-0000-4000-8000-0000000000b6', 'nivel2@test.dev', '{}');
 update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000b5';
 
 create table t.tiertest (name text primary key, id uuid);
@@ -13,13 +14,13 @@ grant all on t.tiertest to public;
 create function t.tc(n text) returns uuid language sql as $$ select id from t.tiertest where name = n $$;
 grant execute on function t.tc(text) to public;
 
--- Clases restringidas con distintos niveles
+-- Clases restringidas con distinto nivel mínimo
 do $$ declare v uuid; begin
-  insert into public.classes (title, access_level, video_status, is_published, r2_object_key, access_tiers)
-    values ('Solo premium', 'restricted', 'ready', true, 'k/premium', '{3}') returning id into v;
+  insert into public.classes (title, access_level, video_status, is_published, r2_object_key, min_tier)
+    values ('Solo premium', 'restricted', 'ready', true, 'k/premium', 3) returning id into v;
   insert into t.tiertest values ('premium', v);
-  insert into public.classes (title, access_level, video_status, is_published, r2_object_key, access_tiers)
-    values ('Plus y premium', 'restricted', 'ready', true, 'k/plus', '{2,3}') returning id into v;
+  insert into public.classes (title, access_level, video_status, is_published, r2_object_key, min_tier)
+    values ('Plus y premium', 'restricted', 'ready', true, 'k/plus', 2) returning id into v;
   insert into t.tiertest values ('plus', v);
   insert into public.classes (title, access_level, video_status, is_published, r2_object_key)
     values ('Para todos los niveles', 'restricted', 'ready', true, 'k/todos') returning id into v;
@@ -30,13 +31,14 @@ end $$;
 do $$ begin
   assert (select count(*) from public.subscription_tiers) = 3, 'tres niveles';
   assert (select array_agg(price_cents order by tier) from public.subscription_tiers) = array[1000, 2000, 3000], '10, 20 y 30 euros';
-  assert (select access_tiers from public.classes where id = t.tc('todos')) = '{1,2,3}', 'una clase nueva entra en los tres niveles';
+  assert (select min_tier from public.classes where id = t.tc('todos')) = 1, 'una clase nueva la ven los tres niveles (nivel mínimo 1)';
 end $$;
 
 -- 2. Restricciones de datos
 do $$ begin
-  perform t.raises($q$ update public.classes set access_tiers = '{}' where title = 'Solo premium' $q$, '23514');
-  perform t.raises($q$ update public.classes set access_tiers = '{4}' where title = 'Solo premium' $q$, '23514');
+  perform t.raises($q$ update public.classes set min_tier = 0 where title = 'Solo premium' $q$, '23514');
+  perform t.raises($q$ update public.classes set min_tier = 4 where title = 'Solo premium' $q$, '23514');
+  perform t.raises($q$ update public.classes set min_tier = null where title = 'Solo premium' $q$, '23502');
   perform t.raises($q$ update public.subscription_tiers set price_cents = 50 where tier = 1 $q$, '23514');
   perform t.raises($q$ update public.subscription_tiers set price_cents = 60000 where tier = 1 $q$, '23514');
   perform t.raises($q$ update public.subscription_tiers set name = '   ' where tier = 1 $q$, '23514');
@@ -71,15 +73,16 @@ do $$ begin
   perform t.raises($q$ update public.subscription_tiers set price_cents = 100 $q$, '42501');
   perform t.raises($q$ select public.payments_save_tier(1::smallint, 'X', '', 1000, null) $q$, '42501');
   assert (select count(*) from public.subscription_plans) = 4, 'la gestión ve el historial de planes';
-  update public.classes set access_tiers = '{1,2}' where id = t.tc('plus');
-  update public.classes set access_tiers = '{2,3}' where id = t.tc('plus');
+  update public.classes set min_tier = 1 where id = t.tc('plus');
+  assert (select min_tier from public.classes where id = t.tc('plus')) = 1, 'la gestión cambia el nivel mínimo de una clase';
+  update public.classes set min_tier = 2 where id = t.tc('plus');
   reset role;
 
   perform set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000b2', true);
   set local role authenticated;
   assert (select count(*) from public.subscription_plans) = 0, 'un alumno no ve los planes';
-  update public.classes set access_tiers = '{1}' where id = t.tc('premium');
-  assert (select access_tiers from public.classes where id = t.tc('premium')) = '{3}', 'un alumno no cambia los niveles de una clase';
+  update public.classes set min_tier = 1 where id = t.tc('premium');
+  assert (select min_tier from public.classes where id = t.tc('premium')) = 3, 'un alumno no cambia el nivel mínimo de una clase';
   reset role;
 end $$;
 
@@ -93,16 +96,23 @@ do $$ begin
   perform public.payments_start_subscription('00000000-0000-4000-8000-0000000000b3', 'I-NIVEL3', 'P-PREMIUM-1');
   perform public.payments_sync_subscription('I-NIVEL3', null, 'P-PREMIUM-1', 'active', now() + interval '30 days', now());
 
+  perform public.payments_start_subscription('00000000-0000-4000-8000-0000000000b6', 'I-NIVEL2', 'P-PLUS-1');
+  perform public.payments_sync_subscription('I-NIVEL2', null, 'P-PLUS-1', 'active', now() + interval '30 days', now());
+
   insert into public.entitlements (user_id, scope, source) values ('00000000-0000-4000-8000-0000000000b4', 'all', 'manual');
 end $$;
 
 do $$ begin
   -- backend (service role)
   assert not public.payments_has_class_access('00000000-0000-4000-8000-0000000000b2', t.tc('premium')), 'nivel 1 no ve la clase solo premium';
-  assert not public.payments_has_class_access('00000000-0000-4000-8000-0000000000b2', t.tc('plus')), 'nivel 1 no ve plus y premium';
+  assert not public.payments_has_class_access('00000000-0000-4000-8000-0000000000b2', t.tc('plus')), 'nivel 1 no ve las de nivel 2';
   assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b2', t.tc('todos')), 'nivel 1 ve la de todos los niveles';
-  assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b3', t.tc('premium')), 'nivel 3 ve la solo premium';
-  assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b3', t.tc('plus')), 'nivel 3 ve plus y premium';
+  assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b6', t.tc('todos')), 'nivel 2 ve lo del nivel 1';
+  assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b6', t.tc('plus')), 'nivel 2 ve las marcadas para nivel 2';
+  assert not public.payments_has_class_access('00000000-0000-4000-8000-0000000000b6', t.tc('premium')), 'nivel 2 no ve las de nivel 3';
+  assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b3', t.tc('premium')), 'nivel 3 ve las de nivel 3';
+  assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b3', t.tc('plus')), 'nivel 3 ve las de nivel 2';
+  assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b3', t.tc('todos')), 'nivel 3: sin excepciones, ve también las de nivel 1';
   assert public.payments_has_class_access('00000000-0000-4000-8000-0000000000b4', t.tc('premium')), 'acceso manual sin nivel: ve todo';
 
   -- lo que ve cada persona en la web (can_access_class)

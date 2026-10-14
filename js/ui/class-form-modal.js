@@ -4,7 +4,7 @@ import { LEVEL_LABELS } from '../lib/format.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { assertVideoReady, sanitizeDuration, videoFileProblem } from '../lib/video-upload.js';
 import { adminCreateUpload, adminSyncVideo, adminUpdateClass, deleteThumbnailByUrl, readVideoDuration, resizeImage, uploadThumbnail, uploadVideoToR2 } from '../lib/api.js';
-import { normalizeClassTiers, TIERS } from '../lib/tiers.js';
+import { normalizeMinTier, TIERS } from '../lib/tiers.js';
 import { toast } from './toast.js';
 import * as session from '../lib/session.js';
 
@@ -32,8 +32,7 @@ function build() {
   bsModal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
 }
 
-const withoutTiers = ({ access_tiers: _ignored, ...rest }) => rest;
-const sameTiers = (a, b) => a.length === b.length && a.every((n, i) => n === b[i]);
+const withoutTiers = ({ min_tier: _ignored, ...rest }) => rest;
 
 function showError(form, message) {
   let box = form.querySelector('.yp-form-error');
@@ -56,19 +55,16 @@ function accessSelect(current) {
     ...Object.entries(ACCESS_LABELS).map(([v, label]) => el('option', { value: v, selected: v === current }, label)));
 }
 
-/** Niveles de suscripción que ven la clase (uno o varios). Solo se muestra si el acceso es "restringido". */
+/** Nivel de suscripción mínimo para ver la clase (los niveles son acumulativos). Solo se muestra si el acceso es "restringido". */
+const MIN_TIER_LABELS = { 1: 'Nivel 1 (la ven todos los niveles)', 2: 'Nivel 2 (la ven los niveles 2 y 3)', 3: 'Nivel 3 (solo el nivel 3)' };
 function tiersField(current, visible) {
-  const selected = new Set(normalizeClassTiers(current ?? TIERS));
-  return el('fieldset', { class: 'mb-3', id: 'cfTiersBox', hidden: !visible },
-    el('legend', { class: 'form-label fs-6' }, 'Niveles de suscripción que ven esta clase'),
-    el('div', { class: 'd-flex gap-3 flex-wrap' },
-      ...TIERS.map((n) => el('div', { class: 'form-check' },
-        el('input', { class: 'form-check-input', type: 'checkbox', id: `cfTier${n}`, value: String(n), checked: selected.has(n) }),
-        el('label', { class: 'form-check-label', for: `cfTier${n}` }, `Nivel ${n}`)))),
-    el('div', { class: 'form-text' }, 'Marcá uno o varios. Quien compra la clase suelta la ve siempre, sin importar su nivel.'));
+  const selected = normalizeMinTier(current);
+  return el('div', { class: 'mb-3', id: 'cfTiersBox', hidden: !visible },
+    el('label', { class: 'form-label', for: 'cfMinTier' }, 'Nivel de suscripción mínimo'),
+    el('select', { class: 'form-select', id: 'cfMinTier' },
+      ...TIERS.map((n) => el('option', { value: String(n), selected: n === selected }, MIN_TIER_LABELS[n]))),
+    el('div', { class: 'form-text' }, 'Los niveles suman: el nivel 3 ve todas las clases. Quien compra la clase suelta la ve siempre, sin importar su nivel.'));
 }
-
-const readTiers = (form) => normalizeClassTiers(TIERS.filter((n) => form[`cfTier${n}`]?.checked));
 
 /** @returns {object} los campos de la clase, o `{ error }` si Categoría u Orden no son válidos. */
 function readMetaFromForm(form, { categories = [], previousCategory = null } = {}) {
@@ -78,16 +74,14 @@ function readMetaFromForm(form, { categories = [], previousCategory = null } = {
   const sort = parseSortOrder(form.cfSort.value);
   if (sort.error) return { error: sort.error };
   const access = form.cfAccess.value;
-  let tiers = readTiers(form);
-  if (access === 'restricted' && tiers.length === 0) return { error: 'Elegí al menos un nivel de suscripción para esta clase.' };
-  if (tiers.length === 0) tiers = [...TIERS]; // gratis: el nivel no importa; se guarda el valor por defecto
+  const minTier = access === 'restricted' ? normalizeMinTier(form.cfMinTier?.value) : 1; // gratis: el nivel no importa; se guarda el valor por defecto
   return {
     title: form.cfTitle.value.trim(),
     description: form.cfDescription.value.trim() || null,
     category: canonicalCategory(category, categories) || null,
     level: form.cfLevel.value,
     access_level: access,
-    access_tiers: tiers,
+    min_tier: minTier,
     sort_order: sort.value,
   };
 }
@@ -131,7 +125,7 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
       el('div', { class: 'row' },
         el('div', { class: 'col-12 col-sm-6' }, field('cfLevel', 'Nivel', levelSelect(row?.level ?? 'todos'))),
         el('div', { class: 'col-12 col-sm-6' }, field('cfAccess', 'Acceso', accessSelect(row?.access_level ?? 'free')))),
-      tiersField(row?.access_tiers, (row?.access_level ?? 'free') === 'restricted'),
+      tiersField(row?.min_tier, (row?.access_level ?? 'free') === 'restricted'),
       field('cfThumb', mode === 'edit' ? 'Reemplazar miniatura (opcional)' : 'Miniatura (opcional)',
         el('input', { class: 'form-control', id: 'cfThumb', type: 'file', accept: 'image/jpeg,image/png,image/webp' })),
       mode === 'edit' && row?.thumbnail_url ? el('img', { src: row.thumbnail_url, alt: '', class: 'yp-cf-thumb-preview', width: 120 }) : null,
@@ -202,10 +196,10 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
       const firstAttempt = mode === 'create' && !created;
       const { class: cls, upload } = await adminCreateUpload(payload);
       if (mode === 'create') created = cls;
-      // Los niveles no viajan por la función de subida (solo prepara el video): se guardan en la clase ya creada.
-      if (firstAttempt && meta && !sameTiers(meta.access_tiers, TIERS)) {
-        try { await adminUpdateClass(cls.id, { access_tiers: meta.access_tiers }); }
-        catch (err) { toast(`La clase se creó, pero los niveles no se guardaron: ${messageFor(err)}. Editá la clase para elegirlos.`, { type: 'error', ms: 7000 }); }
+      // El nivel no viaja por la función de subida (solo prepara el video): se guarda en la clase ya creada.
+      if (firstAttempt && meta && meta.min_tier !== 1) {
+        try { await adminUpdateClass(cls.id, { min_tier: meta.min_tier }); }
+        catch (err) { toast(`La clase se creó, pero el nivel no se guardó: ${messageFor(err)}. Editá la clase para elegirlo.`, { type: 'error', ms: 7000 }); }
       }
 
       const thumbFile = firstAttempt ? form.cfThumb.files[0] : null; // la miniatura se sube una sola vez

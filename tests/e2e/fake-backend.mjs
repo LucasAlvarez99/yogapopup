@@ -275,7 +275,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     if (table === 'classes' && req.method === 'PATCH') {
       if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
       if (!isStaff(user)) return reply([]); // RLS: sin permiso, el UPDATE no alcanza ninguna fila
-      const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'access_tiers', 'sort_order', 'is_published'];
+      const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'min_tier', 'sort_order', 'is_published'];
       const fields = Object.fromEntries(Object.entries(await readBody(req)).filter(([k]) => EDITABLE.includes(k)));
       const targets = applyFilters(db.classes, p);
       for (const c of targets) {

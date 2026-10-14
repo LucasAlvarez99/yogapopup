@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import {
-  classTiersLabel,
-  normalizeClassTiers,
+  minTierLabel,
+  normalizeMinTier,
   parseTierPrice,
   parseTierText,
   sellableTiers,
   sortTiers,
   tierName,
   tierPriceLabel,
+  tiersFromMin,
 } from "../../js/lib/tiers.js";
 
 const rows = [
@@ -61,14 +62,21 @@ Deno.test("niveles: nombre y beneficios tienen los mismos límites que la base",
   assert.equal(parseTierText("Plus", "").ok, true, "los beneficios pueden quedar vacíos");
 });
 
-Deno.test("niveles de una clase: se normalizan y se describen", () => {
-  assert.deepEqual(normalizeClassTiers(["3", 2, 2, "x", 7, 0]), [2, 3]);
-  assert.deepEqual(normalizeClassTiers(null), []);
-  assert.equal(classTiersLabel([1, 2, 3]), "Todos los niveles");
-  assert.equal(classTiersLabel([]), "Todos los niveles");
-  assert.equal(classTiersLabel([3]), "Nivel 3");
-  assert.equal(classTiersLabel([2, 3]), "Niveles 2 y 3");
-  assert.equal(classTiersLabel([1, 3]), "Niveles 1 y 3");
+Deno.test("nivel mínimo de una clase: se normaliza, es acumulativo y se describe", () => {
+  assert.equal(normalizeMinTier("3"), 3);
+  assert.equal(normalizeMinTier(2), 2);
+  assert.equal(normalizeMinTier(null), 1, "sin dato: la ven todos");
+  assert.equal(normalizeMinTier("x"), 1);
+  assert.equal(normalizeMinTier(7), 1);
+  assert.equal(normalizeMinTier(0), 1);
+  assert.deepEqual(tiersFromMin(1), [1, 2, 3]);
+  assert.deepEqual(tiersFromMin(2), [2, 3], "el nivel 3 ve también lo del nivel 2");
+  assert.deepEqual(tiersFromMin(3), [3]);
+  assert.deepEqual(tiersFromMin(undefined), [1, 2, 3]);
+  assert.equal(minTierLabel(1), "Todos los niveles");
+  assert.equal(minTierLabel(2), "Niveles 2 y 3");
+  assert.equal(minTierLabel(3), "Solo nivel 3");
+  assert.equal(minTierLabel(null), "Todos los niveles");
 });
 
 Deno.test("niveles: el nombre de un nivel se busca por número", () => {

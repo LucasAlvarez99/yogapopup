@@ -90,8 +90,8 @@ Orden importante: **primero la base y las funciones, después la web.**
      IVA incluido. **Guardar** crea el plan en PayPal y lo deja a la venta (hasta que lo guardes, el nivel figura "Guardalo para crear el plan").
      PayPal no deja cambiar el precio de un plan: si cambiás un precio se crea un plan **nuevo**; quienes ya están suscriptos siguen pagando el
      precio con el que se anotaron hasta que cancelen, y las altas nuevas pagan el precio nuevo.
-   - **Niveles de cada clase:** al editar una clase *restringida* se marcan los niveles que la ven (uno o varios). Quien compra la clase
-     suelta la ve siempre. Los **beneficios extra** de un nivel (una charla o una clase gratis al mes, descuentos) los cumplís vos: el sistema
+   - **Nivel de cada clase:** al editar una clase *restringida* se elige su **nivel mínimo**. Los niveles suman: el nivel 1 ve las clases de
+     nivel 1; el nivel 2 ve las de nivel 1 y 2; el nivel 3 ve todas, sin excepciones. Quien compra la clase suelta la ve siempre. Los **beneficios extra** de un nivel (una charla o una clase gratis al mes, descuentos) los cumplís vos: el sistema
      solo los muestra.
    - **Cambiar de nivel:** la persona cancela la suscripción y contrata otra (no se pagan dos a la vez). Mantiene el acceso hasta el fin de lo pagado.
    - **Precio de las clases sueltas:** *Precio de las clases sueltas*. Solo las clases con acceso *restringido* se pueden vender; vacío = no se
