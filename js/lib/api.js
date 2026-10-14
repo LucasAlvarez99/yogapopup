@@ -535,6 +535,23 @@ export const liveAgenda = ({ teacher = null, from, to }) => rpc('live_agenda', {
 export const bookLiveSession = (sessionId) => rpc('book_live_session', { p_session: sessionId });
 export const cancelLiveBooking = (sessionId) => rpc('cancel_live_booking', { p_session: sessionId });
 export const myLiveBookings = () => rpc('my_live_bookings').then((r) => r ?? []);
+
+// Cupón mensual de clase virtual gratis (niveles con clases gratis por mes). Emitir y canjear lo hace la base.
+/** Crea los cupones del mes que le corresponden a la persona (si ya estaban, no hace nada). Devuelve cuántos creó. */
+export const claimFreeClassCoupons = () => rpc('claim_my_free_class_coupons');
+/** Sus cupones, los más nuevos primero. */
+export async function listMyFreeClassCoupons() {
+  const { data, error } = await db().from('free_class_coupons')
+    .select('id,period,slot,expires_at,redeemed_at,session_id').eq('user_id', myId())
+    .order('period', { ascending: false }).order('slot').limit(24);
+  if (error) {
+    if (isSchemaBehind(error)) return [];
+    throw new AppError('internal_error', error.message);
+  }
+  return data ?? [];
+}
+/** Reserva una clase virtual y gasta el cupón en un solo paso. */
+export const redeemFreeClassCoupon = (couponId, sessionId) => rpc('redeem_free_class_coupon', { p_coupon: couponId, p_session: sessionId });
 /** Clases de un profesor con los alumnos anotados (solo nombres). El propio profesor o la gestión. */
 export const teacherAgenda = (teacherId, from, to) => rpc('teacher_agenda', { p_teacher: teacherId, p_from: from, p_to: to }).then((r) => r ?? []);
 

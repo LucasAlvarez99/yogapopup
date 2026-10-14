@@ -200,6 +200,9 @@ Deno.test("agenda: perfil del profesor — nombre obligatorio, bio con tope, bio
 Deno.test("agenda: errores de la base se traducen a mensajes claros", () => {
   assert.equal(agendaError({ code: "23514" }).code, "session_full");
   assert.equal(agendaError({ code: "22023" }).code, "session_started");
+  assert.equal(agendaError({ code: "22023", message: "session not virtual" }).code, "coupon_not_virtual");
+  assert.equal(agendaError({ code: "23505", message: "already booked" }).code, "already_booked");
+  assert.equal(agendaError({ code: "P0002", message: "coupon unavailable" }).code, "coupon_unavailable");
   assert.equal(agendaError({ code: "P0002", message: "session not found" }).code, "session_not_found");
   assert.equal(agendaError({ code: "P0002", message: "user not found" }).code, "user_not_found");
   assert.equal(agendaError({ code: "42501" }).code, "forbidden");

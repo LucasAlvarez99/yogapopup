@@ -11,6 +11,7 @@ import { openAuth } from '../ui/auth-modal.js';
 import { toast } from '../ui/toast.js';
 import { emptyState } from '../ui/states.js';
 import { subscriptionCard } from '../ui/account-subscription.js';
+import { couponsCard } from '../ui/account-coupons.js';
 import { ordersCard } from '../ui/account-orders.js';
 import { progressCard } from '../ui/account-progress.js';
 
@@ -91,7 +92,7 @@ function render() {
     catch (err) { toast(session.authMessage(err), { type: 'error' }); }
   });
 
-  const cards = [nameForm, passForm, ...(paymentsEnabled ? [subscriptionCard(), ordersCard()] : []), progressCard(), bookingsCard()];
+  const cards = [nameForm, passForm, ...(paymentsEnabled ? [subscriptionCard(), couponsCard(), ordersCard()] : []), progressCard(), bookingsCard()];
   mount(root, el('div', { class: 'row g-4' }, ...cards.map((c) => el('div', { class: 'col-lg-6' }, c))),
     el('button', { type: 'button', class: 'btn btn-soft mt-4', onclick: async () => { await session.signOut(); location.href = 'index.html'; } }, 'Cerrar sesión'));
 }

@@ -91,8 +91,14 @@ Orden importante: **primero la base y las funciones, después la web.**
      PayPal no deja cambiar el precio de un plan: si cambiás un precio se crea un plan **nuevo**; quienes ya están suscriptos siguen pagando el
      precio con el que se anotaron hasta que cancelen, y las altas nuevas pagan el precio nuevo.
    - **Nivel de cada clase:** al editar una clase *restringida* se elige su **nivel mínimo**. Los niveles suman: el nivel 1 ve las clases de
-     nivel 1; el nivel 2 ve las de nivel 1 y 2; el nivel 3 ve todas, sin excepciones. Quien compra la clase suelta la ve siempre. Los **beneficios extra** de un nivel (una charla o una clase gratis al mes, descuentos) los cumplís vos: el sistema
-     solo los muestra.
+     nivel 1; el nivel 2 ve las de nivel 1 y 2; el nivel 3 ve todas, sin excepciones. Quien compra la clase suelta la ve siempre.
+   - **Descuento y clases gratis de cada nivel:** en cada nivel se escriben el **descuento en toda la tienda** (%; hoy nivel 2 = 5 %, nivel 3 = 7 %) y las
+     **clases virtuales gratis por mes** (hoy nivel 3 = 1). El descuento lo aplica el servidor al crear el pedido (productos y videos sueltos) y el carrito lo
+     muestra como estimado. La clase gratis es un **cupón mensual**: aparece solo en *Mi cuenta* para quien tiene ese nivel, se canjea reservando una clase
+     virtual de la agenda y vence a fin de mes (no se acumula; si cancela la reserva a tiempo, el cupón se devuelve). Hoy reservar una clase en vivo es
+     gratis para todos, así que el cupón no cambia el precio hasta que las reservas pasen a ser de pago; queda registrado en cada reserva
+     (`live_bookings.coupon_id`) para no cobrarlas cuando eso ocurra.
+   - **Videos sueltos:** se compran por 30 días (la compra los alquila); pasado ese plazo hay que volver a comprarlos. Quien ya ve un video por su nivel no lo compra suelto.
    - **Cambiar de nivel:** la persona cancela la suscripción y contrata otra (no se pagan dos a la vez). Mantiene el acceso hasta el fin de lo pagado.
    - **Precio de las clases sueltas:** *Precio de las clases sueltas*. Solo las clases con acceso *restringido* se pueden vender; vacío = no se
      vende suelta. Cada cambio queda auditado.

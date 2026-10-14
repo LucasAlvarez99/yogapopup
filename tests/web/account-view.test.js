@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { describeOrder, describeSubscription, groupProgress, partitionOrders } from "../../js/lib/account-view.js";
+import {
+  couponEligibleSessions,
+  describeCoupons,
+  describeOrder,
+  describeSubscription,
+  groupProgress,
+  partitionOrders,
+} from "../../js/lib/account-view.js";
 
 const cls = (id, extra = {}) => ({
   id,
@@ -170,4 +177,41 @@ Deno.test("suscripción: cada estado dice lo que corresponde y ofrece lo que cor
   assert.equal(suspended.state, "suspended");
   assert.equal(suspended.canCancel, true);
   assert.equal(suspended.tone, "warning");
+});
+
+Deno.test("cupón de clase gratis: solo cuentan los del mes en curso y vencen a fin de mes", () => {
+  const now = new Date("2026-10-14T12:00:00Z");
+  const delMes = {
+    id: "c1",
+    expires_at: "2026-11-01T00:00:00Z",
+    redeemed_at: null,
+    session_id: null,
+  };
+  const [d] = describeCoupons([delMes], { now });
+  assert.equal(d.state, "available");
+  assert.match(d.until, /31/, "el último día para usarlo es el 31 de octubre");
+  assert.equal(
+    describeCoupons([{ ...delMes, redeemed_at: "2026-10-05T10:00:00Z", session_id: "s1" }], { now })[0].state,
+    "used",
+  );
+  assert.deepEqual(
+    describeCoupons([{ ...delMes, id: "viejo", expires_at: "2026-10-01T00:00:00Z" }], { now }),
+    [],
+    "los de meses anteriores ya no importan (no se acumulan)",
+  );
+  assert.deepEqual(describeCoupons(null), []);
+  assert.deepEqual(describeCoupons([{ id: "x" }, null], { now }), [], "filas raras no rompen la pantalla");
+});
+
+Deno.test("cupón de clase gratis: solo se ofrecen clases virtuales con lugar y sin estar anotado/a", () => {
+  const ok = { id: "a", mode: "virtual", capacity: 10, booked: 3, mine: false };
+  const sinCupo = { id: "b", mode: "virtual", capacity: 5, booked: 5, mine: false };
+  const presencial = { id: "c", mode: "live", capacity: 10, booked: 0, mine: false };
+  const yaAnotada = { id: "d", mode: "virtual", capacity: 10, booked: 1, mine: true };
+  const ilimitada = { id: "e", mode: "virtual", capacity: null, booked: 40, mine: false };
+  assert.deepEqual(
+    couponEligibleSessions([ok, sinCupo, presencial, yaAnotada, ilimitada]).map((s) => s.id),
+    ["a", "e"],
+  );
+  assert.deepEqual(couponEligibleSessions(null), []);
 });

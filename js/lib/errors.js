@@ -34,6 +34,9 @@ const MESSAGES = {
   session_full: 'Esta clase ya no tiene lugares.',
   session_started: 'Esta clase ya empezó.',
   session_not_found: 'No encontramos esta clase en vivo (quizá ya no está disponible).',
+  coupon_unavailable: 'Ese cupón ya no se puede usar: ya lo usaste o venció a fin de mes.',
+  coupon_not_virtual: 'El cupón de clase gratis vale para clases virtuales. Elegí una clase virtual.',
+  already_booked: 'Ya estás anotado/a en esa clase, así que no usamos tu cupón.',
   user_not_found: 'No encontramos a nadie con ese correo. La persona tiene que haberse registrado primero.',
   forbidden: 'No tenés permiso para hacer esto.',
   already_commented: 'Ya dejaste un comentario. Podés editarlo desde esta misma sección.',
@@ -78,9 +81,12 @@ export function messageFor(err) {
 export function agendaError(error) {
   const code = String(error?.code ?? '');
   if (code === '23514') return new AppError('session_full');
-  if (code === '22023') return new AppError('session_started');
+  if (code === '22023') return new AppError(/not virtual/i.test(String(error?.message)) ? 'coupon_not_virtual' : 'session_started');
+  if (code === '23505') return new AppError('already_booked');
   if (code === 'P0002') {
-    return new AppError(/user not found/i.test(String(error?.message)) ? 'user_not_found' : 'session_not_found');
+    const message = String(error?.message);
+    if (/coupon unavailable/i.test(message)) return new AppError('coupon_unavailable');
+    return new AppError(/user not found/i.test(message) ? 'user_not_found' : 'session_not_found');
   }
   if (code === '42501' || code === 'PGRST301') return new AppError(code === 'PGRST301' ? 'unauthenticated' : 'forbidden');
   if (/failed to fetch|network/i.test(String(error?.message))) return new AppError('network');

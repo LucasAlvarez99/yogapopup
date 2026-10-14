@@ -197,3 +197,33 @@ export function describeSubscription(
     ),
   };
 }
+
+// ------------------------------------------------------------------ Cupón mensual de clase virtual gratis
+
+/**
+ * Cupones de ESTE mes para "Mi cuenta". El cupón vence a fin de mes (lo que no se usa se pierde), así que solo importan
+ * los del mes en curso: uno disponible, uno ya usado, o ninguno (la persona no tiene un nivel con clases gratis).
+ *   state: 'available' (se puede usar) | 'used'
+ * @param {object[]} rows  filas de `free_class_coupons` de la persona
+ * @param {{ now?: Date }} [opts]
+ * @returns {{ id: string, state: 'available'|'used', until: string }[]}
+ */
+export function describeCoupons(rows, { now = new Date() } = {}) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((c) => c && c.id && c.expires_at && new Date(c.expires_at) > now)
+    .map((c) => ({
+      id: c.id,
+      state: c.redeemed_at ? 'used' : 'available',
+      // expires_at es el primer instante del mes siguiente: el último día para usarlo es el anterior.
+      until: formatDate(new Date(new Date(c.expires_at).getTime() - 1)),
+    }));
+}
+
+/** Clases virtuales de la agenda que se pueden reservar con el cupón: virtuales, con lugar y donde todavía no estoy anotado/a. */
+export function couponEligibleSessions(sessions) {
+  return (Array.isArray(sessions) ? sessions : []).filter((s) => {
+    if (s?.mode !== 'virtual' || s.mine) return false;
+    const left = s.capacity === null || s.capacity === undefined ? null : Number(s.capacity) - Number(s.booked ?? 0);
+    return left === null || left > 0;
+  });
+}
