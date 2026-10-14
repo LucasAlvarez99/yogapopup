@@ -28,7 +28,9 @@ export function checkoutView({ validation, onBack, onStale, onDone }) {
   };
 
   const lines = validation.lines.map((l) => el('li', { class: 'd-flex justify-content-between gap-2 py-1' },
-    el('span', { translate: 'no' }, `${l.qty} × ${l.product.title}${l.size ? ` (talle ${l.size})` : ''}`),
+    el('span', { translate: 'no' }, l.type === 'class'
+      ? `Video: ${l.item.title}`
+      : `${l.qty} × ${l.product.title}${l.size ? ` (talle ${l.size})` : ''}`),
     el('span', {}, formatPrice(l.lineCents))));
 
   function fail(err) {
@@ -67,13 +69,14 @@ export function checkoutView({ validation, onBack, onStale, onDone }) {
     el('ul', { class: 'list-unstyled small mb-2' }, ...lines),
     el('div', { class: 'subtotal' }, el('span', {}, 'Total'), el('strong', { id: 'checkoutTotal' }, formatPrice(validation.subtotalCents))),
     validation.taxCents > 0 ? el('p', { class: 'cart-tax' }, `IVA incluido: ${formatPrice(validation.taxCents)}`) : null,
-    el('p', { class: 'cart-note' }, icon('truck'), ' PayPal te pedirá la dirección de envío.'),
+    validation.hasProducts ? el('p', { class: 'cart-note' }, icon('truck'), ' PayPal te pedirá la dirección de envío.') : null,
+    validation.hasClasses ? el('p', { class: 'cart-note' }, icon('play-circle'), ' Tus videos se activan apenas se confirma el pago.') : null,
     status, slot, back);
 }
 
 /** Pantalla final tras el pago. */
-export function doneView(status, kind, onClose) {
-  const msg = outcomeMessage(status, kind);
+export function doneView(status, kind, withVideos, onClose) {
+  const msg = outcomeMessage(status, kind, { withVideos });
   return el('div', { class: 'cart-empty', role: 'status' },
     icon(status === 'paid' ? 'check-circle' : 'hourglass-split'),
     el('h3', { class: 'h6' }, msg.title), el('p', {}, msg.text),

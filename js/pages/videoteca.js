@@ -1,18 +1,21 @@
 import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
-import { getMyProgressMap, listContinueWatching, listPublishedClasses } from '../lib/api.js';
+import { listContinueWatching, listMyEntitlements, listShopClasses } from '../lib/api.js';
 import { messageFor } from '../lib/errors.js';
 import { LEVEL_LABELS } from '../lib/format.js';
 import { el, mount } from '../lib/dom.js';
 import { boot } from '../ui/boot.js';
 import { classCard } from '../components/class-card.js';
+import { classShopCard } from '../components/class-shop-card.js';
+import { addVideoToCart, cartStore } from '../ui/cart-drawer.js';
+import { accessFromEntitlements } from '../lib/class-shop.js';
 import { emptyState, errorState, skeletonGrid } from '../ui/states.js';
 import { openAuth } from '../ui/auth-modal.js';
 
-/** Videoteca: catálogo real, filtros, "Continuar viendo" y progreso por clase. */
+/** Videoteca: catálogo real de videos (como la tienda: precio y "Agregar al carrito"), filtros y "Continuar viendo". */
 const filters = { q: '', category: '', level: '' };
 let classes = [];
-let progress = {};
+let access = null; // accesos de la persona (null = sin sesión)
 
 const gridBox = document.getElementById('catalogGrid');
 const filtersBox = document.getElementById('catalogFilters');
@@ -51,7 +54,8 @@ function renderGrid() {
       ? emptyState('Todavía no hay clases publicadas', 'Estamos preparando la videoteca. Vuelve pronto.')
       : emptyState('No encontramos clases con esos filtros', 'Prueba con otra búsqueda o categoría.'));
   }
-  mount(gridBox, el('div', { class: 'row g-4' }, ...list.map((c) => classCard(c, { progress: progress[c.id] }))));
+  const inCart = new Set(cartStore.get().items.map((i) => i.id));
+  mount(gridBox, el('div', { class: 'row g-4' }, ...list.map((c) => classShopCard(c, { access, inCart: inCart.has(c.id), onAdd: addVideoToCart }))));
 }
 
 async function renderContinue() {
@@ -66,10 +70,11 @@ async function renderContinue() {
   } catch { /* la sección es opcional: si falla, simplemente no se muestra */ }
 }
 
-async function loadProgress() {
-  progress = {};
+/** Qué videos ya tiene la persona (compras vigentes y suscripción), para mostrar "Ver video" en vez de "Agregar al carrito". */
+async function loadAccess() {
+  access = null;
   if (session.isLoggedIn()) {
-    try { progress = await getMyProgressMap(); } catch { /* sin barras de progreso, pero el catálogo sigue */ }
+    try { access = accessFromEntitlements(await listMyEntitlements()); } catch { /* sin eso se ofrece comprar; el servidor igual no cobra lo que ya tiene */ }
   }
   renderGrid();
   await renderContinue();
@@ -80,15 +85,16 @@ async function load() {
   filtersBox.hidden = true;
   if (!supabase) return mount(gridBox, emptyState('Videoteca en preparación', 'Falta configurar la conexión con Supabase (js/config.js).'));
   try {
-    classes = await listPublishedClasses();
+    classes = await listShopClasses({ withTier: session.isLoggedIn() });
   } catch (err) {
     return mount(gridBox, errorState(messageFor(err), load));
   }
   renderFilters();
-  await loadProgress();
+  await loadAccess();
 }
 
 await boot('videoteca');
-session.onChange((_s, event) => { if (event !== 'INITIAL_SESSION' && classes.length) loadProgress(); });
+session.onChange((_s, event) => { if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') load(); });
+cartStore.subscribe(() => { if (classes.length) renderGrid(); });
 document.getElementById('loginCta')?.addEventListener('click', () => openAuth());
 await load();

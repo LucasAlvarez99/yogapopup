@@ -27,8 +27,14 @@ const isQty = (n) => Number.isInteger(n) && n >= 1;
 
 /** Clave de una línea: producto + talle (o solo el producto si no tiene talles). */
 const keyOf = (id, variant) => `${id}|${variant ?? ""}`;
-/** Forma guardada de una línea: `variant` solo aparece si hay talle (los carritos viejos no lo tienen). */
-const lineOf = ({ id, variant = null, qty }) => (variant ? { id, variant, qty } : { id, qty });
+/**
+ * Forma guardada de una línea: `variant` solo aparece si hay talle (los carritos viejos no lo tienen) y `t: "c"` marca un VIDEO
+ * (siempre 1 unidad: se alquila por 30 días). Los videos y los productos tienen ids distintos, así que se identifican por id.
+ */
+const lineOf = ({ id, variant = null, qty, t = null }) => (t === "c" ? { id, qty: 1, t: "c" } : variant ? { id, variant, qty } : { id, qty });
+
+/** ¿Es una línea de video? */
+export const isClassLine = (line) => line?.t === "c";
 
 /** Máximo de unidades permitido para un producto según su stock (`null` = no se controla). */
 export function limitFor(stock) {
@@ -59,6 +65,13 @@ export function parseCart(raw) {
   const byKey = new Map();
   for (const it of data.items) {
     if (!it || typeof it !== "object" || !isUuid(it.id) || !isQty(it.qty)) continue;
+    if (it.t === "c") {
+      // Un video: una sola unidad, sin talle. Repetido = una vez.
+      const id = it.id.toLowerCase();
+      byKey.set(keyOf(id, null), { id, variant: null, qty: 1, t: "c" });
+      if (byKey.size >= MAX_LINES) break;
+      continue;
+    }
     const hasVariant = it.variant !== undefined && it.variant !== null;
     if (hasVariant && !isUuid(it.variant)) continue; // un talle manipulado descarta la línea
     const id = it.id.toLowerCase();
@@ -107,6 +120,7 @@ export function addItem(cart, id, qty = 1, { stock = null, variant = null } = {}
   assertQty(qty);
   id = id.toLowerCase();
   variant = normVariant(variant);
+  if (cart.items.some((i) => i.id === id && isClassLine(i))) return cart; // un video no se suma: es una unidad
   const limit = limitFor(stock);
   const current = qtyOf(cart, id, variant);
   const next = Math.min(limit, current + qty);
@@ -118,6 +132,14 @@ export function addItem(cart, id, qty = 1, { stock = null, variant = null } = {}
   return { items: cart.items.map((i) => (same(id, variant)(i) ? lineOf({ id, variant, qty: next }) : i)) };
 }
 
+/** Agrega un video (una sola unidad). Si ya está o el carrito está lleno, queda igual. */
+export function addClassItem(cart, id) {
+  assertId(id);
+  id = id.toLowerCase();
+  if (cart.items.some((i) => i.id === id) || cart.items.length >= MAX_LINES) return cart;
+  return { items: [...cart.items, lineOf({ id, qty: 1, t: "c" })] };
+}
+
 /** Fija la cantidad exacta. 0 quita la línea. Con `stock` la limita a lo disponible. */
 export function setQty(cart, id, qty, { stock = null, variant = null } = {}) {
   assertId(id);
@@ -125,6 +147,7 @@ export function setQty(cart, id, qty, { stock = null, variant = null } = {}) {
   id = id.toLowerCase();
   variant = normVariant(variant);
   if (qty === 0) return removeItem(cart, id, variant);
+  if (cart.items.some((i) => i.id === id && isClassLine(i))) return cart; // un video siempre es una unidad
   const next = Math.min(limitFor(stock), qty);
   if (next <= 0) return removeItem(cart, id, variant);
   if (qtyOf(cart, id, variant) === 0) return addItem(cart, id, next, { stock, variant });
@@ -216,6 +239,7 @@ export function createCartStore({ storage = browserStorage(), key = CART_KEY, ta
       return persistent;
     },
     add: (id, qty = 1, opts) => commit(addItem(cart, id, qty, opts)),
+    addClass: (id) => commit(addClassItem(cart, id)),
     setQty: (id, qty, opts) => commit(setQty(cart, id, qty, opts)),
     remove: (id, variant = null) => commit(removeItem(cart, id, variant)),
     /** Reemplaza el carrito (por ejemplo con el `fixedCart` de la validación). */
@@ -229,6 +253,22 @@ export function createCartStore({ storage = browserStorage(), key = CART_KEY, ta
 }
 
 // ------------------------------------------------------------------ validación contra los productos reales
+
+/**
+ * Línea de un VIDEO del carrito. Se vende suelto (restringido, publicado y con precio) y dura 30 días. Estados:
+ *  - "ok":          se puede comprar.
+ *  - "owned":       ya tiene acceso (compra vigente o su suscripción lo cubre): no se vuelve a comprar.
+ *  - "unavailable": ya no se vende (despublicado, sin precio o gratis).
+ */
+function classLine(id, cls, isOwned) {
+  const base = { id, variant: null, size: null, type: "class", requestedQty: 1, product: null, item: cls, stock: null, taxRateBps: normalizeRate(cls?.tax_rate_bps) };
+  const price = cls?.price_cents;
+  if (!cls || cls.access_level !== "restricted" || !Number.isSafeInteger(price) || price <= 0) {
+    return { ...base, item: null, status: "unavailable", qty: 0, unitCents: 0, lineCents: 0 };
+  }
+  if (isOwned) return { ...base, status: "owned", qty: 0, unitCents: price, lineCents: 0 };
+  return { ...base, status: "ok", qty: 1, unitCents: price, lineCents: price };
+}
 
 /**
  * Compara el carrito con los productos ACTIVOS que devuelve la base (por ejemplo `await listActiveProducts()`, que
@@ -251,11 +291,15 @@ export function createCartStore({ storage = browserStorage(), key = CART_KEY, ta
  * }} `ok` es true solo si hay algo en el carrito y ninguna línea tiene problemas.
  *   `taxCents` es el IVA INCLUIDO en el subtotal (informativo); `netCents` = subtotal − IVA.
  */
-export function validateCart(cart, activeProducts) {
+export function validateCart(cart, activeProducts, { classes = [], ownedIds = [] } = {}) {
   const byId = new Map();
   for (const p of activeProducts ?? []) if (p && isUuid(p.id)) byId.set(p.id.toLowerCase(), p);
+  const classById = new Map();
+  for (const c of classes ?? []) if (c && isUuid(c.id)) classById.set(c.id.toLowerCase(), c);
+  const owned = new Set([...(ownedIds ?? [])].map((x) => String(x).toLowerCase()));
 
-  const lines = cart.items.map(({ id, variant = null, qty: requestedQty }) => {
+  const lines = cart.items.map(({ id, variant = null, qty: requestedQty, t = null }) => {
+    if (t === "c") return classLine(id, classById.get(id) ?? null, owned.has(id));
     const product = byId.get(id) ?? null;
     const base = { id, variant, size: null, requestedQty, product, stock: null, taxRateBps: normalizeRate(product?.tax_rate_bps) };
     // Sin `Number(...)`: Number(null) === 0 convertiría un precio ausente en "gratis".
@@ -298,6 +342,8 @@ export function validateCart(cart, activeProducts) {
     netCents: subtotalCents - taxCents,
     issues,
     ok: lines.length > 0 && issues === 0,
-    fixedCart: { items: lines.filter((l) => l.qty > 0).map((l) => lineOf({ id: l.id, variant: l.variant, qty: l.qty })) },
+    fixedCart: { items: lines.filter((l) => l.qty > 0).map((l) => lineOf({ id: l.id, variant: l.variant, qty: l.qty, t: l.type === "class" ? "c" : null })) },
+    hasProducts: lines.some((l) => l.type !== "class"),
+    hasClasses: lines.some((l) => l.type === "class"),
   };
 }

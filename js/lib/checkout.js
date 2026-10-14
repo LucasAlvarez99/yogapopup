@@ -10,7 +10,9 @@ import { AppError } from './errors.js';
  */
 export function cartToItems(validation) {
   if (!validation || !validation.ok) return [];
-  return validation.lines.map((l) => ({ type: 'product', id: l.id, variant_id: l.variant ?? null, qty: l.qty }));
+  return validation.lines.map((l) => (l.type === 'class'
+    ? { type: 'class', id: l.id }
+    : { type: 'product', id: l.id, variant_id: l.variant ?? null, qty: l.qty }));
 }
 
 /** Una clase suelta. */
@@ -20,10 +22,11 @@ export const classToItems = (classId) => [{ type: 'class', id: classId }];
 export const canCheckout = (validation) => !!validation && validation.ok === true && validation.subtotalCents > 0;
 
 /** Qué mensaje mostrar tras intentar cobrar. `status` es el de `paypal-capture-order`. */
-export function outcomeMessage(status, kind) {
+export function outcomeMessage(status, kind, { withVideos = false } = {}) {
   if (status === 'paid') {
-    return kind === 'class'
-      ? { type: 'success', title: '¡Listo, la clase es tuya!', text: 'Ya podés verla cuando quieras.' }
+    if (kind === 'class') return { type: 'success', title: '¡Listo, ya podés ver tu clase!', text: 'Podés verlo cuando quieras durante 30 días, en Clases > Mis videos.' };
+    return withVideos
+      ? { type: 'success', title: '¡Gracias por tu compra!', text: 'Tus videos ya están en Clases > Mis videos (30 días). Los productos los enviamos a la dirección que indicaste en PayPal.' }
       : { type: 'success', title: '¡Gracias por tu compra!', text: 'Te enviaremos el pedido a la dirección que indicaste en PayPal.' };
   }
   if (status === 'pending') {

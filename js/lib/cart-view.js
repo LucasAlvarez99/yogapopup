@@ -22,6 +22,8 @@ export function lineNotice(line) {
       return line.variant ? "Ese talle ya no está disponible" : "Ya no está disponible";
     case "needs_size":
       return "Elige un talle";
+    case "owned":
+      return "Ya tienes acceso a este video";
     case "reduced":
       return line.qty === 1 ? "Solo queda 1 unidad" : `Solo quedan ${line.qty} unidades`;
     default:
@@ -37,7 +39,10 @@ export function canIncrease(line) {
 }
 
 /** Las líneas agotadas o que ya no existen solo se pueden quitar. */
-export const isRemovableOnly = (line) => line.status === "soldout" || line.status === "unavailable" || line.status === "needs_size";
+export const isRemovableOnly = (line) => line.status === "soldout" || line.status === "unavailable" || line.status === "needs_size" || line.status === "owned";
+
+/** Los videos no tienen cantidad: son una unidad por 30 días. */
+export const isVideoLine = (line) => line.type === "class";
 
 /**
  * Qué pasó al tocar "Agregar al carrito", para avisar con el texto correcto.

@@ -1,9 +1,10 @@
 import { el, icon, mount } from '../lib/dom.js';
-import { cartCount, createCartStore, limitFor, validateCart } from '../lib/cart.js';
-import { addFeedback, badgeText, canIncrease, isRemovableOnly, lineNotice } from '../lib/cart-view.js';
+import { cartCount, createCartStore, limitFor, qtyOf, validateCart } from '../lib/cart.js';
+import { addFeedback, badgeText, canIncrease, isRemovableOnly, isVideoLine, lineNotice } from '../lib/cart-view.js';
+import { accessFromEntitlements, classOffer } from '../lib/class-shop.js';
 import { formatPrice } from '../lib/format.js';
 import { cartOptionsFor } from '../lib/sizes.js';
-import { getMyActiveTier, listActiveProducts, listTiers } from '../lib/api.js';
+import { getMyActiveTier, listActiveProducts, listClassesByIds, listMyEntitlements, listShopClasses, listTiers } from '../lib/api.js';
 import { discountedCents, discountLabel, tierDiscountBps } from '../lib/tiers.js';
 import { messageFor } from '../lib/errors.js';
 import { page, paymentsEnabled } from '../lib/env.js';
@@ -31,6 +32,8 @@ let titleCount = null;
 let body = null;
 let isOpen = false;
 let products = null; // productos activos de la última lectura (null = todavía no hay)
+let videos = []; // videos del carrito (con precio) de la última lectura
+let ownedVideoIds = []; // videos del carrito a los que la persona ya tiene acceso
 let seenIds = new Set(); // ids del carrito que ya se pidieron a la base
 let loading = false;
 let failure = null;
@@ -53,6 +56,25 @@ export function addToCart(product, variant = null) {
   }
 }
 
+/**
+ * Agrega un VIDEO al carrito (una sola unidad: se ve durante 30 días). Avisa con un mensaje; si ya estaba, lo dice.
+ * `c` es la fila de classes (solo se usa el título para el aviso: el precio lo lee el servidor al cobrar).
+ */
+export function addVideoToCart(c) {
+  if (qtyOf(cartStore.get(), c.id) > 0) {
+    toast(`«${c.title}» ya está en tu carrito.`, { type: 'info' });
+    return false;
+  }
+  const after = cartStore.addClass(c.id);
+  if (qtyOf(after, c.id) === 0) {
+    toast('El carrito no admite más productos distintos. Quita alguno para agregar este.', { type: 'info' });
+    return false;
+  }
+  toast(`«${c.title}» se agregó al carrito.`, { type: 'success' });
+  if (!cartStore.persistent) toast('Este navegador no permite guardar el carrito: se perderá al cerrar la pestaña.', { type: 'info', ms: 7000 });
+  return true;
+}
+
 // ------------------------------------------------------------------ ícono del encabezado
 
 function renderBadge() {
@@ -70,19 +92,21 @@ function renderBadge() {
 // ------------------------------------------------------------------ cajón
 
 function lineItem(line) {
-  const p = line.product;
-  const title = p ? p.title : 'Producto no disponible';
+  const video = isVideoLine(line);
+  const p = video ? line.item : line.product;
+  const title = p ? p.title : (video ? 'Video no disponible' : 'Producto no disponible');
   const notice = lineNotice(line);
   const removableOnly = isRemovableOnly(line);
 
   const thumb = el('div', { class: 'cart-thumb bg-mint' },
-    p?.image_url ? el('img', { src: p.image_url, alt: '', loading: 'lazy', onerror: (e) => e.target.remove() }) : icon('bag-heart'));
+    (video ? p?.thumbnail_url : p?.image_url) ? el('img', { src: video ? p.thumbnail_url : p.image_url, alt: '', loading: 'lazy', onerror: (e) => e.target.remove() }) : icon(video ? 'play-circle' : 'bag-heart'));
   const heading = p
-    ? el('a', { href: `${page('producto.html')}?id=${encodeURIComponent(p.id)}` }, title)
+    ? el('a', { href: video ? `${page('clase.html')}?id=${encodeURIComponent(p.id)}` : `${page('producto.html')}?id=${encodeURIComponent(p.id)}` }, title)
     : title;
   const info = el('div', { class: 'cart-info' },
     el('h3', {}, heading),
     line.size ? el('small', { class: 'cart-size' }, `Talle: ${line.size}`) : null,
+    video && line.status === 'ok' ? el('small', { class: 'cart-size' }, icon('play-circle'), ' Video · se ve durante 30 días') : null,
     notice ? el('small', { class: 'cart-issue' }, notice) : null,
     removableOnly ? null : el('strong', {}, formatPrice(line.lineCents)));
   const label = line.size ? `${title} (talle ${line.size})` : title;
@@ -90,7 +114,7 @@ function lineItem(line) {
     type: 'button', class: 'cart-remove', 'aria-label': `Quitar ${label}`, onclick: () => cartStore.remove(line.id, line.variant),
   }, icon('x-lg'));
 
-  const qty = removableOnly ? null : el('div', { class: 'qty', role: 'group', 'aria-label': `Cantidad de ${label}` },
+  const qty = (removableOnly || video) ? null : el('div', { class: 'qty', role: 'group', 'aria-label': `Cantidad de ${label}` },
     el('button', {
       type: 'button', 'aria-label': 'Una unidad menos', disabled: line.qty <= 1,
       onclick: () => cartStore.setQty(line.id, line.qty - 1, { stock: line.stock, variant: line.variant }),
@@ -102,13 +126,15 @@ function lineItem(line) {
       onclick: () => cartStore.setQty(line.id, line.qty + 1, { stock: line.stock, variant: line.variant }),
     }, icon('plus')));
 
-  return el('li', { class: `cart-item${removableOnly ? ' is-broken' : ''}`, 'data-product-id': line.id, 'data-variant-id': line.variant ?? null }, thumb, info, remove, qty);
+  return el('li', { class: `cart-item${removableOnly ? ' is-broken' : ''}`, 'data-product-id': line.id, 'data-variant-id': line.variant ?? null, 'data-kind': video ? 'video' : 'product' }, thumb, info, remove, qty);
 }
 
 function emptyView() {
   return el('div', { class: 'cart-empty' },
     icon('bag'), el('p', {}, 'Tu carrito está vacío.'),
-    el('a', { class: 'btn btn-outline-brand btn-sm', href: page('tienda.html') }, 'Ir a la tienda'));
+    el('div', { class: 'd-flex gap-2 justify-content-center flex-wrap' },
+      el('a', { class: 'btn btn-outline-brand btn-sm', href: page('tienda.html') }, 'Ir a la tienda'),
+      el('a', { class: 'btn btn-outline-brand btn-sm', href: page('videoteca.html') }, 'Ir a la videoteca')));
 }
 
 /** Descuento de la suscripción: se calcula por unidad, igual que el servidor, pero el importe final lo confirma PayPal. */
@@ -127,7 +153,7 @@ function footer(validation) {
   const fix = validation.issues > 0
     ? el('div', { class: 'cart-alert', role: 'alert' },
       icon('exclamation-circle'),
-      el('span', {}, 'Algunos productos cambiaron desde que los agregaste.'),
+      el('span', {}, 'Algo cambió desde que lo agregaste (un producto o un video).'),
       el('button', { type: 'button', class: 'btn btn-brand btn-sm', onclick: () => cartStore.replace(validation.fixedCart) }, 'Actualizar carrito'))
     : null;
   return el('div', { class: 'cart-footer mt-auto' },
@@ -137,7 +163,8 @@ function footer(validation) {
     validation.taxCents > 0
       ? el('p', { class: 'cart-tax', id: 'cartTax' }, `IVA incluido: ${formatPrice(validation.taxCents)} · sin IVA: ${formatPrice(validation.netCents)}`)
       : null,
-    el('p', { class: 'cart-note' }, icon('truck'), ' Todos nuestros productos se envían a domicilio.'),
+    validation.hasProducts ? el('p', { class: 'cart-note' }, icon('truck'), ' Todos nuestros productos se envían a domicilio.') : null,
+    validation.hasClasses ? el('p', { class: 'cart-note' }, icon('play-circle'), ' Los videos se activan apenas se confirma el pago y los ves durante 30 días.') : null,
     paymentsEnabled
       ? el('button', {
         type: 'button', class: 'btn btn-brand w-100 mb-2', id: 'cartCheckout', disabled: !canCheckout(validation),
@@ -158,7 +185,7 @@ function startCheckout(validation) {
     validation,
     onBack: backToCart,
     onStale: () => { backToCart(); refresh(); }, // el stock o un precio cambió: se vuelve a leer la base
-    onDone: finishCheckout,
+    onDone: (status, kind) => finishCheckout(status, kind, validation.hasClasses && validation.hasProducts),
   }));
 }
 
@@ -167,11 +194,11 @@ function backToCart() {
   renderDrawer();
 }
 
-function finishCheckout(status, kind) {
+function finishCheckout(status, kind, withVideos = false) {
   mode = 'done';
   // Pagado o a la espera de PayPal: el pedido ya existe en el servidor, el carrito local se vacía.
   if (status === 'paid' || status === 'pending') cartStore.clear();
-  mount(body, doneView(status, kind, () => {
+  mount(body, doneView(status, kind, withVideos, () => {
     window.bootstrap?.Offcanvas.getInstance(drawer)?.hide();
     backToCart();
   }));
@@ -188,7 +215,7 @@ function renderDrawer() {
   if (products === null && loading) return mount(body, el('p', { class: 'cart-note', role: 'status' }, 'Cargando tu carrito…'));
   if (products === null) return mount(body, errorState(failure ? messageFor(failure) : 'No pudimos cargar tu carrito.', refresh));
 
-  const validation = validateCart(cart, products);
+  const validation = validateCart(cart, products, { classes: videos, ownedIds: ownedVideoIds });
   mount(body, el('ul', { class: 'cart-list', id: 'cartList' }, ...validation.lines.map(lineItem)), footer(validation));
 }
 
@@ -206,10 +233,22 @@ async function refresh() {
   let next = null;
   let error = null;
   let nextDiscount = 0;
+  let nextVideos = [];
+  let nextOwned = [];
   try {
     next = await listActiveProducts();
+    const videoIds = cartStore.get().items.filter((i) => i.t === 'c').map((i) => i.id);
+    if (videoIds.length) nextVideos = await listClassesByIds(videoIds);
   } catch (err) {
     error = err;
+  }
+  // Videos que ya tiene (compra vigente o suscripción que los cubre): se avisan y no se cobran dos veces.
+  if (!error && nextVideos.length && session.isLoggedIn()) {
+    try {
+      const access = accessFromEntitlements(await listMyEntitlements());
+      const full = new Map((await listShopClasses({ withTier: true })).map((c) => [c.id, c]));
+      nextOwned = nextVideos.filter((v) => ['owned', 'included'].includes(classOffer(full.get(v.id) ?? v, access))).map((v) => v.id);
+    } catch { nextOwned = []; }
   }
   // El descuento es un aviso: si no se puede leer, el carrito se muestra igual (sin descuento).
   if (!error && session.isLoggedIn()) {
@@ -220,6 +259,8 @@ async function refresh() {
   }
   if (mine !== generation) return; // llegó una respuesta más nueva
   discountBps = nextDiscount;
+  videos = error ? [] : nextVideos;
+  ownedVideoIds = nextOwned;
   loading = false;
   products = error ? null : next; // si falló, no se muestran precios viejos
   failure = error;

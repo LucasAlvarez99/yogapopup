@@ -62,6 +62,43 @@ export async function listPublishedClasses({ limit } = {}) {
   return unwrap(await q) ?? [];
 }
 
+/** Columnas de una clase puesta a la venta: suman el precio y el IVA (públicos) y, con sesión, el nivel mínimo. */
+const CLASS_SHOP_COLUMNS = `${CLASS_COLUMNS},price_cents,tax_rate_bps`;
+
+/**
+ * Videos publicados CON su precio (para venderlos como la tienda). Con sesión se pide también el nivel mínimo, que sirve
+ * para saber si la suscripción ya cubre el video. Si la base va atrasada se piden las columnas de antes.
+ */
+export async function listShopClasses({ withTier = false } = {}) {
+  const cols = withTier ? `${CLASS_SHOP_COLUMNS},min_tier` : CLASS_SHOP_COLUMNS;
+  const build = (columns) => db().from('classes').select(columns).eq('is_published', true)
+    .order('sort_order', { ascending: true }).order('published_at', { ascending: false });
+  let { data, error } = await build(cols);
+  if (isSchemaBehind(error) && withTier) ({ data, error } = await build(CLASS_SHOP_COLUMNS));
+  if (isSchemaBehind(error)) ({ data, error } = await build(CLASS_COLUMNS));
+  if (error) throw new AppError('internal_error', error.message);
+  return data ?? [];
+}
+
+/** Videos por id (con precio), para el carrito. Solo los publicados: uno despublicado vuelve como "no disponible". */
+export async function listClassesByIds(ids) {
+  const list = [...new Set(ids)].slice(0, 30);
+  if (list.length === 0) return [];
+  const { data, error } = await db().from('classes').select(CLASS_SHOP_COLUMNS).in('id', list).eq('is_published', true);
+  if (error) throw new AppError('internal_error', error.message);
+  return data ?? [];
+}
+
+/** Los accesos de la persona (suscripción y videos comprados), para saber qué ya puede ver. */
+export async function listMyEntitlements() {
+  const { data, error } = await db().from('entitlements').select('scope,class_id,tier,expires_at').eq('user_id', myId());
+  if (error) {
+    if (isSchemaBehind(error)) return [];
+    throw new AppError('internal_error', error.message);
+  }
+  return data ?? [];
+}
+
 export async function getClass(id) {
   return unwrap(await db().from('classes').select(CLASS_COLUMNS).eq('id', id).maybeSingle());
 }
