@@ -1,5 +1,5 @@
 import { el, icon } from '../lib/dom.js';
-import { formatMinutes, levelLabel } from '../lib/format.js';
+import { formatMinutes, levelLabel, percent } from '../lib/format.js';
 import { page } from '../lib/env.js';
 import { priceBlock } from './price.js';
 import { classOffer, daysLeft, daysLeftLabel } from '../lib/class-shop.js';
@@ -12,9 +12,11 @@ const hrefOf = (c) => `${page('clase.html')}?id=${encodeURIComponent(c.id)}`;
  *   comprar suelto -> "Agregar al carrito" (o "En el carrito" si ya está)    ·  gratis / comprado / incluido -> "Ver video"
  *   solo con suscripción -> "Ver cómo acceder"
  * @param {object} c       fila de classes con precio
- * @param {{ access?: object|null, inCart?: boolean, onAdd?: (c: object) => void, col?: string }} [opts]
+ * @param {{ access?: object|null, inCart?: boolean, onAdd?: (c: object) => void, col?: string,
+ *           progress?: {progress_seconds:number, completed:boolean} }} [opts]
  */
-export function classShopCard(c, { access = null, inCart = false, onAdd = null, col = 'col-md-6 col-lg-4' } = {}) {
+export function classShopCard(c, { access = null, inCart = false, onAdd = null, col = 'col-md-6 col-lg-4', progress = null } = {}) {
+  const pct = progress ? percent(progress.progress_seconds, c.duration_seconds) : 0;
   const offer = classOffer(c, access);
   const media = c.thumbnail_url
     ? el('img', { src: c.thumbnail_url, alt: '', loading: 'lazy', 'data-hide-on-error': true })
@@ -47,7 +49,12 @@ export function classShopCard(c, { access = null, inCart = false, onAdd = null, 
         el('div', { class: 'shop-media bg-mint' },
           media,
           el('span', { class: 'video-play', 'aria-hidden': 'true' }, icon('play-fill')),
-          c.duration_seconds ? el('span', { class: 'tag tag-light shop-flag' }, formatMinutes(c.duration_seconds)) : null)),
+          c.duration_seconds ? el('span', { class: 'tag tag-light shop-flag' }, formatMinutes(c.duration_seconds)) : null,
+          progress?.completed ? el('span', { class: 'tag tag-light video-seen' }, icon('check2'), ' Vista') : null,
+          pct > 0 && !progress?.completed
+            ? el('span', { class: 'video-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': `${pct}% visto` },
+              Object.assign(el('span', {}), { style: `width:${pct}%` }))
+            : null)),
       el('div', { class: 'shop-body' },
         el('span', { class: 'product-cat', translate: 'no' }, c.category || levelLabel(c.level)),
         el('h3', { translate: 'no' }, el('a', { href }, c.title)),

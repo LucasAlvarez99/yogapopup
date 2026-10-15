@@ -398,6 +398,107 @@ await test('home: suscripciones con lo que da cada nivel (videos que suman, desc
   }
 });
 
+await test('videoteca: los videos se agregan al carrito como los productos (un video = una unidad), solos o junto con la tienda', async (page) => {
+  await page.goto(`${S}/videoteca.html`);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 3);
+  assert.match(await text(page, '#catalogGrid [data-offer=buy] .shop-stock'), /30 días/);
+  await page.click('#catalogGrid [data-add-video]');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '1');
+  // el botón pasa a "En el carrito" y no se puede sumar otra unidad
+  await waitFor(page, () => /En el carrito/.test(document.querySelector('#catalogGrid [data-offer=buy] button').textContent));
+  assert.equal(await page.$eval('#catalogGrid [data-offer=buy] button', (b) => b.disabled), true);
+
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  const row = '#cartList .cart-item[data-kind=video]';
+  assert.match(await text(page, `${row} h3`), /Curso avanzado/);
+  assert.equal(norm(await text(page, `${row} strong`)), '15,00 €');
+  assert.match(await text(page, row), /se ve durante 30 días/);
+  assert.equal(await count(page, `${row} .qty`), 0, 'un video no tiene cantidad');
+  assert.equal(norm(await text(page, '#cartSubtotal')), '15,00 €');
+  assert.equal(await count(page, '.cart-footer .bi-truck'), 0, 'solo videos: sin aviso de envío');
+  assert.match(await text(page, '.cart-footer'), /Los videos se activan apenas se confirma el pago/);
+
+  // junto con un producto de la tienda: un solo carrito, con envío para el producto
+  await page.goto(`${S}/tienda.html`);
+  await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
+  await addFromCard(page, '#shopGrid', 'Botella térmica');
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '2');
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 2);
+  assert.equal(norm(await text(page, '#cartSubtotal')), '29,99 €'); // 15,00 + 14,99
+  assert.equal(await count(page, '.cart-footer .bi-truck'), 1);
+  // el carrito sobrevive a recargar y quitar el video deja solo el producto
+  await page.reload();
+  await waitFor(page, () => document.querySelector('[data-cart-count]').textContent === '2');
+  await openCart(page);
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 2);
+  await page.click('#cartList .cart-item[data-kind=video] .cart-remove');
+  await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
+  assert.equal(norm(await text(page, '#cartSubtotal')), '14,99 €');
+});
+
+await test('videoteca: un video que ya tenés (comprado o incluido en tu suscripción) se ve, no se vuelve a comprar', async (page) => {
+  await signup('ana@test.dev');
+  await page.goto(`${S}/videoteca.html`);
+  await loginViaModal(page, 'ana@test.dev');
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 3);
+  assert.equal(await count(page, '#catalogGrid [data-offer=buy]'), 1);
+  await be.entitle('ana@test.dev', IDS.restricted);
+  await page.reload();
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid [data-offer=owned]').length === 1);
+  assert.equal(await count(page, '#catalogGrid [data-add-video]'), 0, 'ya es tuyo: no hay botón de compra');
+  assert.match(await text(page, '#catalogGrid [data-offer=owned]'), /Te quedan 30 días/);
+  assert.match(await text(page, '#catalogGrid [data-offer=owned] a.btn'), /Ver video/);
+});
+
+await test('videoteca: la suscripción nivel 2 incluye el video de nivel 2 (sin comprarlo)', async (page) => {
+  await signup('ana@test.dev');
+  await be.subscribe('ana@test.dev', 2);
+  await page.goto(`${S}/videoteca.html`);
+  await loginViaModal(page, 'ana@test.dev');
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid [data-offer=included]').length === 1);
+  assert.match(await text(page, '#catalogGrid [data-offer=included]'), /Incluido en tu suscripción/);
+  assert.equal(await count(page, '#catalogGrid [data-add-video]'), 0);
+});
+
+await test('clases: página con la agenda en vivo y "Mis videos" (comprados, con los días que quedan)', async (page) => {
+  await page.goto(`${S}/clases.html`);
+  assert.match(await text(page, 'h1'), /Clases/);
+  // la agenda de profesores (como en la home)
+  await waitFor(page, () => document.querySelectorAll('#classesAgenda .ag-photo, #classesAgenda .ag-teacher, #classesAgenda .yp-card').length > 0, null, 15000);
+  // sin sesión: pide iniciar sesión para ver los videos
+  await waitFor(page, () => /Iniciá sesión para ver tus videos/.test(document.getElementById('myVideos').textContent));
+  await signup('ana@test.dev');
+  await loginViaModal(page, 'ana@test.dev');
+  await waitFor(page, () => /Todavía no compraste videos/.test(document.getElementById('myVideos').textContent));
+  assert.match(await page.$eval('#myVideos a.btn', (a) => a.getAttribute('href')), /videoteca\.html$/);
+  // con un video comprado aparece con sus días
+  await be.entitle('ana@test.dev', IDS.restricted);
+  await page.reload();
+  await waitFor(page, () => document.querySelectorAll('#myVideos .video-shop-card[data-offer=owned]').length === 1);
+  assert.match(await text(page, '#myVideos'), /Curso avanzado/);
+  assert.match(await text(page, '#myVideos'), /Te quedan 30 días/);
+  // el menú marca "Clases" como la página actual
+  assert.equal(await page.$eval('.navbar-nav .nav-link.active', (a) => a.textContent.trim()), 'Clases');
+});
+
+await test('menú: "Clases" lleva a su propia página, y el menú no se encima con el logo en pantallas anchas ni chicas', async (page) => {
+  await page.setViewport({ width: 1366, height: 800 });
+  await page.goto(S);
+  assert.equal(await page.$eval('.navbar-nav a[href="clases.html"]', (a) => a.textContent.trim()), 'Clases');
+  const boxes = await page.evaluate(() => {
+    const r = (sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return { left: b.left, right: b.right }; };
+    return { brand: r('.navbar .brand'), menu: r('.navbar-nav'), maxH: Math.max(...[...document.querySelectorAll('.navbar-nav .nav-link')].map((a) => a.getBoundingClientRect().height)), docW: document.documentElement.scrollWidth };
+  });
+  assert.ok(boxes.brand.right <= boxes.menu.left, `el logo no se encima con el menú (${Math.round(boxes.brand.right)} vs ${Math.round(boxes.menu.left)})`);
+  assert.ok(boxes.maxH < 50, 'ningún ítem del menú se parte en dos líneas');
+  assert.ok(boxes.docW <= 1366, 'sin scroll horizontal');
+  await page.setViewport({ width: 1000, height: 800 }); // ancho intermedio: el menú se pliega en vez de encimarse
+  await page.reload();
+  assert.equal(await page.$eval('.navbar .navbar-toggler, .navbar button[data-bs-target="#mainMenu"]', (b) => getComputedStyle(b).display !== 'none'), true, 'hamburguesa visible');
+});
+
 await test('carrito: dos pestañas del mismo navegador se mantienen sincronizadas', async (page) => {
   await page.goto(`${S}/tienda.html`);
   await waitFor(page, () => document.querySelectorAll('#shopGrid .shop-card').length === 3);
@@ -428,10 +529,14 @@ await test('videoteca: estado de carga (esqueleto) y luego el catálogo', async 
   // 'domcontentloaded' y no 'load': si la página espera imágenes o fuentes externas, el esqueleto podía desaparecer antes de mirarlo
   await page.goto(`${S}/videoteca.html`, { waitUntil: 'domcontentloaded' });
   await waitFor(page, () => document.querySelectorAll('#catalogGrid .yp-skeleton').length > 0, null, 5000);
-  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-card').length === 3);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 3);
   assert.equal(await count(page, '#catalogGrid .yp-skeleton'), 0);
   assert.match(await text(page, 'h1'), /Videoteca/);
-  assert.equal(await count(page, '.video-lock'), 1, 'la clase restringida debe mostrar candado');
+  // Como la tienda: el video restringido con precio se vende suelto (precio + "Agregar al carrito"); los gratis se ven directo.
+  assert.equal(await count(page, '#catalogGrid [data-offer=buy]'), 1, 'el video restringido se puede comprar');
+  assert.equal(await count(page, '#catalogGrid [data-offer=free]'), 2);
+  assert.match(await text(page, '#catalogGrid [data-offer=buy] .price'), /15,00/);
+  assert.match(await text(page, '#catalogGrid [data-offer=buy] button'), /Agregar al carrito/);
 });
 
 await test('videoteca: error de carga con reintento', async (page) => {
@@ -441,7 +546,7 @@ await test('videoteca: error de carga con reintento', async (page) => {
   assert.match(await text(page, '#catalogGrid [role=alert]'), /No pudimos cargar/);
   await be.behavior({ catalogFail: false });
   await page.click('#catalogGrid [role=alert] button');
-  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-card').length === 3);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 3);
 });
 
 await test('videoteca: estado vacío cuando no hay clases publicadas', async (page) => {
@@ -449,7 +554,7 @@ await test('videoteca: estado vacío cuando no hay clases publicadas', async (pa
   const state = await be.state();
   assert.ok(state);
   await page.goto(`${S}/videoteca.html`);
-  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-card').length === 3);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 3);
   // filtros sin resultados
   await page.type('#catalogFilters input[type=search]', 'zzz-no-existe');
   await waitFor(page, () => /No encontramos clases con esos filtros/.test(document.getElementById('catalogGrid').textContent));
@@ -457,13 +562,13 @@ await test('videoteca: estado vacío cuando no hay clases publicadas', async (pa
 
 await test('videoteca: la búsqueda ignora tildes y mayúsculas, y filtra por categoría', async (page) => {
   await page.goto(`${S}/videoteca.html`);
-  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-card').length === 3);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 3);
   await page.type('#catalogFilters input[type=search]', 'RELAJACION');
-  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-card').length === 1);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 1);
   await page.$eval('#catalogFilters input[type=search]', (i) => { i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.evaluate(() => [...document.querySelectorAll('.yp-chip')].find((b) => b.textContent === 'Fuerza').click());
-  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-card').length === 1);
-  assert.match(await text(page, '#catalogGrid .video-info h3'), /Curso avanzado/);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 1);
+  assert.match(await text(page, '#catalogGrid .shop-body h3'), /Curso avanzado/);
 });
 
 // ============================================================ detalle, acceso y reproducción
@@ -1592,8 +1697,8 @@ await test('panel · Clases: crear con video real, publicar, editar, despublicar
   const other = await page.ctx.newPage(); // el público: mismo navegador, otra pestaña
   const publicTitles = async () => {
     await other.goto(`${S}/videoteca.html`);
-    await waitFor(other, () => document.querySelectorAll('.video-card').length > 0);
-    const titles = await other.$$eval('.video-info h3', (n) => n.map((x) => x.textContent.trim()));
+    await waitFor(other, () => document.querySelectorAll('.video-shop-card').length > 0);
+    const titles = await other.$$eval('.video-shop-card .shop-body h3', (n) => n.map((x) => x.textContent.trim()));
     // Chrome real (no el modo headless antiguo) trata la otra pestaña como "en segundo plano": ahí un confirm() o una
     // animación del panel no avanzan. Se vuelve a la pestaña del panel antes de seguir operándola.
     await page.bringToFront();
@@ -2011,7 +2116,7 @@ await test('carrito: una línea de antes de los talles pide elegir uno, y un tal
   await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
   assert.match(await text(page, '#cartList .cart-item'), /Elige un talle/);
   assert.equal(await page.$('#cartList .qty'), null, 'no se puede cambiar la cantidad de lo que no tiene talle');
-  assert.match(await text(page, '.cart-alert'), /cambiaron desde que los agregaste/, 'el cajón avisa que hay que corregir el carrito');
+  assert.match(await text(page, '.cart-alert'), /cambió desde que lo agregaste/, 'el cajón avisa que hay que corregir el carrito');
   assert.equal(await page.$eval('.cart-footer button[title="El pago online llega pronto"]', (b) => b.disabled), true, 'no se puede pagar con una línea sin talle');
   assert.match(await page.$eval('#cartList .cart-item a', (a) => a.getAttribute('href')), new RegExp(PRODUCT_IDS.mat), 'el título lleva a la ficha para elegir');
   await page.click('#cartList .cart-remove');
@@ -2028,7 +2133,7 @@ await test('carrito: una línea de antes de los talles pide elegir uno, y un tal
   await openCart(page);
   await waitFor(page, () => document.querySelectorAll('#cartList .cart-item').length === 1);
   assert.match(await text(page, '#cartList .cart-item'), /Ese talle ya no está disponible/);
-  assert.match(await text(page, '.cart-alert'), /cambiaron/, 'y se ofrece actualizar el carrito');
+  assert.match(await text(page, '.cart-alert'), /cambió desde que lo agregaste/, 'y se ofrece actualizar el carrito');
 });
 
 await test('panel · Productos: crear con talles e IVA, editar su stock conservando los demás, y validar antes de guardar', async (page) => {
@@ -2170,7 +2275,7 @@ await test('el HTML/JS servido no contiene secretos ni pide columnas privadas', 
   const bad = [];
   page.on('response', async (r) => { if (r.status() === 401 && /rest\/v1\/classes/.test(r.url())) bad.push(r.url()); });
   await page.goto(`${S}/videoteca.html`);
-  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-card').length === 3);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 3);
   assert.deepEqual(bad, [], 'el frontend pidió columnas privadas de classes');
   for (const path of ['/js/config.js', '/js/lib/api.js', '/js/pages/clase.js']) {
     const body = await (await fetch(S + path)).text();

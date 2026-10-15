@@ -1,6 +1,6 @@
 import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
-import { listContinueWatching, listMyEntitlements, listShopClasses } from '../lib/api.js';
+import { getMyProgressMap, listContinueWatching, listMyEntitlements, listShopClasses } from '../lib/api.js';
 import { messageFor } from '../lib/errors.js';
 import { LEVEL_LABELS } from '../lib/format.js';
 import { el, mount } from '../lib/dom.js';
@@ -16,6 +16,7 @@ import { openAuth } from '../ui/auth-modal.js';
 const filters = { q: '', category: '', level: '' };
 let classes = [];
 let access = null; // accesos de la persona (null = sin sesión)
+let progress = {}; // avance por video
 
 const gridBox = document.getElementById('catalogGrid');
 const filtersBox = document.getElementById('catalogFilters');
@@ -55,7 +56,7 @@ function renderGrid() {
       : emptyState('No encontramos clases con esos filtros', 'Prueba con otra búsqueda o categoría.'));
   }
   const inCart = new Set(cartStore.get().items.map((i) => i.id));
-  mount(gridBox, el('div', { class: 'row g-4' }, ...list.map((c) => classShopCard(c, { access, inCart: inCart.has(c.id), onAdd: addVideoToCart }))));
+  mount(gridBox, el('div', { class: 'row g-4' }, ...list.map((c) => classShopCard(c, { access, inCart: inCart.has(c.id), onAdd: addVideoToCart, progress: progress[c.id] }))));
 }
 
 async function renderContinue() {
@@ -73,8 +74,10 @@ async function renderContinue() {
 /** Qué videos ya tiene la persona (compras vigentes y suscripción), para mostrar "Ver video" en vez de "Agregar al carrito". */
 async function loadAccess() {
   access = null;
+  progress = {};
   if (session.isLoggedIn()) {
     try { access = accessFromEntitlements(await listMyEntitlements()); } catch { /* sin eso se ofrece comprar; el servidor igual no cobra lo que ya tiene */ }
+    try { progress = await getMyProgressMap(); } catch { /* sin barras de progreso, pero el catálogo sigue */ }
   }
   renderGrid();
   await renderContinue();

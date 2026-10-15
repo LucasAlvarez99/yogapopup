@@ -34,7 +34,7 @@ function bookingsCard() {
     catch (err) { return mount(body, el('p', { class: 'text-danger small', role: 'alert' }, messageFor(err))); }
     if (rows.length === 0) {
       return mount(body, el('p', { class: 'text-muted' }, 'Todavía no reservaste ninguna clase.'),
-        el('a', { class: 'btn btn-outline-brand btn-sm', href: 'index.html#clases' }, 'Ver clases en vivo'));
+        el('a', { class: 'btn btn-outline-brand btn-sm', href: 'clases.html' }, 'Ver clases en vivo'));
     }
     mount(body, el('ul', { class: 'list-unstyled mb-0' }, ...rows.map((r) => el('li', { class: 'd-flex justify-content-between align-items-center gap-2 py-2 border-bottom' },
       el('div', {},

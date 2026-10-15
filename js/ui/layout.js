@@ -6,7 +6,8 @@ import { SOCIAL_LINKS } from '../lib/social-links.js';
 const NAV = [
   ['Inicio', 'index.html#inicio', 'inicio'],
   ['Cursos', 'index.html#cursos', 'cursos'],
-  ['Clases', 'index.html#clases', 'clases'],
+  ['Suscripciones', 'index.html#suscripciones', 'suscripciones'],
+  ['Clases', 'clases.html', 'clases'],
   ['Videoteca', 'videoteca.html', 'videoteca'],
   ['Merchandising', 'tienda.html', 'tienda'],
   ['Sobre nosotros', 'index.html#nosotros', 'nosotros'],
@@ -24,7 +25,7 @@ export function renderLayout(active) {
       el('a', { class: `nav-link${key === active ? ' active' : ''}`, href: page(href), 'aria-current': key === active ? 'page' : null }, label));
 
     const menuButton = el('button', {
-      class: 'icon-btn d-lg-none', type: 'button', 'data-bs-toggle': 'collapse', 'data-bs-target': '#mainMenu',
+      class: 'icon-btn d-xl-none', type: 'button', 'data-bs-toggle': 'collapse', 'data-bs-target': '#mainMenu',
       'aria-controls': 'mainMenu', 'aria-expanded': 'false', 'aria-label': 'Abrir menú',
     }, icon('list'));
     const accountLink = el('a', { class: 'icon-btn', href: page('cuenta.html'), 'aria-label': 'Mi cuenta', 'data-account-toggle': true }, icon('person'));
@@ -33,12 +34,12 @@ export function renderLayout(active) {
       'aria-controls': 'cartDrawer', 'aria-label': 'Abrir carrito', 'data-cart-toggle': true,
     }, icon('bag'), el('span', { class: 'cart-badge', 'data-cart-count': true, hidden: true }));
     const langSlot = el('span', { 'data-lang-slot': true });
-    const actions = el('div', { class: 'd-flex align-items-center gap-1 order-lg-3' }, menuButton, langSlot, accountLink, cartButton);
-    const menu = el('div', { class: 'collapse navbar-collapse order-lg-2', id: 'mainMenu' },
-      el('ul', { class: 'navbar-nav mx-lg-auto gap-lg-2' }, ...NAV.map(navItem)));
+    const actions = el('div', { class: 'd-flex align-items-center gap-1 order-xl-3' }, menuButton, langSlot, accountLink, cartButton);
+    const menu = el('div', { class: 'collapse navbar-collapse order-xl-2', id: 'mainMenu' },
+      el('ul', { class: 'navbar-nav mx-xl-auto gap-xl-1' }, ...NAV.map(navItem)));
 
     header.className = 'site-header sticky-top';
-    header.replaceChildren(el('nav', { class: 'navbar navbar-expand-lg' },
+    header.replaceChildren(el('nav', { class: 'navbar navbar-expand-xl' },
       el('div', { class: 'container-xl' }, brand('navbar-brand'), actions, menu)));
   }
 

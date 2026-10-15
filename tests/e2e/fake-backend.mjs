@@ -37,7 +37,7 @@ function seed() {
     users: new Map(), sessions: new Map(), recoveries: [], progress: new Map(), entitlements: new Set(),
     classes: [
       { ...base, id: IDS.free, title: 'Yoga para principiantes', description: 'Una práctica suave para empezar.\nSin prisa.', category: 'Vinyasa' },
-      { ...base, id: IDS.restricted, title: 'Curso avanzado (restringido)', access_level: 'restricted', level: 'avanzado', category: 'Fuerza', sort_order: 1, r2_object_key: KEY_OF(IDS.restricted) },
+      { ...base, id: IDS.restricted, title: 'Curso avanzado (restringido)', access_level: 'restricted', level: 'avanzado', category: 'Fuerza', sort_order: 1, r2_object_key: KEY_OF(IDS.restricted), price_cents: 1500, tax_rate_bps: 2100, min_tier: 2 },
       { ...base, id: IDS.second, title: 'Relajación profunda', level: 'todos', category: 'Relajación', sort_order: 2, r2_object_key: KEY_OF(IDS.second) },
       { ...base, id: IDS.hidden, title: 'Borrador oculto', is_published: false, published_at: null, r2_object_key: KEY_OF(IDS.hidden) },
     ],
@@ -240,6 +240,15 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     // Tablas privadas que este simulador no necesita modelar: sin sesión la API las rechaza (como los privilegios reales) y
     // con sesión una cuenta común ve cero filas (la RLS). También cualquier escritura sin sesión.
     const PRIVATE_TABLES = ['payment_events', 'audit_log', 'entitlements', 'rate_limits', 'order_items', 'live_bookings'];
+    // Los accesos de la persona (RLS: ve solo los suyos): los videos "entitled" (30 días) y, si el test lo pide, una suscripción.
+    if (table === 'entitlements' && req.method === 'GET' && user) {
+      const until = new Date(Date.now() + 30 * 86_400_000).toISOString();
+      const rows = [...db.entitlements].filter((k) => k.startsWith(`${user.id}|`)).map((k) => ({
+        user_id: user.id, scope: 'class', class_id: k.split('|')[1], tier: null, expires_at: db.entitlementExpiry?.[k] ?? until,
+      }));
+      if (db.subTier?.[user.id]) rows.push({ user_id: user.id, scope: 'all', class_id: null, tier: db.subTier[user.id], expires_at: until });
+      return reply(applyFilters(rows, p));
+    }
     if (PRIVATE_TABLES.includes(table) && req.method === 'GET') return user ? reply([]) : send(res, 401, { code: '42501', message: `permission denied for table ${table}` });
     if (!user && req.method === 'POST' && ['products', 'classes', 'live_bookings', 'testimonials'].includes(table)) {
       return send(res, 401, { code: '42501', message: `permission denied for table ${table}` });
@@ -754,6 +763,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       if (url.pathname === '/__test/reset') { db = seed(); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
       if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata, role: u.role ?? 'user', banned_until: u.banned_until ?? null })), teachers: db.teachers, products: db.products, testimonials: db.testimonials, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
+      if (url.pathname === '/__test/subscribe') { const b = await readBody(req); const id = [...db.users.values()].find((u) => u.email === b.email)?.id; db.subTier = { ...db.subTier, [id]: b.tier }; return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
       if (url.pathname === '/__test/variants') { // prepara talles directamente: { productId, rows:[{size, stock}] }
@@ -872,6 +882,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     setTestimonialStatus: (author_name, status) => control('testimonial-set', { author_name, status }),
     account: (email, data) => control('account', { email, ...data }),
     entitle: (email, classId) => control('entitle', { email, classId }),
+    subscribe: (email, tier) => control('subscribe', { email, tier }),
     promote: (email, role) => control('promote', { email, role }),
     makeTeacher: (email, extra = {}) => control('teacher', { email, ...extra }),
     addSession: (row) => control('session', row),

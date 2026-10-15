@@ -1,10 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  accessFromEntitlements,
-  classOffer,
-  daysLeft,
-  daysLeftLabel,
-} from "../../js/lib/class-shop.js";
+import { accessFromEntitlements, classOffer, daysLeft, daysLeftLabel } from "../../js/lib/class-shop.js";
 import {
   addClassItem,
   addItem,
@@ -17,11 +12,7 @@ import {
   setQty,
   validateCart,
 } from "../../js/lib/cart.js";
-import {
-  canCheckout,
-  cartToItems,
-  outcomeMessage,
-} from "../../js/lib/checkout.js";
+import { canCheckout, cartToItems, outcomeMessage } from "../../js/lib/checkout.js";
 import { isRemovableOnly, lineNotice } from "../../js/lib/cart-view.js";
 
 const V1 = "11111111-1111-4111-8111-111111111111";
@@ -125,8 +116,7 @@ Deno.test("validateCart: videos ok / ya tiene acceso / ya no se vende, y se mezc
     assert.equal(l.lineCents, 0, "un precio ausente no es 'gratis'");
   }
   // un video del carrito que se corrompe en un producto (mismo id en productos) no se cuela
-  const mixedFixed =
-    validateCart(cart, [product()], { classes: [video()] }).fixedCart;
+  const mixedFixed = validateCart(cart, [product()], { classes: [video()] }).fixedCart;
   assert.deepEqual(mixedFixed.items, [{ id: V1, qty: 1, t: "c" }, {
     id: P1,
     qty: 2,
