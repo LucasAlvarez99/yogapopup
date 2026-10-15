@@ -132,8 +132,8 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 23 | Perfil — progreso de videos | ✅ |
 | 24 | Perfil — historial de compras | 🟡 |
 | 25 | Perfil — estado de la suscripción | 🟡 |
-| 26 | Comentarios — modelo de datos y formulario | 🟡 |
-| 27 | Comentarios — moderación | 🟡 |
+| 26 | Comentarios — modelo de datos y formulario | ✅ |
+| 27 | Comentarios — moderación | ✅ |
 | 28 | Agenda — profesores, clases en vivo y reservas (modelo de datos) | ✅ |
 | 29 | Agenda — carrusel de profesores, calendario y panel del profesor | 🟡 |
 | 30 | Agenda — reservas de los alumnos (cupo, cancelar, "Mis clases") | 🟡 |
