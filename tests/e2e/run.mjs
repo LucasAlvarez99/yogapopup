@@ -1219,10 +1219,11 @@ await test('cuenta · Mi suscripción: sin suscripción lo dice y no muestra can
 // ---------------------------------------------------------------- Comentarios y moderación (Fases 26-27)
 const tmLog = async () => (await be.state()).log.testimonials;
 
-await test('comentarios: la home muestra solo los APROBADOS (como texto) y sin ninguno deja las tarjetas de ejemplo', async (page) => {
+await test('comentarios: la home muestra solo los APROBADOS (como texto) y sin ninguno no muestra tarjetas de ejemplo', async (page) => {
   await page.goto(S);
   await waitFor(page, () => document.querySelector('#homeTestimonials'), null, 10000);
-  assert.equal(await count(page, '#homeTestimonials figure'), 3, 'sin comentarios aprobados quedan los de ejemplo');
+  assert.equal(await count(page, '#homeTestimonials figure'), 0, 'sin comentarios aprobados no hay tarjetas de ejemplo');
+  assert.doesNotMatch(await text(page, '#homeTestimonials'), /María Sol|Tomás R\.|Luli F\./);
   await be.testimonial({ author_name: 'Camila Paz', body: 'Una clase hermosa, volvería mil veces.', rating: 4, status: 'approved' });
   await be.testimonial({ author_name: 'Pendiente Pérez', body: 'Este todavía no está aprobado nunca.', status: 'pending' });
   await be.testimonial({ author_name: 'Oculto Ortiz', body: 'Este lo ocultó el equipo hace tiempo.', status: 'hidden' });

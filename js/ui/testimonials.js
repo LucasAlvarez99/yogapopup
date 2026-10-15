@@ -9,7 +9,7 @@ import { toast } from './toast.js';
 
 /**
  * "Lo que dice nuestra comunidad" (Fases 26-27) en la sección Sobre nosotros de la home.
- *  - Lista: comentarios APROBADOS. Si todavía no hay ninguno se dejan las tarjetas de ejemplo del HTML.
+ *  - Lista: comentarios APROBADOS. Si todavía no hay ninguno la lista queda vacía (no hay tarjetas de ejemplo).
  *  - Formulario: se abre en un pop up desde el botón "Dejá tu comentario"; requiere sesión; uno por persona.
  *    Se publica al instante (sin aprobación). Al enviar se muestra un mensaje y el pop up se cierra solo.
  *    Si trae una palabra prohibida la base lo deja oculto y suspende la cuenta 168 h: se le explica y se cierra su sesión.
@@ -30,8 +30,8 @@ export async function loadPublicTestimonials(list) {
   if (!list || !supabase) return;
   try {
     const items = await listPublicTestimonials(6);
-    if (items.length > 0) mount(list, ...items.map(quoteCard));
-  } catch { /* se quedan las tarjetas de ejemplo: la home no se rompe por esto */ }
+    mount(list, ...items.map(quoteCard));
+  } catch { /* la home no se rompe por esto: la lista se queda como está */ }
 }
 
 const CLOSE_DELAY_MS = 2400; // lo que se ve el mensaje de "enviado" antes de cerrarse solo

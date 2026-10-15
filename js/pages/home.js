@@ -95,7 +95,7 @@ if (agendaBox) {
   }
 }
 
-// Comentarios de la comunidad (Fases 26-27): los aprobados reemplazan a las tarjetas de ejemplo; el formulario se abre en un pop up y pide sesión.
+// Comentarios de la comunidad (Fases 26-27): solo se muestran los aprobados (sin ninguno, la lista queda vacía); el formulario se abre en un pop up y pide sesión.
 const homeTestimonials = document.getElementById('homeTestimonials');
 loadPublicTestimonials(homeTestimonials);
 mountTestimonialModal(document.getElementById('openTestimonial'), { onChange: () => loadPublicTestimonials(homeTestimonials) });

@@ -760,7 +760,7 @@ tiene `status` (`pending` · `approved` · `hidden`), porque la Fase 27 necesita
 - El nombre que se muestra sale del perfil (lo pone la base, no el navegador). El público lee solo `id, author_name, body,
   rating, created_at` de los aprobados: ni `user_id`, ni estado, ni datos de moderación.
 - Editar un comentario (lo hace su autor) lo devuelve a "pendiente". El profesor NO es gestión.
-- Las tarjetas de ejemplo de la home se mantienen mientras no haya ningún comentario aprobado.
+- La home muestra únicamente comentarios reales aprobados; sin ninguno, la lista queda vacía (no hay tarjetas de ejemplo).
 - Pruebas: `supabase/tests/testimonials.test.sql` (RLS, columnas, triggers, auditoría), `tests/web/testimonials.test.js` y 4
   pruebas E2E del formulario y la lista.
 
