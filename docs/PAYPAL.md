@@ -61,6 +61,15 @@ Un pedido con **`needs_review`** (amarillo en el panel) pide que una persona lo 
 `amount_mismatch` (PayPal cobró un importe distinto) o `paid_without_stock` (pago tardío cuando ya no quedaba stock: hay que
 reembolsar o conseguir el producto).
 
+## Niveles, videos y descuentos
+
+- **Suscripción por niveles.** Cada nivel (1, 2, 3) tiene su plan de PayPal; al cambiar el precio desde el panel se crea un plan **nuevo** (quien ya paga sigue con el suyo hasta cancelar).
+  Cambiar de nivel = cancelar la suscripción actual y contratar otra. La suscripción **requiere cuenta de PayPal** y la web lo avisa.
+- **Videos en el carrito.** `paypal-create-order` acepta líneas `{type:"class", id}` junto con productos. Un video repetido se cobra una vez; un video que la persona ya puede ver
+  (compra vigente o nivel que lo cubre) se rechaza con `already_owned`. Al pagar, `payments_mark_paid` crea un acceso de 30 días **por video** (`external_ref = <pedido>:<video>`);
+  un reembolso total (`payments_apply_refund`) los quita todos.
+- **Pruebas pendientes en el sandbox:** pedido solo de videos, pedido mezclado (video + producto), reembolso total de un pedido con varios videos y alta/cambio de nivel.
+
 ## Puesta en marcha en sandbox
 
 Orden importante: **primero la base y las funciones, después la web.**
@@ -204,7 +213,8 @@ Códigos de error nuevos (los muestra la web en español): `payments_not_configu
 - **Sin costo de envío.** La tienda dice "todos nuestros productos se envían a domicilio" y el pedido cobra solo los productos. Si se
   quiere cobrar el envío hay que modelarlo (hoy no existe).
 - **Moneda única: EUR.** Un reembolso de productos **no repone el stock solo** (depende de si el producto vuelve).
-- **Una suscripción viva por persona** y un solo plan. Un pedido es de **un solo tipo**: productos físicos o *una* clase (nunca mezclados).
+- **Una suscripción viva por persona**; hay **3 niveles** (un plan de PayPal vigente por nivel). Un pedido puede tener **productos, videos o ambos**: con productos lleva envío y reserva stock; solo con videos es digital. Cada video da 30 días de acceso.
+- **Descuentos de nivel:** los aplica el servidor al crear el pedido (5 % nivel 2, 7 % nivel 3, editables en el panel) a productos y videos; el precio unitario se guarda ya descontado para que la suma de ítems coincida con el total que ve PayPal.
 - **Stock reservado 1 hora** mientras se paga; un intento nuevo de la misma persona reemplaza al anterior.
 - **Facturas:** el sistema guarda pedidos con su IVA incluido, pero **no emite facturas**.
 - **Privacidad:** de cada evento del webhook se guarda solo un resumen (ids, estado, monto), no el cuerpo (trae correo y dirección). La dirección

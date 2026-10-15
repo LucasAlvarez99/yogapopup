@@ -30,6 +30,11 @@ se sigue llamando `class`/`classes`). Aparece en la home (sección `#cursos`) y 
 (`payments_*`, solo `service_role`); todo es idempotente. Una compra de clase crea un `entitlement` `scope='class'`, la suscripción
 `scope='all'`, ambos `source='paypal'`. Sin `PAYPAL.CLIENT_ID` en `js/config.js` no se ofrece ningún pago.
 
+**Niveles y videos sueltos:** hay 3 niveles de suscripción **acumulativos** (`classes.min_tier`; `entitlements.tier >= min_tier`; el 3 ve todo). Nivel 2: 5 % y nivel 3: 7 % de descuento
+en toda la tienda (videos incluidos) y 1 clase virtual gratis por mes (cupón, no se acumula); precios y descuentos se editan en el panel. La suscripción exige cuenta de PayPal y la web lo avisa.
+Los videos se venden sueltos por el carrito (una unidad, **30 días** de acceso) y un pedido puede mezclar videos y productos. El descuento lo calcula **solo el servidor**
+(`payments_user_discount_bps`); el navegador nunca manda precios ni descuentos. Página `clases.html` = agenda en vivo + "Mis videos". Detalle en el README ("Niveles, descuentos y videos sueltos").
+
 ## 2. Tres niveles de acceso (deben estar siempre separados)
 
 | Nivel | Superficie | Puede | No puede |
@@ -138,6 +143,14 @@ npm run sb:db-push | sb:secrets | sb:deploy   # despliegue (ver supabase/README.
   `.yp-resume`): ponerle `z-index`. Un E2E lo atrapó ("Empezar de cero" no recibía el clic).
 - `Number(null)` es `0`: al convertir un precio o stock ausente hay que chequear `null`/`undefined` antes, o "sin precio" se
   muestra como "gratis" (bug real de la Fase 14, atrapado por las pruebas).
+- **La web se publica sola con cada push, pero la base se actualiza a mano** (`npm run sb:db-push`): si el código pide una columna nueva y la base no la tiene, PostgREST
+  responde 400 (`42703`) y la pantalla se rompe. Toda consulta con columnas nuevas debe caer a las anteriores (`isSchemaBehind`, ver `listTiers`, `selectProducts`), y las migraciones se
+  aplican **antes** de publicar. (Pasó con los niveles: el sitio quedó con errores 400 hasta aplicar las migraciones.)
+- Un pedido con varios videos necesita **un acceso por video**: `entitlements` es único por `(source, external_ref)`, así que el acceso de un video es `<pedido>:<video>` (no solo el id del pedido).
+  Para buscar o quitar los accesos de un pedido: `external_ref = pedido` **o** `like pedido || ':%'` (los de antes guardaban solo el id).
+- Un precio con descuento se guarda **ya descontado** en `order_items.unit_cents` (el de lista en `list_unit_cents`): PayPal valida que la suma de ítems sea el total.
+- Menú: con 7 ítems el encabezado se encimaba con el logo. Los ítems no se parten (`white-space: nowrap`) y el menú se pliega por debajo de 1200 px (`navbar-expand-xl`, también en `js/ui/layout.js`).
+  Un `DOMRect` no se puede devolver tal cual desde `page.evaluate` (llega vacío): devolver números.
 - Imágenes en Storage (miniaturas y productos): subir la nueva, guardar el cambio y **recién entonces** borrar la vieja; si
   el guardado falla, borrar la nueva. Borrar solo si la URL es del bucket propio (`storagePathFromPublicUrl`).
 

@@ -77,9 +77,16 @@ Supabase plan gratuito (500 MB base, 1 GB storage, 5 GB egress, 500.000 invocaci
 sobra. **Ojo**: no incluye copias de seguridad ni SLA; si la base pasa a ser crítica para el
 cliente, el plan Pro es el paso siguiente.
 
+## Migraciones de niveles y videos (13-18/10/2026)
+
+Aplicar en orden con `npm run sb:db-push`, **antes** de publicar la web: `20261013120000_subscription_tiers` (niveles y planes), `20261014120000_tier_min_level` (nivel mínimo por video),
+`20261015120000_class_rental_30_days` (videos sueltos por 30 días), `20261016120000_tier_discounts` (descuentos y `payments_create_order` con descuento),
+`20261017120000_free_class_coupons` (cupón mensual de clase virtual) y `20261018120000_cart_videos` (varios videos y mezcla con productos en un pedido).
+Las pruebas de base de datos (`npm run test:db`) las ejercitan en `supabase/tests/`.
+
 ## Pruebas
 ```
-npm test           # 47 pruebas: firmas, permisos, flujos y casos de error (sin red)
+npm test           # 128 pruebas: firmas, permisos, pagos, niveles, videos en el carrito y casos de error (sin red)
 npm run verify     # formato + lint + tipos + pruebas
 ```
 Las pruebas viven en `supabase/functions/_tests/` y simulan R2 y la base en memoria. Lo que **no**

@@ -4,16 +4,21 @@ Sitio de yoga (cursos, clases en vivo, tienda y **videoteca**) al que se le suma
 videos: los videos viven en **Cloudflare R2**, los usuarios, clases, permisos y progreso en **Supabase**, y la
 web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos en el hosting).
 
-> ## Estado actual (06/10/2026) · Fases 0-16 y 28 cumplidas · 29-30 construidas y probadas en navegador (falta el Supabase real y decidir el cobro)
+> ## Estado actual (15/10/2026) · Fases 0-16 y 28 cumplidas · 29-30 construidas y probadas en navegador (falta el Supabase real y decidir el cobro)
 >
 > **Poner el sitio a andar con cuentas reales:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) ·
 > Reglas del proyecto: [`claude.md`](claude.md) · Encargo original: [`docs/ENCARGO-ORIGINAL.md`](docs/ENCARGO-ORIGINAL.md) ·
 > Hoja de ruta hasta la entrega: [`Fases`](#fases) más abajo (Fase 0 = hoy, Fase 39 = día de entrega).
 > Última revisión de blindaje (profesores, agenda e idioma): [`docs/BLINDAJE-FASES-28-30.md`](docs/BLINDAJE-FASES-28-30.md).
 >
-> **Probado (06/10/2026):** 66 pruebas de las funciones del servidor (roles, auditoría, contratos, firmas R2) · 189 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas, la cobertura del traductor y la agenda) ·
+> **Niveles de suscripción y videos en el carrito (15/10/2026):** 3 niveles acumulativos (1, 2 y 3) con descuento en toda la tienda, una clase
+> virtual gratis por mes (nivel 3) y videos que se venden sueltos con el carrito, 30 días de acceso cada uno. Nueva página `clases.html`
+> (agenda en vivo + "Mis videos") y videoteca con precio y "Agregar al carrito". Detalle: [Niveles, descuentos y videos sueltos](#niveles-descuentos-y-videos-sueltos).
+> **Antes de publicar la web hay que aplicar las migraciones nuevas** (`npm run sb:db-push`: `20261013…` a `20261018…`).
+>
+> **Probado (15/10/2026):** 128 pruebas de las funciones del servidor (roles, auditoría, contratos, firmas R2, pagos, niveles, videos en el carrito) · 264 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas, la cobertura del traductor y la agenda) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
-> verificadas rompiendo la migración a propósito; incluyen profesores, agenda y reservas) · **68 pruebas E2E** en Chromium real, todas en verde, también contra `dist/` con la CSP de producción (06/10/2026: tienda, panel —acceso por rol, clases y productos—, carrito y, nuevas, carrusel de profesores, reservas, idioma y panel del profesor).
+> verificadas rompiendo la migración a propósito; incluyen profesores, agenda y reservas) · **88 pruebas E2E** en Chromium real, también contra `dist/` con la CSP de producción (tienda, panel, carrito con videos, videoteca, página Clases, carrusel de profesores, reservas, idioma). Nota: en un Chromium sin códecs de video (como el de los entornos de CI sin ffmpeg/h264) fallan 13 que reproducen o suben video; con Chrome real pasan.
 >
 > **Roles hechos:** `user` / `profesor` / `admin` / `developer` (el developer es superconjunto del admin; la diferencia: **solo el developer sube videos y da de alta profesores**; el `profesor` da clases pero no es gestión), historial de
 > auditoría que nadie puede editar ni borrar, cambios de rol solo por desarrolladores y protección del último desarrollador.
@@ -36,7 +41,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > npm run verify                                 # formato + lint + tipos + pruebas de backend y frontend
 > npm run test:db                                # base de datos (requiere PostgreSQL y bash)
 > npm run doctor                                 # ¿la configuración está lista para producción?
-> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 68 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
+> CHROME_PATH=/ruta/a/chrome npm run test:e2e    # 88 pruebas E2E (requiere Chrome/Chromium y ffmpeg)
 > npm run test:e2e:csp                          # las mismas, contra el sitio construido y con la CSP de producción
 > npm run dev                                    # sitio en http://localhost:3000 (o Live Server: index.html → botón "Go Live")
 > npm run build                                  # arma dist/ (lo único que se sube a Hostinger)
@@ -132,6 +137,7 @@ Leyenda: ✅ cumplida · 🟡 código listo, falta validarla (con cuentas reales
 | 28 | Agenda — profesores, clases en vivo y reservas (modelo de datos) | ✅ |
 | 29 | Agenda — carrusel de profesores, calendario y panel del profesor | 🟡 |
 | 30 | Agenda — reservas de los alumnos (cupo, cancelar, "Mis clases") | 🟡 |
+| Extra | Niveles de suscripción, descuentos, cupón mensual y videos en el carrito | 🟡 (falta aplicar migraciones y probar en el sandbox de PayPal) |
 | 31 | Notificaciones — aviso de clase en vivo | ⬜ |
 | 32 | Cuentas reales — infraestructura | ⬜ |
 | 33 | Prueba con un solo video real | ⬜ |
@@ -177,7 +183,7 @@ Detalle de cada fase, con sus tareas, más abajo en [Fases](#fases).
 
 ```
 yogapopup/
-├── *.html                                Las páginas, tal cual se publican: index, videoteca, clase, cuenta,
+├── *.html                                Las páginas, tal cual se publican: index, clases, videoteca, clase, cuenta,
 │                                         panel, tienda, producto
 ├── css/ · js/ · assets/                  Estilos, JS y recursos que usan las páginas
 │   └── js/config.js                      Config PÚBLICA del frontend (placeholders)
@@ -826,6 +832,45 @@ comentarios y `npm run test:integration` (que NO prueba el insulto para no suspe
 - [ ] Decidir si reservar es gratis o con pago (hoy es gratis)
 
 - [ ] **FASE 30 CUMPLIDA** (falta validarla con el Supabase real y decidir el cobro)
+
+### Niveles, descuentos y videos sueltos
+
+Se agregó entre las Fases 30 y 31 (15/10/2026). Todo se cobra con PayPal en EUR; los precios y descuentos se editan desde el panel (Pagos > Planes).
+
+**Reglas de negocio**
+
+| | Videos | Tienda | Clase virtual |
+|---|---|---|---|
+| **Nivel 1** | Los del nivel 1 (todos menos los marcados para nivel 2 o 3) | — | — |
+| **Nivel 2** | Nivel 1 + los marcados para nivel 2 | 5 % de descuento | — |
+| **Nivel 3** | 100 % de los videos, sin excepciones | 7 % de descuento | 1 gratis por mes |
+
+- Los niveles **suman**: cada video tiene un nivel mínimo (`classes.min_tier`, 1 a 3) y un nivel `n` ve los videos de nivel mínimo `≤ n`. El 3 ve todo.
+- **La suscripción se paga con PayPal** (hasta que exista un cobro automático con todos los medios de pago); el sitio lo avisa en la home y antes de elegir plan.
+- Los **videos se venden sueltos**: se agregan al carrito como un producto, dan acceso **30 días** y pasado ese plazo se vuelven a comprar.
+  Un suscriptor no puede comprar un video que su nivel ya cubre. El descuento del nivel aplica también a los videos.
+- Un pedido puede tener **solo productos, solo videos o ambos** (un solo pago): con productos es un pedido de tienda (envío y stock reservado), solo con videos es digital.
+  Cada video pagado da su propio acceso (`entitlements.external_ref = <pedido>:<video>`) y un reembolso total los quita todos.
+- **Descuento**: lo calcula solo el servidor (`payments_user_discount_bps`); el precio unitario ya se guarda con el descuento (`order_items.unit_cents`)
+  y el de lista en `list_unit_cents`, así lo que ve PayPal suma el total. Lo que muestra el carrito es una estimación.
+- **Clase virtual gratis**: un cupón por mes (UTC) que se emite al entrar a la cuenta, se canjea al reservar una clase en vivo **virtual** y se pierde si no se usa (no se acumula). Si se cancela la reserva a tiempo, el cupón vuelve.
+  Hoy reservar una clase en vivo es gratis para todos: el cupón queda registrado (`live_bookings.coupon_id`) para cuando las reservas pasen a ser de pago.
+
+**Dónde está**
+
+- Migraciones (aplicar **en orden**): `20261013120000_subscription_tiers` · `20261014120000_tier_min_level` · `20261015120000_class_rental_30_days` ·
+  `20261016120000_tier_discounts` · `20261017120000_free_class_coupons` · `20261018120000_cart_videos`.
+- Backend: `paypal-save-tier` (nombre, precio, descuento y clases gratis por nivel), `paypal-create-order` (acepta videos y mezcla), `_shared/payments/*`.
+- Frontend: `js/lib/tiers.js` (niveles, descuentos, textos de beneficios), `js/lib/class-shop.js` (qué botón corresponde a cada video: comprar / ver / incluido),
+  `js/lib/cart.js` (líneas de video: una unidad, marcadas `t:"c"`), `js/components/class-shop-card.js` (tarjeta de video estilo tienda),
+  `js/ui/home-tiers.js` (suscripciones en la home), `js/ui/subscribe-box.js`, `js/ui/account-coupons.js`, `js/pages/clases.js` y `clases.html`.
+- Páginas: **`clases.html`** (agenda en vivo + "Mis videos": comprados con los días que quedan y vencidos para volver a comprar) y **`videoteca.html`**
+  (tarjetas con precio y "Agregar al carrito"; "Ver video" si es gratis, ya lo compraste o tu nivel lo incluye).
+- Despliegue: si la web sale antes que las migraciones, `listTiers` y `adminListClasses` piden las columnas anteriores en vez de romper (aviso en consola).
+  Aun así, **aplicá las migraciones antes de publicar** para ver descuentos y accesos nuevos.
+- Pruebas: `supabase/tests/{subscription_tiers,class_rental,tier_discounts,free_class_coupons,cart_videos}.test.sql`, `tests/web/{tiers,class-shop,account-view}.test.js`, E2E de home, videoteca, carrito con videos y `clases:`.
+
+**Falta:** probar suscripciones, pedidos con videos y el cupón contra el sandbox real de PayPal (ver `docs/PAYPAL.md`).
 
 ### Fase 31 · Notificaciones — aviso de clase en vivo el mismo día
 
