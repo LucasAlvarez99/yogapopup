@@ -5,6 +5,7 @@
  */
 import { HttpError } from "../_shared/http.ts";
 import { PayPalError } from "../_shared/paypal/paypal.service.ts";
+import type { ShipTo } from "../_shared/paypal/paypal.types.ts";
 import type {
   CreateOrderInput,
   CreatePlanInput,
@@ -212,6 +213,10 @@ export class FakePaymentsRepo implements PaymentsRepo {
     string,
     (OrderItemRow & { product_id: string | null; variant_id: string | null; class_id: string | null })[]
   >();
+  /** Costo de envío de la tienda (shop_settings). En 0 salvo que el test lo pruebe. */
+  shippingFeeCents = 0;
+  /** Domicilios recibidos, por pedido. */
+  shipTos = new Map<string, ShipTo | null>();
   entitlements: FakeEntitlement[] = [];
   subs = new Map<string, SubscriptionRow & { tier?: number | null }>();
   /** Niveles: el 1 y el 2 tienen plan; el 3 todavía no (se puede probar "no disponible"). */
@@ -291,7 +296,7 @@ export class FakePaymentsRepo implements PaymentsRepo {
     );
   }
 
-  async createOrder(userId: string, input: CartItemInput[]): Promise<string> {
+  async createOrder(userId: string, input: CartItemInput[], shipTo: ShipTo | null = null): Promise<string> {
     const classIds = [...new Set(input.filter((i) => i.type === "class").map((i) => i.id))];
     const hasProducts = input.some((i) => i.type === "product");
     // Un intento nuevo reemplaza a los anteriores sin pagar.
@@ -363,6 +368,10 @@ export class FakePaymentsRepo implements PaymentsRepo {
       }
     }
     take.forEach((f) => f());
+    const shipping = hasProducts ? this.shippingFeeCents : 0;
+    total += shipping;
+    tax += Math.round(shipping * 2100 / 12100);
+    this.shipTos.set(id, hasProducts ? shipTo : null);
     this.orders.set(id, {
       id,
       user_id: userId,
@@ -371,6 +380,7 @@ export class FakePaymentsRepo implements PaymentsRepo {
       currency: "EUR",
       total_cents: total,
       tax_cents: tax,
+      shipping_cents: shipping,
       refunded_cents: 0,
       needs_review: false,
       review_note: null,

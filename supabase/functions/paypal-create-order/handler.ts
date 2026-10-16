@@ -1,6 +1,6 @@
 import { createEndpoint, HttpError, readJson } from "../_shared/http.ts";
 import { enforceRateLimit, LIMITS } from "../_shared/rate-limit.ts";
-import { parseCartItems, requirePayPal } from "../_shared/payments/request.ts";
+import { parseCartItems, parseShipTo, requirePayPal } from "../_shared/payments/request.ts";
 import type { PaymentDeps } from "../_shared/payments/ports.ts";
 
 /** Texto del pedido en PayPal: un video, varios videos o la tienda (con o sin videos). */
@@ -23,9 +23,12 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
       const user = await deps.auth.requireUser(req);
       const paypal = requirePayPal(deps);
       await enforceRateLimit(deps.limiter, "paypal-create-order", user.id, LIMITS.createPayPalOrder);
-      const items = parseCartItems(await readJson(req));
+      const body = await readJson(req);
+      const items = parseCartItems(body);
+      // Con productos físicos hace falta el domicilio (pop up de envío); un pedido solo de videos no lo lleva.
+      const shipTo = items.some((i) => i.type === "product") ? parseShipTo(body.ship_to) : null;
 
-      const orderId = await deps.repo.createOrder(user.id, items);
+      const orderId = await deps.repo.createOrder(user.id, items, shipTo);
       const order = await deps.repo.getOrder(orderId);
       const lines = await deps.repo.listOrderItems(orderId);
       if (!order || lines.length === 0) throw new HttpError(500, "internal_error", "Order could not be read back");
@@ -35,6 +38,8 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
         const created = await paypal.createOrder({
           orderId,
           totalCents: order.total_cents,
+          shippingCents: order.shipping_cents,
+          shipTo: order.kind === "shop" ? shipTo : null,
           description: describeOrder(order.kind, lines),
           items: lines.map((l) => ({
             name: l.size ? `${l.title} (talle ${l.size})` : l.title,
@@ -56,7 +61,13 @@ export function createHandler(deps: PaymentDeps): (req: Request) => Promise<Resp
         );
         throw e;
       }
-      return { paypal_order_id: paypalOrderId, order_id: orderId, total_cents: order.total_cents, kind: order.kind };
+      return {
+        paypal_order_id: paypalOrderId,
+        order_id: orderId,
+        total_cents: order.total_cents,
+        shipping_cents: order.shipping_cents,
+        kind: order.kind,
+      };
     },
   });
 }

@@ -4,7 +4,7 @@ import { addFeedback, badgeText, canIncrease, isRemovableOnly, isVideoLine, line
 import { accessFromEntitlements, classOffer } from '../lib/class-shop.js';
 import { formatPrice } from '../lib/format.js';
 import { cartOptionsFor } from '../lib/sizes.js';
-import { getMyActiveTier, listActiveProducts, listClassesByIds, listMyEntitlements, listShopClasses, listTiers } from '../lib/api.js';
+import { getMyActiveTier, getShippingCents, listActiveProducts, listClassesByIds, listMyEntitlements, listShopClasses, listTiers } from '../lib/api.js';
 import { discountedCents, discountLabel, tierDiscountBps } from '../lib/tiers.js';
 import { messageFor } from '../lib/errors.js';
 import { page, paymentsEnabled } from '../lib/env.js';
@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase.js';
 import { toast } from './toast.js';
 import { openAuth } from './auth-modal.js';
 import { checkoutView, doneView } from './checkout-view.js';
+import { askShipTo } from './shipping-modal.js';
 import { errorState } from './states.js';
 
 /**
@@ -178,11 +179,27 @@ function footer(validation) {
     cartStore.persistent ? null : el('p', { class: 'cart-note' }, 'Este navegador no permite guardar el carrito: se perderá al cerrar la pestaña.'));
 }
 
-function startCheckout(validation) {
+async function startCheckout(validation) {
   if (!session.isLoggedIn()) return openAuth({ message: 'Iniciá sesión para pagar tu pedido.' });
+  // Con productos físicos: primero el pop up con el domicilio (se guarda en el pedido) y el costo de envío vigente.
+  let shipTo = null;
+  let shippingCents = 0;
+  if (validation.hasProducts) {
+    try { shippingCents = await getShippingCents(); } catch (err) { return toast(messageFor(err), { type: 'error' }); }
+    shipTo = await askShipTo({ email: session.getState().user?.email ?? '' });
+    if (!shipTo) return; // lo cerró sin completar: sigue en el carrito
+  }
+  showCheckout(validation, shipTo, shippingCents);
+}
+
+function showCheckout(validation, shipTo, shippingCents) {
   mode = 'checkout';
   mount(body, checkoutView({
-    validation,
+    validation, shipTo, shippingCents,
+    onEditShipTo: async () => {
+      const next = await askShipTo({ email: session.getState().user?.email ?? '' });
+      if (next) showCheckout(validation, next, shippingCents);
+    },
     onBack: backToCart,
     onStale: () => { backToCart(); refresh(); }, // el stock o un precio cambió: se vuelve a leer la base
     onDone: (status, kind) => finishCheckout(status, kind, validation.hasClasses && validation.hasProducts),

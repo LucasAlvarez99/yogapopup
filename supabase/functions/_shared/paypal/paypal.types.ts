@@ -12,6 +12,19 @@ export interface PayPalConfig {
   nowSeconds?: () => number;
 }
 
+/** Domicilio y contacto que la persona completa en el pop up antes de pagar (solo pedidos con productos físicos). */
+export interface ShipTo {
+  name: string;
+  address_line_1: string;
+  address_line_2: string | null;
+  postal_code: string;
+  city: string;
+  region: string;
+  country_code: string;
+  phone: string;
+  email: string;
+}
+
 export interface PayPalShipping {
   name: string | null;
   address_line_1: string | null;
@@ -68,7 +81,12 @@ export interface PayPalRefund {
 export interface CreateOrderInput {
   /** Nuestro id de pedido: viaja como custom_id e invoice_id y se vuelve a comprobar al capturar. */
   orderId: string;
+  /** Total a cobrar: compra + envío. */
   totalCents: number;
+  /** Parte del total que es envío (0 si el pedido es solo de videos). */
+  shippingCents: number;
+  /** Domicilio ya cargado por la persona: PayPal lo usa tal cual y no vuelve a pedirlo. */
+  shipTo: ShipTo | null;
   description: string;
   items: { name: string; unitCents: number; qty: number; digital: boolean }[];
   /** "address": PayPal pide la dirección de envío (productos físicos). "none": producto digital. */

@@ -389,3 +389,8 @@
   background: rgba(255, 253, 247, .9); color: var(--color-text); display: grid; place-items: center; font-size: 1.6rem; box-shadow: var(--shadow-soft); pointer-events: none; }
 .video-shop-card .shop-flag { top: .6rem; right: .6rem; left: auto; }
 .video-shop-card .video-seen { position: absolute; top: .6rem; left: .6rem; }
+
+/* Envío: domicilio en el resumen del pago y detalle del pedido en "Mis compras" */
+.cart-ship { border: 1px solid var(--bs-border-color, #e5e0d8); border-radius: .75rem; padding: .6rem .8rem; background: rgba(255, 255, 255, .5); }
+.order-detail summary { cursor: pointer; color: var(--brand, #4a3f35); }
+.shipping-modal .modal-body { max-height: 75vh; }

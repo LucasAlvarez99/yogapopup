@@ -3,7 +3,8 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { HttpError } from "../http.ts";
 import type { OrderItemRow, OrderRow, PaymentsRepo, SubscriptionRow, TierRow } from "./ports.ts";
 
-const ORDER_COLUMNS = "id,user_id,kind,status,currency,total_cents,tax_cents,refunded_cents,needs_review,review_note,\
+const ORDER_COLUMNS =
+  "id,user_id,kind,status,currency,total_cents,tax_cents,shipping_cents,refunded_cents,needs_review,review_note,\
 failure_reason,paypal_order_id,paypal_capture_id,created_at,paid_at";
 const SUB_COLUMNS =
   "id,user_id,paypal_subscription_id,plan_id,status,current_period_end,last_payment_at,cancelled_at,created_at";
@@ -46,8 +47,12 @@ export function createSupabasePaymentsRepo(url: string, serviceRoleKey: string):
   }
 
   return {
-    async createOrder(userId, items) {
-      const { data, error } = await db.rpc("payments_create_order", { p_user: userId, p_items: items });
+    async createOrder(userId, items, shipTo) {
+      const { data, error } = await db.rpc("payments_create_order", {
+        p_user: userId,
+        p_items: items,
+        p_ship_to: shipTo,
+      });
       if (error) {
         const known = CREATE_ORDER_ERRORS[String(error.message).trim()];
         if (known) throw new HttpError(known[0], known[1], error.message);

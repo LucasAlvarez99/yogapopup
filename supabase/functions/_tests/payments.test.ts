@@ -13,13 +13,27 @@ import { post, USER2_ID, USER_ID } from "./fakes.ts";
 import { CRON_SECRET, makePaymentDeps, PLAN2_ID, PLAN_ANTERIOR_ID, PLAN_ID } from "./payments.fakes.ts";
 import { createHandler as saveTier } from "../paypal-save-tier/handler.ts";
 
+/** Domicilio válido del pop up de envío (los pedidos con productos lo exigen). */
+const SHIP = {
+  name: "Ana Pérez",
+  address_line_1: "Calle Mayor 1",
+  address_line_2: "2ºB",
+  postal_code: "07800",
+  city: "Ibiza",
+  region: "Illes Balears",
+  country_code: "ES",
+  phone: "+34 600 111 222",
+  email: "ana@test.dev",
+};
+const orderPost = (body: Record<string, unknown>, token?: string) => post({ ship_to: SHIP, ...body }, token);
+
 const code = async (r: Response) => (await r.json()).error?.code;
 const DAY = 86_400_000;
 
 /** Un pedido de tienda ya creado y APROBADO en PayPal, listo para capturar. */
 async function shopOrder(t: ReturnType<typeof makePaymentDeps>, qty = 2, token = "user") {
   const product = t.repo.addProduct({ title: "Mat de yoga", price_cents: 2000, stock: 5 });
-  const r = await createOrder(t.deps)(post({ items: [{ type: "product", id: product.id, qty }] }, token));
+  const r = await createOrder(t.deps)(orderPost({ items: [{ type: "product", id: product.id, qty }] }, token));
   assert.equal(r.status, 200);
   const body = await r.json();
   t.paypal.approve(body.paypal_order_id);
@@ -33,7 +47,7 @@ async function shopOrder(t: ReturnType<typeof makePaymentDeps>, qty = 2, token =
 
 async function classOrder(t: ReturnType<typeof makePaymentDeps>, token = "user") {
   const cls = t.repo.addClass({ price_cents: 1210 });
-  const r = await createOrder(t.deps)(post({ items: [{ type: "class", id: cls.id }] }, token));
+  const r = await createOrder(t.deps)(orderPost({ items: [{ type: "class", id: cls.id }] }, token));
   return { cls, res: r };
 }
 
@@ -43,7 +57,7 @@ Deno.test("create-order: varios videos en un pedido (digital) y mezclados con pr
   const a = t.repo.addClass({ price_cents: 1000 });
   const b = t.repo.addClass({ price_cents: 2500 });
   // Solo videos: un pedido digital, sin envío; un video repetido se cobra una vez.
-  const only = await createOrder(t.deps)(post({
+  const only = await createOrder(t.deps)(orderPost({
     items: [{ type: "class", id: a.id }, { type: "class", id: b.id }, { type: "class", id: a.id }],
   }, "user"));
   assert.equal(only.status, 200);
@@ -72,7 +86,7 @@ Deno.test("create-order: varios videos en un pedido (digital) y mezclados con pr
   assert.equal(t.repo.entitlements.filter((e) => e.scope === "class").length, 0);
   // Mezcla con un producto: pedido de tienda (con envío).
   const p = t.repo.addProduct({ title: "Mat", price_cents: 3000, stock: 5 });
-  const mixed = await createOrder(t.deps)(post({
+  const mixed = await createOrder(t.deps)(orderPost({
     items: [{ type: "product", id: p.id, variant_id: null, qty: 1 }, { type: "class", id: a.id }],
   }, "user"));
   assert.equal(mixed.status, 200);
@@ -90,7 +104,7 @@ Deno.test("create-order: sin sesión 401; sin PayPal configurado 503; mal formad
   assert.equal(await code(await h(post({ items: [{ type: "otra", id: "x" }] }, "user"))), "invalid_cart");
   assert.equal(await code(await h(post({}, "user"))), "invalid_cart");
   const sin = makePaymentDeps({}, { paypal: false });
-  const r = await createOrder(sin.deps)(post({ items: [] }, "user"));
+  const r = await createOrder(sin.deps)(orderPost({ items: [] }, "user"));
   assert.equal(r.status, 503);
   assert.equal(await code(r), "payments_not_configured");
 });
@@ -99,7 +113,10 @@ Deno.test("create-order: el precio sale de la base, nunca del navegador (un pric
   const t = makePaymentDeps();
   const p = t.repo.addProduct({ title: "Mat", price_cents: 2000, stock: 5 });
   const r = await createOrder(t.deps)(
-    post({ items: [{ type: "product", id: p.id, qty: 2, price_cents: 1, total_cents: 1 }], total_cents: 1 }, "user"),
+    orderPost(
+      { items: [{ type: "product", id: p.id, qty: 2, price_cents: 1, total_cents: 1 }], total_cents: 1 },
+      "user",
+    ),
   );
   assert.equal(r.status, 200);
   const body = await r.json();
@@ -112,10 +129,66 @@ Deno.test("create-order: el precio sale de la base, nunca del navegador (un pric
   assert.equal(t.repo.products.get(p.id)!.stock, 3, "el stock queda reservado");
 });
 
+Deno.test("create-order: el envío se suma al total, va aparte en PayPal y el domicilio se guarda", async () => {
+  const t = makePaymentDeps();
+  t.repo.shippingFeeCents = 1000;
+  const p = t.repo.addProduct({ title: "Mat", price_cents: 2000, stock: 5 });
+  const r = await createOrder(t.deps)(orderPost({ items: [{ type: "product", id: p.id, qty: 2 }] }, "user"));
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.equal(body.total_cents, 5000, "2 x 20,00 € + 10,00 € de envío");
+  assert.equal(body.shipping_cents, 1000);
+  const [order] = [...t.paypal.orders.values()];
+  assert.equal(order.input.totalCents, 5000);
+  assert.equal(order.input.shippingCents, 1000);
+  assert.equal(order.input.items.reduce((n, i) => n + i.unitCents * i.qty, 0), 4000, "las líneas son solo la compra");
+  assert.equal(order.input.shipTo?.city, "Ibiza", "PayPal recibe el domicilio ya cargado");
+  assert.equal(t.repo.shipTos.get(body.order_id)?.phone, "+34 600 111 222", "el pedido guarda el contacto");
+  assert.equal(t.repo.shipTos.get(body.order_id)?.email, "ana@test.dev");
+});
+
+Deno.test("create-order: un pedido solo de videos no lleva envío ni pide domicilio", async () => {
+  const t = makePaymentDeps();
+  t.repo.shippingFeeCents = 1000;
+  const cls = t.repo.addClass({ title: "Vinyasa", price_cents: 1500 });
+  const r = await createOrder(t.deps)(post({ items: [{ type: "class", id: cls.id }] }, "user"));
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.equal(body.total_cents, 1500);
+  assert.equal(body.shipping_cents, 0);
+  const [order] = [...t.paypal.orders.values()];
+  assert.equal(order.input.shipTo, null);
+  assert.equal(order.input.shipping, "none");
+});
+
+Deno.test("create-order: con productos el domicilio es obligatorio y se valida (400 invalid_address, sin pedido)", async () => {
+  const t = makePaymentDeps();
+  const p = t.repo.addProduct({ title: "Mat", price_cents: 2000, stock: 5 });
+  const items = [{ type: "product", id: p.id, qty: 1 }];
+  const bad: Record<string, unknown>[] = [
+    {}, // sin domicilio
+    { ship_to: { ...SHIP, name: "" } },
+    { ship_to: { ...SHIP, address_line_1: "a" } },
+    { ship_to: { ...SHIP, postal_code: "7800" } },
+    { ship_to: { ...SHIP, phone: "abc" } },
+    { ship_to: { ...SHIP, email: "no-es-mail" } },
+    { ship_to: { ...SHIP, country_code: "AR" } },
+    { ship_to: { ...SHIP, city: "Ibiza\nOtra línea" } },
+    { ship_to: "calle" },
+  ];
+  for (const extra of bad) {
+    const r = await createOrder(t.deps)(post({ items, ...extra }, "user"));
+    assert.equal(r.status, 400, JSON.stringify(extra));
+    assert.equal(await code(r), "invalid_address");
+  }
+  assert.equal(t.repo.orders.size, 0, "ningún intento dejó un pedido ni reservó stock");
+  assert.equal(t.repo.products.get(p.id)!.stock, 5);
+});
+
 Deno.test("create-order: sin stock suficiente 409 y no se llama a PayPal", async () => {
   const t = makePaymentDeps();
   const p = t.repo.addProduct({ title: "Mat", price_cents: 2000, stock: 1 });
-  const r = await createOrder(t.deps)(post({ items: [{ type: "product", id: p.id, qty: 2 }] }, "user"));
+  const r = await createOrder(t.deps)(orderPost({ items: [{ type: "product", id: p.id, qty: 2 }] }, "user"));
   assert.equal(r.status, 409);
   assert.equal(await code(r), "insufficient_stock");
   assert.equal(t.paypal.calls.length, 0);
@@ -126,7 +199,7 @@ Deno.test("create-order: si PayPal falla, el pedido se cierra y el stock vuelve"
   const t = makePaymentDeps();
   const p = t.repo.addProduct({ title: "Mat", price_cents: 2000, stock: 5 });
   t.paypal.failNext = { op: "createOrder", error: new PayPalError("boom", 500, "createOrder") };
-  const r = await createOrder(t.deps)(post({ items: [{ type: "product", id: p.id, qty: 2 }] }, "user"));
+  const r = await createOrder(t.deps)(orderPost({ items: [{ type: "product", id: p.id, qty: 2 }] }, "user"));
   assert.equal(r.status, 502);
   assert.equal(await code(r), "payment_provider_error");
   assert.equal(t.repo.products.get(p.id)!.stock, 5, "stock devuelto");
@@ -149,7 +222,7 @@ Deno.test("create-order: clase suelta digital (sin envío) y no se compra dos ve
     external_ref: "x",
     expires_at: null,
   });
-  const again = await createOrder(t.deps)(post({ items: [{ type: "class", id: cls.id }] }, "user"));
+  const again = await createOrder(t.deps)(orderPost({ items: [{ type: "class", id: cls.id }] }, "user"));
   assert.equal(again.status, 409);
   assert.equal(await code(again), "already_owned");
 });
@@ -248,8 +321,9 @@ Deno.test("capture-order: pedido ajeno o inexistente 404; sin sesión 401; id in
 
   const t2 = makePaymentDeps();
   const p = t2.repo.addProduct({ title: "Mat", price_cents: 2000 });
-  const created = await (await createOrder(t2.deps)(post({ items: [{ type: "product", id: p.id, qty: 1 }] }, "user")))
-    .json();
+  const created =
+    await (await createOrder(t2.deps)(orderPost({ items: [{ type: "product", id: p.id, qty: 1 }] }, "user")))
+      .json();
   const noApproved = await captureOrder(t2.deps)(post({ paypal_order_id: created.paypal_order_id }, "user"));
   assert.equal(noApproved.status, 409);
   assert.equal(await code(noApproved), "order_not_approved");
@@ -742,13 +816,14 @@ Deno.test("reconcile: barrido — captura lo aprobado y nunca capturado, libera 
 
   const p2 = t.repo.addProduct({ title: "Bloque", price_cents: 1000, stock: 4 });
   const abandonado =
-    await (await createOrder(t.deps)(post({ items: [{ type: "product", id: p2.id, qty: 3 }] }, "user2"))).json();
+    await (await createOrder(t.deps)(orderPost({ items: [{ type: "product", id: p2.id, qty: 3 }] }, "user2"))).json();
   t.repo.orders.get(abandonado.order_id)!.created_at = old; // la persona nunca aprobó nada
   assert.equal(t.repo.products.get(p2.id)!.stock, 1);
 
   const p3 = t.repo.addProduct({ title: "Cinta", price_cents: 500, stock: 2 });
-  const reciente = await (await createOrder(t.deps)(post({ items: [{ type: "product", id: p3.id, qty: 1 }] }, "admin")))
-    .json();
+  const reciente =
+    await (await createOrder(t.deps)(orderPost({ items: [{ type: "product", id: p3.id, qty: 1 }] }, "admin")))
+      .json();
 
   const r = await reconcile(t.deps)(post({ sweep: true }, "admin"));
   assert.equal(r.status, 200);

@@ -7,6 +7,9 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-0000000000f6', 'otra@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000f7', 'admin-pagos@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000f8', 'dev-pagos@test.dev', '{}');
+
+-- Estos tests miran precios y totales: el envío (shipping.test.sql) se prueba aparte, acá va en 0.
+update public.shop_settings set shipping_cents = 0;
 update public.profiles set role = 'admin' where id = '00000000-0000-4000-8000-0000000000f7';
 update public.profiles set role = 'developer' where id = '00000000-0000-4000-8000-0000000000f8';
 

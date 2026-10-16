@@ -122,7 +122,25 @@ export function describeOrder(order, { now = new Date() } = {}) {
     accessNote,
     refundNote: refunded > 0 && order.status !== 'refunded' ? `Reembolsado parcialmente: ${formatPrice(refunded)}` : '',
     classId: order.status === 'paid' && classItem ? classItem.class_id : null,
+    breakdown: orderBreakdown(order),
   };
+}
+
+/**
+ * Detalle del pedido, línea por línea: cada producto o video con su importe, el envío (si se cobró) y el total.
+ * Vacío si el pedido no trae los importes de las líneas.
+ */
+export function orderBreakdown(order) {
+  const items = order?.order_items ?? [];
+  if (items.length === 0 || items.some((i) => !Number.isFinite(Number(i.unit_cents)))) return [];
+  const rows = items.map((i) => ({
+    label: `${i.qty} × ${i.title}${i.size ? ` (talle ${i.size})` : ''}`,
+    amount: formatPrice(Number(i.unit_cents) * Number(i.qty)),
+  }));
+  const ship = Number(order.shipping_cents) || 0;
+  if (ship > 0) rows.push({ label: 'Envío', amount: formatPrice(ship) });
+  rows.push({ label: 'Total', amount: formatPrice(order.total_cents), total: true });
+  return rows;
 }
 
 // ------------------------------------------------------------------ Fase 25 · Mi suscripción

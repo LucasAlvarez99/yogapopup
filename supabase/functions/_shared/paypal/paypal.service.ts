@@ -155,7 +155,7 @@ export class PayPalService implements PayPalPort {
       category: i.digital ? "DIGITAL_GOODS" : "PHYSICAL_GOODS",
     }));
     const itemTotal = input.items.reduce((sum, i) => sum + i.unitCents * i.qty, 0);
-    if (itemTotal !== input.totalCents) {
+    if (itemTotal + input.shippingCents !== input.totalCents) {
       throw new PayPalError("order total does not match its items", 400, "createOrder");
     }
     const data = await this.request("createOrder", "POST", "/v2/checkout/orders", {
@@ -170,14 +170,39 @@ export class PayPalService implements PayPalPort {
           amount: {
             currency_code: "EUR",
             value: centsToValue(input.totalCents),
-            breakdown: { item_total: { currency_code: "EUR", value: centsToValue(input.totalCents) } },
+            breakdown: {
+              item_total: { currency_code: "EUR", value: centsToValue(itemTotal) },
+              ...(input.shippingCents > 0
+                ? { shipping: { currency_code: "EUR", value: centsToValue(input.shippingCents) } }
+                : {}),
+            },
           },
           items,
+          ...(input.shipping === "address" && input.shipTo
+            ? {
+              shipping: {
+                type: "SHIPPING",
+                name: { full_name: input.shipTo.name.slice(0, 300) },
+                address: {
+                  address_line_1: input.shipTo.address_line_1,
+                  ...(input.shipTo.address_line_2 ? { address_line_2: input.shipTo.address_line_2 } : {}),
+                  admin_area_2: input.shipTo.city,
+                  admin_area_1: input.shipTo.region,
+                  postal_code: input.shipTo.postal_code,
+                  country_code: input.shipTo.country_code,
+                },
+              },
+            }
+            : {}),
         }],
         application_context: {
           brand_name: input.brandName.slice(0, 127),
           locale: "es-ES",
-          shipping_preference: input.shipping === "address" ? "GET_FROM_FILE" : "NO_SHIPPING",
+          shipping_preference: input.shipping !== "address"
+            ? "NO_SHIPPING"
+            : input.shipTo
+            ? "SET_PROVIDED_ADDRESS"
+            : "GET_FROM_FILE",
           user_action: "PAY_NOW",
         },
       },

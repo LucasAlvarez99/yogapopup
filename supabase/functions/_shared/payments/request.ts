@@ -1,6 +1,6 @@
 import { HttpError } from "../http.ts";
 import { parseUuid } from "../validate.ts";
-import type { PayPalPort } from "../paypal/paypal.types.ts";
+import type { PayPalPort, ShipTo } from "../paypal/paypal.types.ts";
 import type { CartItemInput, PaymentDeps } from "./ports.ts";
 
 /** 503 si faltan las credenciales de PayPal (así el resto del sitio sigue funcionando mientras se configuran). */
@@ -83,4 +83,60 @@ export function timingSafeEqual(a: string, b: string): boolean {
   let diff = ea.length ^ eb.length;
   for (let i = 0; i < Math.max(ea.length, eb.length); i++) diff |= (ea[i] ?? 0) ^ (eb[i] ?? 0);
   return diff === 0;
+}
+
+// Caracteres de control (saltos de línea, tabulaciones…) no tienen lugar en una dirección.
+// deno-lint-ignore no-control-regex
+const CONTROL_RE = /[\u0000-\u001f\u007f]/;
+const PHONE_RE = /^\+?[0-9][0-9 ()\-]{5,19}$/;
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
+
+function shipText(
+  raw: Record<string, unknown>,
+  field: string,
+  min: number,
+  max: number,
+  required = true,
+): string | null {
+  const v = raw[field];
+  if (v === undefined || v === null || (typeof v === "string" && v.trim() === "")) {
+    if (!required) return null;
+    throw new HttpError(400, "invalid_address", `${field} is required`);
+  }
+  if (typeof v !== "string") throw new HttpError(400, "invalid_address", `${field} must be text`);
+  const t = v.trim().replace(/ +/g, " ");
+  if (t.length < min || t.length > max || CONTROL_RE.test(t)) {
+    throw new HttpError(400, "invalid_address", `${field} is not valid`);
+  }
+  return t;
+}
+
+/**
+ * Domicilio y contacto del pop up de envío. Se valida todo acá (el navegador solo ayuda): sin esto no hay pedido con
+ * productos físicos. Solo se envía a España; el resto de los campos se recortan y se descartan los desconocidos.
+ */
+export function parseShipTo(value: unknown): ShipTo {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpError(400, "invalid_address", "ship_to is required for orders with products");
+  }
+  const r = value as Record<string, unknown>;
+  const country = shipText(r, "country_code", 2, 2)!.toUpperCase();
+  if (country !== "ES") throw new HttpError(400, "invalid_address", "We only ship to Spain");
+  const phone = shipText(r, "phone", 6, 20)!;
+  if (!PHONE_RE.test(phone)) throw new HttpError(400, "invalid_address", "phone is not valid");
+  const email = shipText(r, "email", 5, 254)!;
+  if (!EMAIL_RE.test(email)) throw new HttpError(400, "invalid_address", "email is not valid");
+  const postal = shipText(r, "postal_code", 5, 5)!;
+  if (!/^[0-9]{5}$/.test(postal)) throw new HttpError(400, "invalid_address", "postal_code is not valid");
+  return {
+    name: shipText(r, "name", 2, 100)!,
+    address_line_1: shipText(r, "address_line_1", 3, 120)!,
+    address_line_2: shipText(r, "address_line_2", 1, 120, false),
+    postal_code: postal,
+    city: shipText(r, "city", 2, 80)!,
+    region: shipText(r, "region", 2, 80)!,
+    country_code: country,
+    phone,
+    email,
+  };
 }

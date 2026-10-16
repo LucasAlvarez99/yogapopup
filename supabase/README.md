@@ -81,7 +81,7 @@ cliente, el plan Pro es el paso siguiente.
 
 Aplicar en orden con `npm run sb:db-push`, **antes** de publicar la web: `20261013120000_subscription_tiers` (niveles y planes), `20261014120000_tier_min_level` (nivel mínimo por video),
 `20261015120000_class_rental_30_days` (videos sueltos por 30 días), `20261016120000_tier_discounts` (descuentos y `payments_create_order` con descuento),
-`20261017120000_free_class_coupons` (cupón mensual de clase virtual) y `20261018120000_cart_videos` (varios videos y mezcla con productos en un pedido).
+`20261017120000_free_class_coupons` (cupón mensual de clase virtual) y `20261019120000_shipping_cost` (costo de envío editable + domicilio guardado en el pedido), `20261018120000_cart_videos` (varios videos y mezcla con productos en un pedido).
 Las pruebas de base de datos (`npm run test:db`) las ejercitan en `supabase/tests/`.
 
 ## Pruebas

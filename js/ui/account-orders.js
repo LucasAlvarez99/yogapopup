@@ -11,7 +11,10 @@ function row(order) {
       el('div', { class: 'acc-sub small text-muted' }, `${d.date} · ${d.total}`),
       d.status.note ? el('div', { class: 'acc-sub small text-muted' }, d.status.note) : null,
       d.accessNote ? el('div', { class: 'acc-sub small text-muted' }, d.accessNote) : null,
-      d.refundNote ? el('div', { class: 'acc-sub small text-muted' }, d.refundNote) : null),
+      d.refundNote ? el('div', { class: 'acc-sub small text-muted' }, d.refundNote) : null,
+      d.breakdown.length ? el('details', { class: 'acc-sub small mt-1 order-detail' }, el('summary', {}, 'Ver detalle'),
+        el('ul', { class: 'list-unstyled mb-0 mt-1' }, ...d.breakdown.map((r) => el('li', { class: `d-flex justify-content-between gap-3${r.total ? ' fw-bold border-top mt-1 pt-1' : ''}` },
+          el('span', { translate: 'no' }, r.label), el('span', {}, r.amount))))) : null),
     el('div', { class: 'text-end' },
       el('span', { class: `badge text-bg-${d.status.tone}` }, d.status.label),
       d.classId ? el('div', {}, el('a', { class: 'small', href: `clase.html?id=${encodeURIComponent(d.classId)}` }, 'Ver clase')) : null));

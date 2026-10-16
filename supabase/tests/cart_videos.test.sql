@@ -5,6 +5,9 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-0000000000b8', 'carrito1@test.dev', '{}'),
   ('00000000-0000-4000-8000-0000000000b9', 'carrito2@test.dev', '{}');
 
+-- Estos tests miran precios y totales: el envío (shipping.test.sql) se prueba aparte, acá va en 0.
+update public.shop_settings set shipping_cents = 0;
+
 do $$ declare
   c1 uuid; c2 uuid; c3 uuid; cf uuid; p uuid; o uuid;
   u constant uuid := '00000000-0000-4000-8000-0000000000b8';

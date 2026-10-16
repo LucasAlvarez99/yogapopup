@@ -2,6 +2,7 @@ import { el, icon, mount } from '../lib/dom.js';
 import { formatPrice } from '../lib/format.js';
 import { paypalCaptureOrder, paypalCreateOrder } from '../lib/api.js';
 import { cartToItems, classifyPaymentError, outcomeMessage } from '../lib/checkout.js';
+import { checkoutTotals, shipContactLines, shipToLines } from '../lib/shipping.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { renderCheckoutButtons } from '../lib/paypal.js';
 import { openAuth } from './auth-modal.js';
@@ -10,12 +11,16 @@ import { toast } from './toast.js';
 /**
  * Pantalla de pago dentro del carrito: resumen + botones de PayPal.
  *   validation   resultado de validateCart (ya sin problemas)
+ *   shipTo       domicilio del pop up de envío (null si el pedido es solo de videos)
+ *   shippingCents  costo de envío vigente (informativo: el servidor lo vuelve a leer de la base)
+ *   onEditShipTo()  volver al pop up para corregir el domicilio
  *   onBack()     volver al carrito
  *   onStale()    el carrito cambió en la base (stock, precio): hay que volver a leerlo
  *   onDone(status, kind)   el servidor confirmó ('paid') o dejó pendiente ('pending') el pago
  * El total mostrado es informativo: el cobro real lo calcula el servidor con los precios de la base.
  */
-export function checkoutView({ validation, onBack, onStale, onDone }) {
+export function checkoutView({ validation, shipTo = null, shippingCents = 0, onEditShipTo = null, onBack, onStale, onDone }) {
+  const totals = checkoutTotals(validation, shippingCents);
   const status = el('p', { class: 'cart-note', role: 'status', 'aria-live': 'polite' }, 'Cargando PayPal…');
   const slot = el('div', { class: 'pp-buttons' });
   const back = el('button', { type: 'button', class: 'btn btn-soft w-100 mt-2', onclick: onBack }, icon('arrow-left'), ' Volver al carrito');
@@ -43,7 +48,7 @@ export function checkoutView({ validation, onBack, onStale, onDone }) {
 
   renderCheckoutButtons(slot, {
     // El navegador solo manda QUÉ compra; precio, IVA y stock los resuelve el servidor (y reserva el stock).
-    createOrder: async () => (await paypalCreateOrder(cartToItems(validation))).paypal_order_id,
+    createOrder: async () => (await paypalCreateOrder(cartToItems(validation), validation.hasProducts ? shipTo : null)).paypal_order_id,
     onApprove: async (orderId) => {
       busy('Confirmando tu pago…');
       try {
@@ -64,12 +69,23 @@ export function checkoutView({ validation, onBack, onStale, onDone }) {
     mount(slot, el('p', { class: 'text-danger small', role: 'alert' }, icon('exclamation-triangle'), ' ', messageFor(err)));
   });
 
+  const address = validation.hasProducts && shipTo
+    ? el('div', { class: 'cart-ship small mb-2', id: 'checkoutShipTo' },
+      el('div', { class: 'd-flex justify-content-between align-items-center' },
+        el('strong', {}, icon('truck'), ' Enviar a'),
+        onEditShipTo ? el('button', { type: 'button', class: 'btn btn-link btn-sm p-0', onclick: onEditShipTo }, 'Cambiar') : null),
+      ...shipToLines(shipTo).map((l) => el('div', { translate: 'no' }, l)),
+      ...shipContactLines(shipTo).map((l) => el('div', { translate: 'no', class: 'text-muted' }, l)))
+    : null;
   return el('div', { class: 'cart-checkout' },
     el('h3', { class: 'h6' }, 'Resumen del pedido'),
     el('ul', { class: 'list-unstyled small mb-2' }, ...lines),
-    el('div', { class: 'subtotal' }, el('span', {}, 'Total'), el('strong', { id: 'checkoutTotal' }, formatPrice(validation.subtotalCents))),
-    validation.taxCents > 0 ? el('p', { class: 'cart-tax' }, `IVA incluido: ${formatPrice(validation.taxCents)}`) : null,
-    validation.hasProducts ? el('p', { class: 'cart-note' }, icon('truck'), ' PayPal te pedirá la dirección de envío.') : null,
+    address,
+    totals.shippingCents > 0
+      ? el('div', { class: 'd-flex justify-content-between small py-1', id: 'checkoutShipping' }, el('span', {}, icon('truck'), ' Envío'), el('span', {}, formatPrice(totals.shippingCents)))
+      : null,
+    el('div', { class: 'subtotal' }, el('span', {}, 'Total'), el('strong', { id: 'checkoutTotal' }, formatPrice(totals.totalCents))),
+    totals.taxCents > 0 ? el('p', { class: 'cart-tax' }, `IVA incluido: ${formatPrice(totals.taxCents)}`) : null,
     validation.hasClasses ? el('p', { class: 'cart-note' }, icon('play-circle'), ' Tus videos se activan apenas se confirma el pago.') : null,
     status, slot, back);
 }

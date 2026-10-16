@@ -39,12 +39,24 @@ export function describeItems(items = []) {
   return items.map((i) => `${i.qty} × ${i.title}${i.size ? ` (talle ${i.size})` : ''}`).join(', ');
 }
 
-/** Dirección de envío de PayPal en líneas de texto (vacío si no hay). */
+/** Dirección de envío de PayPal en líneas de texto (vacío si no hay). Para el panel se prefiere `ship_to` (shipToLines). */
 export function shippingLines(shipping) {
   if (!shipping || typeof shipping !== 'object') return [];
   const place = [shipping.postal_code, shipping.city].filter(Boolean).join(' ');
   const region = [shipping.region, shipping.country_code].filter(Boolean).join(', ');
   return [shipping.name, shipping.address_line_1, shipping.address_line_2, place, region].filter(Boolean).map(String);
+}
+
+export const MAX_SHIPPING_CENTS = 100_000; // igual que el CHECK de shop_settings.shipping_cents (1000 €)
+
+/** Costo de envío escrito en euros ("10", "9,50"); 0 = envío gratis. Vacío no vale: el costo siempre tiene un valor. */
+export function parseShippingPrice(input) {
+  const text = String(input ?? '').trim();
+  const cents = text === '' ? null : eurosToCents(text);
+  if (cents === null || cents < 0 || cents > MAX_SHIPPING_CENTS) {
+    return { ok: false, error: 'Escribí el costo del envío en euros (ej.: 10 o 9,50). Con 0 el envío es gratis.' };
+  }
+  return { ok: true, cents };
 }
 
 /** Resultado de "verificar de nuevo" (paypal-reconcile) en una frase. */

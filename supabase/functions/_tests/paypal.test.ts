@@ -184,6 +184,8 @@ Deno.test("createOrder: manda EUR, el total exacto, custom_id/invoice_id y una c
   const r = await svc.createOrder({
     orderId: "11111111-1111-4111-8111-111111111111",
     totalCents: 4999,
+    shippingCents: 0,
+    shipTo: null,
     description: "Pedido",
     items: [{ name: "Mat", unitCents: 1999, qty: 2, digital: false }, {
       name: "Bloque",
@@ -218,6 +220,8 @@ Deno.test("createOrder: producto digital sin envío; un total que no coincide co
   await svc.createOrder({
     orderId: "o",
     totalCents: 1210,
+    shippingCents: 0,
+    shipTo: null,
     description: "d",
     items: [{ name: "Curso", unitCents: 1210, qty: 1, digital: true }],
     shipping: "none",
@@ -231,6 +235,8 @@ Deno.test("createOrder: producto digital sin envío; un total que no coincide co
     svc.createOrder({
       orderId: "o",
       totalCents: 999,
+      shippingCents: 0,
+      shipTo: null,
       description: "d",
       items: [{ name: "Curso", unitCents: 1210, qty: 1, digital: true }],
       shipping: "none",
@@ -239,6 +245,58 @@ Deno.test("createOrder: producto digital sin envío; un total que no coincide co
     PayPalError,
   );
   assert.equal(calls.length, before, "no llegó a PayPal");
+});
+
+Deno.test("createOrder: el envío va en el desglose (aparte de las líneas) y la dirección cargada se manda a PayPal", async () => {
+  const { svc, calls } = makeService(() => [201, { id: "ORDER12345", status: "CREATED" }]);
+  const shipTo = {
+    name: "Ana Pérez",
+    address_line_1: "Calle Mayor 1",
+    address_line_2: null,
+    postal_code: "07800",
+    city: "Ibiza",
+    region: "Illes Balears",
+    country_code: "ES",
+    phone: "+34600111222",
+    email: "ana@test.dev",
+  };
+  await svc.createOrder({
+    orderId: "o",
+    totalCents: 3000,
+    shippingCents: 1000,
+    shipTo,
+    description: "d",
+    items: [{ name: "Mat", unitCents: 2000, qty: 1, digital: false }],
+    shipping: "address",
+    brandName: "b",
+  });
+  const body = calls.at(-1)!.body as Record<string, any>;
+  const pu = body.purchase_units[0];
+  assert.equal(pu.amount.value, "30.00");
+  assert.equal(pu.amount.breakdown.item_total.value, "20.00");
+  assert.equal(pu.amount.breakdown.shipping.value, "10.00");
+  assert.equal(body.application_context.shipping_preference, "SET_PROVIDED_ADDRESS");
+  assert.equal(pu.shipping.name.full_name, "Ana Pérez");
+  assert.equal(pu.shipping.address.admin_area_2, "Ibiza");
+  assert.equal(pu.shipping.address.admin_area_1, "Illes Balears");
+  assert.equal(pu.shipping.address.country_code, "ES");
+  assert.equal("address_line_2" in pu.shipping.address, false, "sin línea 2 no se manda vacía");
+  // Si las líneas + el envío no suman el total, no se llama a PayPal.
+  const before = calls.length;
+  await assert.rejects(
+    svc.createOrder({
+      orderId: "o",
+      totalCents: 2000,
+      shippingCents: 1000,
+      shipTo,
+      description: "d",
+      items: [{ name: "Mat", unitCents: 2000, qty: 1, digital: false }],
+      shipping: "address",
+      brandName: "b",
+    }),
+    PayPalError,
+  );
+  assert.equal(calls.length, before);
 });
 
 Deno.test("captureOrder: devuelve la captura normalizada (monto, estado, custom_id, envío)", async () => {

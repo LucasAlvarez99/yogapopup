@@ -1167,6 +1167,66 @@ await test('cuenta · Mis compras: tienda y clases sueltas con su estado; los in
   assert.match(await text(page, '#accOrdersIncomplete'), /No se te cobró nada/);
 });
 
+await test('cuenta · Mis compras: el detalle muestra cada línea, el envío aparte y el total', async (page) => {
+  await be.behavior({ payments: true });
+  await signup('detalle@test.dev', 'Detalle Test');
+  await be.account('detalle@test.dev', { orders: [
+    { kind: 'shop', status: 'paid', total_cents: 5000, shipping_cents: 1000, created_at: iso(-2), paid_at: iso(-2), order_items: [{ title: 'Mat de yoga Premium', size: null, qty: 2, unit_cents: 2000, item_type: 'product', class_id: null }] },
+    { kind: 'class', status: 'paid', total_cents: 900, shipping_cents: 0, created_at: iso(-3), paid_at: iso(-3), order_items: [{ title: 'Relajación profunda', size: null, qty: 1, unit_cents: 900, item_type: 'class', class_id: IDS.second }] },
+  ] });
+  await openAccount(page, 'detalle@test.dev');
+  await waitFor(page, () => document.querySelector('#accOrdersMain'), null, 10000);
+  assert.equal(await count(page, '#accOrdersMain .order-detail'), 2);
+  const rows = await page.$$eval('#accOrdersMain .order-detail', (ds) => ds.map((d) => d.textContent.replace(/\s+/g, ' ')));
+  const shop = rows.find((r) => /Mat de yoga/.test(r));
+  assert.match(shop, /2 × Mat de yoga Premium.*40,00/);
+  assert.match(shop, /Envío.*10,00/);
+  assert.match(shop, /Total.*50,00/);
+  assert.doesNotMatch(rows.find((r) => /Relajación/.test(r)), /Envío/, 'un video no lleva envío');
+});
+
+await test('envío: el pop up pide el domicilio, marca lo que falta y devuelve los datos listos para el pedido', async (page) => {
+  await page.goto(S);
+  await waitFor(page, () => window.bootstrap?.Modal, null, 10000);
+  await page.evaluate(() => {
+    window.__ship = undefined;
+    import(new URL('js/ui/shipping-modal.js', location.href).href).then((m) => m.askShipTo({ email: 'ana@test.dev' }).then((v) => { window.__ship = v; }));
+  });
+  await waitFor(page, () => document.querySelector('#shipModal')?.classList.contains('show'), null, 10000);
+  await new Promise((r) => setTimeout(r, 450));
+  assert.match(await text(page, '#shipModal'), /Llená el formulario con tu domicilio para hacer el envío/);
+  assert.equal(await page.$eval('#ship_email', (i) => i.value), 'ana@test.dev', 'el mail de la cuenta viene cargado');
+  // vacío: no se envía y cada campo dice qué corregir
+  await page.$eval('#shipForm button[type=submit]', (b) => b.click());
+  assert.ok((await count(page, '#shipForm .is-invalid')) >= 6);
+  assert.equal(await page.evaluate(() => window.__ship), undefined, 'con errores no se resuelve');
+  const set = (sel, v) => page.$eval(sel, (i, val) => { i.value = val; i.dispatchEvent(new Event('input', { bubbles: true })); }, v);
+  await set('#ship_name', 'Ana  Pérez');
+  await set('#ship_address_line_1', 'Calle Mayor 1');
+  await set('#ship_postal_code', '07800');
+  await set('#ship_city', 'Ibiza');
+  await set('#ship_region', 'Illes Balears');
+  await set('#ship_phone', '+34 600 111 222');
+  await page.$eval('#shipForm button[type=submit]', (b) => b.click());
+  await waitFor(page, () => window.__ship, null, 10000);
+  const v = await page.evaluate(() => window.__ship);
+  assert.deepEqual(v, {
+    name: 'Ana Pérez', address_line_1: 'Calle Mayor 1', address_line_2: null, postal_code: '07800', city: 'Ibiza',
+    region: 'Illes Balears', phone: '+34 600 111 222', email: 'ana@test.dev', country_code: 'ES',
+  });
+  await waitFor(page, () => !document.querySelector('#shipModal')?.classList.contains('show') && !document.querySelector('.modal-backdrop'), null, 10000);
+  // cancelar: devuelve null y el siguiente intento vuelve a abrir con lo último que se escribió
+  await page.evaluate(() => {
+    window.__ship = undefined;
+    import(new URL('js/ui/shipping-modal.js', location.href).href).then((m) => m.askShipTo({}).then((x) => { window.__ship = x; }));
+  });
+  await waitFor(page, () => document.querySelector('#shipModal')?.classList.contains('show'), null, 10000);
+  await new Promise((r) => setTimeout(r, 450));
+  assert.equal(await page.$eval('#ship_city', (i) => i.value), 'Ibiza', 'recuerda el último domicilio en este navegador');
+  await page.$eval('#shipForm button[data-bs-dismiss="modal"]', (b) => b.click());
+  await waitFor(page, () => window.__ship === null, null, 10000);
+});
+
 await test('cuenta · Mis compras y Mi suscripción no aparecen si los pagos no están configurados', async (page) => {
   await signup('sinpagos@test.dev', 'Sin Pagos');
   await openAccount(page, 'sinpagos@test.dev');

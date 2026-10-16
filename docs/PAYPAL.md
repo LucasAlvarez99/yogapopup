@@ -161,6 +161,33 @@ Marcá cada punto con la cuenta *Personal* de pruebas. Es la parte que falta par
 y `createSubscription`, los enlaces de reembolso). Están concentrados en
 `supabase/functions/_shared/paypal/paypal.service.ts`: ahí se ajusta, y los tests de ese archivo documentan lo que se espera.
 
+## Envío: costo, domicilio y total
+
+- **Costo:** se fija en el panel → *Pagos* → **Costo de envío** (por defecto 10,00 €; con 0 el envío es gratis). Se suma al total de todo
+  pedido que lleve algún producto físico (los pedidos solo de videos no pagan envío). Aplica a los pedidos nuevos. Lo calcula y lo lee
+  **el servidor** (`shop_settings`): el navegador solo lo muestra.
+- **Domicilio:** al *Finalizar compra* con productos se abre un pop up ("Llená el formulario con tu domicilio para hacer el envío") con
+  nombre, calle, piso, código postal, ciudad, provincia, teléfono y correo. Se valida en el navegador **y** en el servidor
+  (`parseShipTo`) y se guarda en el pedido (`orders.ship_to`); PayPal recibe esa misma dirección y no la vuelve a pedir. Por ahora solo España.
+- **Cuentas:** compra + envío = total. En PayPal el envío va en el desglose (`breakdown.shipping`), aparte de las líneas. El IVA del
+  envío (21 %) está incluido en `tax_cents`. En *Mis compras* → **Ver detalle** se ve cada línea, el envío y el total; en el panel, el
+  domicilio y el contacto de cada pedido.
+
+## Primera prueba con dinero real (importe mínimo)
+
+Ponele a un producto de prueba 0,10 € (y el envío en 0 o 0,10 € desde el panel; después volvelo a su valor). Pagá con **otra** cuenta de
+PayPal: PayPal no deja que una cuenta se pague a sí misma (pasa lo mismo con un mail igual al de la cuenta Business). Qué mirar:
+
+- [ ] **A dónde viaja la plata:** en paypal.com (cuenta Business) → *Actividad*: aparece el cobro, con el importe, la comisión y el
+      *ID de factura* = id del pedido. El saldo queda en tu cuenta de PayPal; desde ahí lo transferís al banco (eso es de PayPal, no del sitio).
+- [ ] **El pedido en el sitio:** panel → *Pagos*: estado *Pagado*, total correcto (compra + envío), domicilio, teléfono y mail.
+- [ ] **Reembolso total:** en paypal.com → *Actividad* → el pago → *Reembolsar*. En unos segundos el webhook marca el pedido
+      *Reembolsado*, devuelve el stock y quita el acceso a los videos. (Si no cambia, *Verificar de nuevo* en el panel.)
+- [ ] **Reembolso parcial:** reembolsá solo una parte: el pedido sigue pagado y muestra "Reembolsado: X".
+- [ ] **Envío:** el pedido pagado trae todo lo que necesitás para despachar (nombre, dirección, teléfono, mail). Si algo no cierra,
+      el problema es del domicilio guardado, no de PayPal.
+- [ ] **Videos:** un video comprado aparece en *Clases → Mis videos* por 30 días y desaparece al reembolsarlo.
+
 ## Pasar a producción (`live`)
 
 - [ ] Todo lo de [Prueba en el sandbox](#prueba-en-el-sandbox) hecho.

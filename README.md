@@ -14,7 +14,7 @@ web sigue siendo el sitio estático actual alojado en **Hostinger** (sin videos 
 > **Niveles de suscripción y videos en el carrito (15/10/2026):** 3 niveles acumulativos (1, 2 y 3) con descuento en toda la tienda, una clase
 > virtual gratis por mes (nivel 3) y videos que se venden sueltos con el carrito, 30 días de acceso cada uno. Nueva página `clases.html`
 > (agenda en vivo + "Mis videos") y videoteca con precio y "Agregar al carrito". Detalle: [Niveles, descuentos y videos sueltos](#niveles-descuentos-y-videos-sueltos).
-> **Antes de publicar la web hay que aplicar las migraciones nuevas** (`npm run sb:db-push`: `20261013…` a `20261018…`).
+> **Antes de publicar la web hay que aplicar las migraciones nuevas** (`npm run sb:db-push`: `20261013…` a `20261019…`).
 >
 > **Probado (15/10/2026):** 128 pruebas de las funciones del servidor (roles, auditoría, contratos, firmas R2, pagos, niveles, videos en el carrito) · 264 unitarias del frontend y de `doctor` (incluye una guarda de enlaces y recursos de todas las páginas, la cobertura del traductor y la agenda) ·
 > **pruebas de base de datos** (`npm run test:db`: migraciones en orden, matriz de permisos por rol, historial inmutable,
@@ -859,7 +859,7 @@ Se agregó entre las Fases 30 y 31 (15/10/2026). Todo se cobra con PayPal en EUR
 **Dónde está**
 
 - Migraciones (aplicar **en orden**): `20261013120000_subscription_tiers` · `20261014120000_tier_min_level` · `20261015120000_class_rental_30_days` ·
-  `20261016120000_tier_discounts` · `20261017120000_free_class_coupons` · `20261018120000_cart_videos`.
+  `20261016120000_tier_discounts` · `20261017120000_free_class_coupons` · `20261018120000_cart_videos` · `20261019120000_shipping_cost`.
 - Backend: `paypal-save-tier` (nombre, precio, descuento y clases gratis por nivel), `paypal-create-order` (acepta videos y mezcla), `_shared/payments/*`.
 - Frontend: `js/lib/tiers.js` (niveles, descuentos, textos de beneficios), `js/lib/class-shop.js` (qué botón corresponde a cada video: comprar / ver / incluido),
   `js/lib/cart.js` (líneas de video: una unidad, marcadas `t:"c"`), `js/components/class-shop-card.js` (tarjeta de video estilo tienda),
@@ -868,7 +868,7 @@ Se agregó entre las Fases 30 y 31 (15/10/2026). Todo se cobra con PayPal en EUR
   (tarjetas con precio y "Agregar al carrito"; "Ver video" si es gratis, ya lo compraste o tu nivel lo incluye).
 - Despliegue: si la web sale antes que las migraciones, `listTiers` y `adminListClasses` piden las columnas anteriores en vez de romper (aviso en consola).
   Aun así, **aplicá las migraciones antes de publicar** para ver descuentos y accesos nuevos.
-- Pruebas: `supabase/tests/{subscription_tiers,class_rental,tier_discounts,free_class_coupons,cart_videos}.test.sql`, `tests/web/{tiers,class-shop,account-view}.test.js`, E2E de home, videoteca, carrito con videos y `clases:`.
+- Pruebas: `supabase/tests/{subscription_tiers,class_rental,tier_discounts,free_class_coupons,cart_videos,shipping}.test.sql`, `tests/web/{tiers,class-shop,account-view}.test.js`, E2E de home, videoteca, carrito con videos y `clases:`.
 
 **Falta:** probar suscripciones, pedidos con videos y el cupón contra el sandbox real de PayPal (ver `docs/PAYPAL.md`).
 

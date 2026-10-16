@@ -3,7 +3,7 @@
  * 20261008120000) y PayPalService; en los tests, dobles en memoria.
  */
 import type { AuditPort, AuthPort, RateLimiterPort } from "../ports.ts";
-import type { PayPalPort, PayPalShipping } from "../paypal/paypal.types.ts";
+import type { PayPalPort, PayPalShipping, ShipTo } from "../paypal/paypal.types.ts";
 
 export type OrderKind = "shop" | "class";
 export type OrderStatus = "created" | "pending" | "paid" | "failed" | "cancelled" | "refunded";
@@ -17,6 +17,8 @@ export interface OrderRow {
   currency: string;
   total_cents: number;
   tax_cents: number;
+  /** Parte del total que es envío. */
+  shipping_cents: number;
   refunded_cents: number;
   needs_review: boolean;
   review_note: string | null;
@@ -103,7 +105,7 @@ export interface SyncSubscriptionInput {
 
 export interface PaymentsRepo {
   /** Crea el pedido con precios y stock de la base (reserva el stock). Lanza HttpError con el motivo si no se puede. */
-  createOrder(userId: string, items: CartItemInput[]): Promise<string>;
+  createOrder(userId: string, items: CartItemInput[], shipTo: ShipTo | null): Promise<string>;
   getOrder(id: string): Promise<OrderRow | null>;
   getOrderByPayPalId(paypalOrderId: string): Promise<OrderRow | null>;
   getOrderByCaptureId(captureId: string): Promise<OrderRow | null>;

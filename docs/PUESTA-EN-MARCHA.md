@@ -133,7 +133,7 @@ Si se añade analítica, publicidad o contenido de terceros que use cookies, hac
 
 > **Profesores y agenda (migración `20261005120000`).** Igual orden: primero `npm run sb:db-push`, después publicar la web (la home pide `teachers` y `live_agenda`). Para dar de alta a un profesor: que se registre en el sitio y, con tu sesión de developer, panel → Profesores → su correo (tildá "También es admin" para quien además gestiona, como Manuela/Manu; la migración `20261006120000` garantiza que nunca se baja de rango a un admin). La migración `20261007120000` agrega los topes del perfil público (foto solo `https`, especialidades de 1 a 30 caracteres): si `sb:db-push` la rechaza, hay un dato viejo que no los cumple y se corrige en `teachers` antes de reintentar.
 
-> **Niveles de suscripción, descuentos, cupón y videos en el carrito (migraciones `20261013120000` a `20261018120000`).** Orden: primero `npm run sb:db-push`
+> **Niveles de suscripción, descuentos, cupón y videos en el carrito (migraciones `20261013120000` a `20261019120000`).** Orden: primero `npm run sb:db-push`
 > (aplica las seis, en orden), **después** publicar la web. Si la web sale antes, el sitio no se rompe pero no muestra descuentos ni accesos nuevos y deja avisos en la consola.
 > Después: en el panel (Pagos > Planes) cargá nombre, precio, descuento y clases gratis de cada nivel (crea el plan en PayPal) y, en cada video, su **nivel mínimo** y su **precio**
 > (sin precio no se vende suelto). La suscripción exige cuenta de PayPal.

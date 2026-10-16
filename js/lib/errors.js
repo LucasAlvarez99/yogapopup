@@ -54,6 +54,7 @@ const MESSAGES = {
   order_not_found: 'No encontramos ese pedido.',
   order_cancelled: 'Ese pedido se canceló. Armá uno nuevo.',
   order_not_approved: 'No llegaste a aprobar el pago en PayPal. Probá de nuevo.',
+  invalid_address: 'Revisá los datos de envío: alguno no es válido.',
   invalid_cart: 'Tu carrito cambió. Actualizalo y probá de nuevo.',
   size_required: 'Elegí un talle para ese producto.',
   product_unavailable: 'Alguno de los productos ya no está disponible. Actualizá tu carrito.',

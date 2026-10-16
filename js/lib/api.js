@@ -215,15 +215,33 @@ function myId() {
 
 /** "Mis compras" (Fase 24): pedidos propios (tienda y clases sueltas) con sus renglones. */
 export async function listMyOrders(limit = 50) {
-  const { data, error } = await db().from('orders')
-    .select('id,kind,status,total_cents,tax_cents,refunded_cents,created_at,paid_at,order_items(title,size,qty,item_type,class_id)')
+  const run = (cols) => db().from('orders')
+    .select(`id,kind,status,total_cents,tax_cents,${cols}refunded_cents,created_at,paid_at,order_items(title,size,qty,unit_cents,item_type,class_id)`)
     .eq('user_id', myId())
     .order('created_at', { ascending: false }).limit(limit);
+  let { data, error } = await run('shipping_cents,');
+  if (error && isSchemaBehind(error)) ({ data, error } = await run('')); // base sin la migración del envío
   if (error) {
     if (isSchemaBehind(error)) return [];
     throw new AppError('internal_error', error.message);
   }
   return data ?? [];
+}
+
+/** Costo de envío de la tienda en céntimos (lo fija el personal desde el panel). 0 si la base aún no tiene la migración. */
+export async function getShippingCents() {
+  const { data, error } = await db().from('shop_settings').select('shipping_cents').maybeSingle();
+  if (error) {
+    if (isSchemaBehind(error)) return 0;
+    throw new AppError('internal_error', error.message);
+  }
+  return Number(data?.shipping_cents) || 0;
+}
+/** Cambia el costo de envío (solo personal de gestión: la RLS lo exige). */
+export async function adminSetShippingCents(cents) {
+  const { data, error } = await db().from('shop_settings').update({ shipping_cents: cents }).eq('id', true).select('shipping_cents');
+  if (error) throw new AppError(error.code === '23514' ? 'invalid_input' : 'internal_error', error.message);
+  if (!data?.length) throw new AppError('forbidden');
 }
 
 export async function saveProgress(classId, seconds) {
@@ -309,7 +327,7 @@ export async function adminUpdateClass(id, patch) {
 // verifica cada pago contra la API de PayPal) responde. Acá solo se arman las llamadas.
 
 /** Crea el pedido y la orden de PayPal. `items`: ver js/lib/checkout.js (cartToItems / classToItems). */
-export const paypalCreateOrder = (items) => callFunction('paypal-create-order', { items });
+export const paypalCreateOrder = (items, shipTo = null) => callFunction('paypal-create-order', shipTo ? { items, ship_to: shipTo } : { items });
 /** Cobra una orden ya aprobada en PayPal y la verifica en el servidor. */
 export const paypalCaptureOrder = (paypalOrderId) => callFunction('paypal-capture-order', { paypal_order_id: paypalOrderId });
 /** `tier`: 1, 2 o 3. El plan (y su precio) lo decide el servidor según el nivel. */
@@ -381,13 +399,16 @@ export async function getMySubscription() {
   return data?.[0] ?? null;
 }
 
-const ORDER_ADMIN_COLUMNS = 'id,user_id,kind,status,total_cents,tax_cents,refunded_cents,needs_review,review_note,failure_reason,' +
-  'paypal_order_id,paypal_status,shipping,created_at,paid_at,profiles(display_name),order_items(title,size,qty,unit_cents)';
+const ORDER_ADMIN_COLUMNS = (ship) => 'id,user_id,kind,status,total_cents,tax_cents,refunded_cents,needs_review,review_note,failure_reason,' +
+  `paypal_order_id,paypal_status,shipping,${ship ? 'shipping_cents,ship_to,' : ''}created_at,paid_at,profiles(display_name),order_items(title,size,qty,unit_cents)`;
 const SUBSCRIPTION_ADMIN_COLUMNS = 'id,user_id,paypal_subscription_id,status,tier,current_period_end,last_payment_at,cancelled_at,created_at,profiles(display_name)';
 
 /** Pedidos (solo personal de gestión: la RLS lo exige). Los que piden revisión van primero. */
 export async function adminListOrders(limit = 100) {
-  const rows = unwrap(await db().from('orders').select(ORDER_ADMIN_COLUMNS).order('created_at', { ascending: false }).limit(limit)) ?? [];
+  const run = (ship) => db().from('orders').select(ORDER_ADMIN_COLUMNS(ship)).order('created_at', { ascending: false }).limit(limit);
+  let res = await run(true);
+  if (res.error && isSchemaBehind(res.error)) res = await run(false); // base sin la migración del envío
+  const rows = unwrap(res) ?? [];
   return rows.sort((a, b) => Number(b.needs_review) - Number(a.needs_review));
 }
 export async function adminListSubscriptions(limit = 100) {
