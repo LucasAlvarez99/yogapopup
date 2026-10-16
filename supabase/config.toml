@@ -32,3 +32,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.paypal-reconcile]
 verify_jwt = false
+[functions.live-reminders]
+verify_jwt = false

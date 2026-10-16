@@ -874,11 +874,14 @@ Se agregó entre las Fases 30 y 31 (15/10/2026). Todo se cobra con PayPal en EUR
 
 ### Fase 31 · Notificaciones — aviso de clase en vivo el mismo día
 
-- [ ] Tarea programada (Supabase cron) que revisa `live_bookings` del día y avisa por correo a cada
-      alumno anotado esa jornada (no hay app propia con notificaciones push)
-- [ ] Depende del SMTP propio (misma cuenta que la recuperación de contraseña, ver Fase 37)
+- [x] Edge Function `live-reminders` + funciones SQL `live_reminders_claim/release` (cada reserva se avisa una sola vez; los fallos se
+      reintentan) y correo por Resend; probadas con dobles (SQL, Deno) — guía en [`docs/RECORDATORIOS.md`](docs/RECORDATORIOS.md)
+- [ ] Programar la tarea (Supabase cron) y probar con una cuenta de correo real: necesita el dominio y la cuenta de Resend (misma cuenta
+      que la recuperación de contraseña, ver Fase 37)
 
-- [ ] **FASE 31 CUMPLIDA**
+- [ ] **FASE 31 CUMPLIDA** (el código está listo; falta la prueba con correo real)
+
+> **Fases 32 a 36:** son pasos con tus cuentas reales. La guía con comandos y criterios de "cumplida" está en [`docs/FASES-32-36.md`](docs/FASES-32-36.md); `npm run cost` proyecta el costo de R2 con lo que pesan tus videos reales.
 
 ### Fase 32 · Cuentas reales — infraestructura
 

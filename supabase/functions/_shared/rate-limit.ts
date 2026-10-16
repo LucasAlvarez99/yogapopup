@@ -26,6 +26,8 @@ export const LIMITS = {
   activateSubscription: { max: 20, windowSeconds: 60 },
   cancelSubscription: { max: 5, windowSeconds: 60 },
   reconcile: { max: 30, windowSeconds: 60 },
+  // Aviso de clases en vivo (manda correos): un disparo manual cada tanto; el cron entra con su secreto y no pasa por acá.
+  reminders: { max: 6, windowSeconds: 60 },
   // El webhook no tiene usuario: un tope GLOBAL generoso (PayPal manda unos pocos eventos por compra) para que
   // nadie pueda gastar la API de verificación de firmas inundando la URL pública.
   webhook: { max: 600, windowSeconds: 60 },

@@ -30,6 +30,7 @@
     "test:db": "bash supabase/tests/run.sh",
     "paypal:plan": "node scripts/paypal-setup.mjs plan",
     "paypal:webhook": "node scripts/paypal-setup.mjs webhook",
+    "cost": "node scripts/cost.mjs",
     "doctor": "node scripts/doctor.mjs",
     "doctor:online": "node scripts/doctor.mjs --online",
     "test:integration": "node tests/integration/real-stack.integration.mjs",

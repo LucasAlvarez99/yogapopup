@@ -91,6 +91,13 @@ async function onlineChecks() {
   else if (hook.status === 404) R('warn', 'paypal-webhook', 'no está desplegada (npm run sb:deploy)');
   else R('fail', 'paypal-webhook sin firma', `estado ${hook.status}: debía ser 401 (¡no debe aceptar eventos sin verificar!)`);
 
+  // Aviso de clases en vivo (fase 31): sin sesión ni secreto debe rechazar; 503 = falta configurar el correo.
+  const rem = await get(`${fn}/live-reminders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  if (rem.status === 401) R('ok', 'live-reminders sin sesión', '401 (correcto)');
+  else if (rem.status === 404) R('warn', 'live-reminders', 'no está desplegada (npm run sb:deploy): no saldrán los avisos de clases en vivo');
+  else if (rem.status === 503) R('warn', 'live-reminders', 'responde 503: falta RESEND_API_KEY / MAIL_FROM en los secretos (docs/RECORDATORIOS.md)');
+  else R('fail', 'live-reminders sin sesión', `estado ${rem.status}: debía ser 401 (¡no debe mandar correos a cualquiera!)`);
+
   for (const table of ['orders', 'subscriptions', 'payment_events']) {
     const t = await get(`${base}/rest/v1/${table}?select=id&limit=1`, { headers });
     if ([401, 403].includes(t.status)) R('ok', `Tabla ${table} (RLS)`, `denegada sin sesión (${t.status})`);
