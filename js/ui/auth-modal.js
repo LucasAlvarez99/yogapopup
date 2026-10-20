@@ -12,8 +12,8 @@ const MIN_PASSWORD = 8;
 let modalEl, bsModal, bodyEl, titleEl, view = 'login', notice = '', busy = false, isShown = false, isHiding = false, lastInput = null;
 
 const TITLES = {
-  login: 'Iniciá sesión', register: 'Creá tu cuenta', forgot: 'Recuperar contraseña',
-  recovery: 'Elegí una contraseña nueva', 'confirm-sent': 'Revisá tu correo', 'reset-sent': 'Revisá tu correo',
+  login: 'Inicia sesión', register: 'Crea tu cuenta', forgot: 'Recuperar contraseña',
+  recovery: 'Elige una contraseña nueva', 'confirm-sent': 'Revisa tu correo', 'reset-sent': 'Revisa tu correo',
 };
 
 function build() {
@@ -88,7 +88,7 @@ function render() {
       e.preventDefault();
       if (busy) return;
       const email = f.authEmail.value.trim(), pass = f.authPass.value;
-      if (!email || !pass) return showError(f, 'Completá tu correo y contraseña.');
+      if (!email || !pass) return showError(f, 'Completa tu correo y contraseña.');
       setBusy(f, true, 'Entrar');
       try { await session.signIn(email, pass); closeModal(); toast('Sesión iniciada.', { type: 'success', ms: 2500 }); }
       catch (err) { showError(f, session.authMessage(err)); setBusy(f, false, 'Entrar'); }
@@ -114,7 +114,7 @@ function render() {
       e.preventDefault();
       if (busy) return;
       const name = f.authName.value.trim(), email = f.authEmail.value.trim(), pass = f.authPass.value;
-      if (!name || !email) return showError(f, 'Completá tu nombre y correo.');
+      if (!name || !email) return showError(f, 'Completa tu nombre y correo.');
       if (pass.length < MIN_PASSWORD) return showError(f, `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`);
       if (consent && !f.authConsent.checked) return showError(f, 'Necesitamos que aceptes la política de privacidad.');
       setBusy(f, true, 'Crear cuenta');
@@ -138,7 +138,7 @@ function render() {
       e.preventDefault();
       if (busy) return;
       const email = f.authEmail.value.trim();
-      if (!email) return showError(f, 'Ingresá tu correo.');
+      if (!email) return showError(f, 'Introduce tu correo.');
       setBusy(f, true, 'Enviar enlace');
       try { await session.sendPasswordReset(email); go('reset-sent', `Si ${email} tiene una cuenta, le llegará un enlace en unos minutos.`); }
       catch (err) { showError(f, session.authMessage(err)); setBusy(f, false, 'Enviar enlace'); }

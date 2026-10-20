@@ -120,11 +120,11 @@ function filterBar() {
 function renderList() {
   if (!root || !isCurrent()) return;
   if (products.length === 0) {
-    return mount(root, newProductButton(), emptyState('Todavía no hay productos', 'Creá el primero con el botón de arriba.'));
+    return mount(root, newProductButton(), emptyState('Todavía no hay productos', 'Crea el primero con el botón de arriba.'));
   }
   const visible = products.filter(FILTERS.find(([key]) => key === filter)[2]);
   if (visible.length === 0) {
-    return mount(root, newProductButton(), filterBar(), emptyState('No hay productos en este filtro', 'Probá con otro filtro de arriba.'));
+    return mount(root, newProductButton(), filterBar(), emptyState('No hay productos en este filtro', 'Prueba con otro filtro de arriba.'));
   }
   mount(root, newProductButton(), filterBar(),
     el('div', { class: 'table-responsive' },

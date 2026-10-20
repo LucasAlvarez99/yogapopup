@@ -144,7 +144,7 @@ function newClassButton() {
   // El admin no sube videos: en vez del botón, un aviso que explica quién lo hace (el servidor y la base lo impiden igual).
   if (!session.canUpload()) {
     return el('p', { class: 'text-muted small mb-3' }, icon('info-circle'),
-      ' Podés editar, publicar, despublicar y eliminar clases. Subir videos nuevos lo hace el equipo técnico.');
+      ' Puedes editar, publicar, despublicar y eliminar clases. Subir videos nuevos lo hace el equipo técnico.');
   }
   return el('button', {
     type: 'button', class: 'btn btn-brand mb-3',
@@ -174,10 +174,10 @@ function renderTable() {
   const visible = classes.filter(FILTERS.find(([key]) => key === statusFilter)[2]);
   if (classes.length === 0) {
     return mount(root, newClassButton(), emptyState('Todavía no hay clases',
-      session.canUpload() ? 'Creá la primera con el botón de arriba.' : 'Cuando el equipo técnico suba la primera, la vas a ver acá.'));
+      session.canUpload() ? 'Crea la primera con el botón de arriba.' : 'Cuando el equipo técnico suba la primera, la vas a ver acá.'));
   }
   if (visible.length === 0) {
-    return mount(root, newClassButton(), filterBar(), emptyState('No hay clases en este filtro', 'Probá con otro filtro de arriba.'));
+    return mount(root, newClassButton(), filterBar(), emptyState('No hay clases en este filtro', 'Prueba con otro filtro de arriba.'));
   }
   const scrollHint = el('p', { class: 'table-scroll-hint', hidden: true }, icon('arrow-left-right'), ' Desliza para ver más');
   const wrap = el('div', { class: 'table-responsive' },
@@ -254,7 +254,7 @@ function render() {
   if (!supabase) return mount(outer, emptyState('Panel no disponible', 'Falta configurar la conexión con Supabase (js/config.js).'));
   const { user } = session.getState();
   if (!user) {
-    return mount(outer, emptyState('Iniciá sesión para ver el panel', '',
+    return mount(outer, emptyState('Inicia sesión para ver el panel', '',
       el('button', { type: 'button', class: 'btn btn-brand', onclick: () => openAuth() }, 'Iniciar sesión')));
   }
   if (!session.canUsePanel()) {

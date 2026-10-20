@@ -39,7 +39,7 @@ export function tierPriceLabel(cents) {
 export function parseTierPrice(input) {
   const cents = eurosToCents(String(input ?? '').trim());
   if (cents === null || cents < TIER_MIN_PRICE_CENTS || cents > TIER_MAX_PRICE_CENTS) {
-    return { ok: false, error: 'Escribí un precio mensual válido en euros, entre 1 y 500 (ej.: 10 o 12,50).' };
+    return { ok: false, error: 'Escribe un precio mensual válido en euros, entre 1 y 500 (ej.: 10 o 12,50).' };
   }
   return { ok: true, cents };
 }
@@ -88,7 +88,7 @@ export function discountLabel(bps) {
 export function parseTierDiscount(input) {
   const text = String(input ?? '').trim().replace(',', '.');
   if (text === '') return { ok: true, bps: 0 };
-  const bad = { ok: false, error: 'Escribí el descuento como porcentaje, entre 0 y 50 (ej.: 5 o 7,5).' };
+  const bad = { ok: false, error: 'Escribe el descuento como porcentaje, entre 0 y 50 (ej.: 5 o 7,5).' };
   if (!/^\d{1,2}(\.\d{1,2})?$/.test(text)) return bad;
   const bps = Math.round(Number(text) * 100);
   return bps > TIER_MAX_DISCOUNT_BPS ? bad : { ok: true, bps };

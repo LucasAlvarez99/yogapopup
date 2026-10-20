@@ -152,7 +152,7 @@ Deno.test("agenda: formulario de clase — cada error dice qué corregir", () =>
   assert.doesNotThrow(() => buildSessionInput({ ...ok, date: "2026-10-01" }, { now: NOW, allowPast: true }));
 });
 
-Deno.test("agenda: el mensaje de validación llega TAL CUAL a la pantalla (no el genérico 'Revisá los datos')", () => {
+Deno.test("agenda: el mensaje de validación llega TAL CUAL a la pantalla (no el genérico 'Revisa los datos')", () => {
   for (
     const [patch, re] of [[{ title: " " }, /título es obligatorio/], [{ capacity: "0" }, /cupo/], [{
       date: "2026-10-01",
@@ -163,7 +163,7 @@ Deno.test("agenda: el mensaje de validación llega TAL CUAL a la pantalla (no el
       assert.fail("debía fallar");
     } catch (e) {
       assert.match(messageFor(e), re);
-      assert.notEqual(messageFor(e), "Revisá los datos ingresados.");
+      assert.notEqual(messageFor(e), "Revisa los datos ingresados.");
     }
   }
   try {

@@ -121,7 +121,7 @@ function tierEditor(t) {
   return el('div', { class: 'col-12 col-lg-4' }, el('div', { class: 'yp-card h-100', 'data-tier-editor': String(t.tier) },
     el('div', { class: 'd-flex justify-content-between align-items-center mb-2' },
       el('h3', { class: 'h6 m-0' }, `Nivel ${t.tier}`),
-      el('span', { class: `badge text-bg-${t.plan_ready ? 'success' : 'warning'}` }, t.plan_ready ? 'Se puede contratar' : 'Guardalo para crear el plan')),
+      el('span', { class: `badge text-bg-${t.plan_ready ? 'success' : 'warning'}` }, t.plan_ready ? 'Se puede contratar' : 'Guárdalo para crear el plan')),
     el('label', { class: 'form-label small mb-1', for: name.id }, 'Nombre'), name,
     el('label', { class: 'form-label small mt-2 mb-1', for: price.id }, 'Precio mensual (€, IVA incluido)'), price,
     el('div', { class: 'row g-2 mt-0' },
@@ -184,7 +184,7 @@ function shippingCard(cents) {
 function pricesTable(classes, prices) {
   const sellable = classes.filter((c) => c.access_level === 'restricted');
   if (sellable.length === 0) {
-    return el('p', { class: 'text-muted small' }, 'Solo las clases con acceso "restringido" se pueden vender sueltas. Cambiá el acceso de una clase para ofrecerla.');
+    return el('p', { class: 'text-muted small' }, 'Solo las clases con acceso "restringido" se pueden vender sueltas. Cambia el acceso de una clase para ofrecerla.');
   }
   return el('div', { class: 'table-responsive' }, el('table', { class: 'table align-middle' },
     el('thead', {}, el('tr', {}, el('th', {}, 'Clase restringida'), el('th', {}, 'Precio de venta suelta'), el('th', {}, ''))),
@@ -217,7 +217,7 @@ async function load() {
       el('p', { class: 'small text-muted' }, 'Los pedidos sin pagar liberan su stock solos pasada una hora. "Verificar de nuevo" consulta a PayPal y deja el pedido como corresponde.'),
       ordersTable(orders),
       el('h2', { class: 'h5 mt-4' }, 'Planes de suscripción'),
-      el('p', { class: 'small text-muted' }, 'Tres niveles mensuales. Si cambiás un precio, se crea un plan nuevo en PayPal: quienes ya están suscriptos siguen pagando el precio con el que se anotaron hasta que cancelen. En cada clase elegís en qué niveles se ve.'),
+      el('p', { class: 'small text-muted' }, 'Tres niveles mensuales. Si cambias un precio, se crea un plan nuevo en PayPal: quienes ya están suscriptos siguen pagando el precio con el que se anotaron hasta que cancelen. En cada clase eliges en qué niveles se ve.'),
       tiersSection(tiers),
       el('h2', { class: 'h5 mt-4' }, 'Suscripciones'), subscriptionsTable(subs, tiers),
       el('h2', { class: 'h5 mt-4' }, 'Costo de envío'),

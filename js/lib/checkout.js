@@ -24,7 +24,7 @@ export const canCheckout = (validation) => !!validation && validation.ok === tru
 /** Qué mensaje mostrar tras intentar cobrar. `status` es el de `paypal-capture-order`. */
 export function outcomeMessage(status, kind, { withVideos = false } = {}) {
   if (status === 'paid') {
-    if (kind === 'class') return { type: 'success', title: '¡Listo, ya podés ver tu clase!', text: 'Podés verlo cuando quieras durante 30 días, en Clases > Mis videos.' };
+    if (kind === 'class') return { type: 'success', title: '¡Listo, ya puedes ver tu clase!', text: 'Puedes verlo cuando quieras durante 30 días, en Clases > Mis videos.' };
     return withVideos
       ? { type: 'success', title: '¡Gracias por tu compra!', text: 'Tus videos ya están en Clases > Mis videos (30 días). Los productos los enviamos a la dirección que indicaste.' }
       : { type: 'success', title: '¡Gracias por tu compra!', text: 'Te enviaremos el pedido a la dirección que indicaste.' };
@@ -32,7 +32,7 @@ export function outcomeMessage(status, kind, { withVideos = false } = {}) {
   if (status === 'pending') {
     return { type: 'info', title: 'Estamos esperando la confirmación de PayPal', text: 'Cuando se confirme el pago, te lo vamos a reflejar acá. No hace falta que pagues de nuevo.' };
   }
-  return { type: 'error', title: 'No pudimos completar el pago', text: 'No se te cobró nada. Probá de nuevo.' };
+  return { type: 'error', title: 'No pudimos completar el pago', text: 'No se te cobró nada. Prueba de nuevo.' };
 }
 
 /**

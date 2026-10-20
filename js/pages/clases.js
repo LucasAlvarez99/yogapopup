@@ -58,7 +58,7 @@ function renderVideos() {
         el('a', { href: page('videoteca.html') }, 'Verlos en la videoteca'))));
   }
   if (active.length) parts.push(section('Para ver ahora', 'Cada video comprado se ve durante 30 días.', active.map(card)));
-  if (expired.length) parts.push(section('Vencieron', 'Pasaron los 30 días. Si querés verlos otra vez, volvé a comprarlos.', expired.map(card)));
+  if (expired.length) parts.push(section('Vencieron', 'Pasaron los 30 días. Si quieres verlos otra vez, vuelve a comprarlos.', expired.map(card)));
   if (!active.length && !expired.length) {
     parts.push(emptyState('Todavía no compraste videos', 'Los videos que compres, uno por uno o junto con productos, aparecen acá durante 30 días.',
       el('a', { class: 'btn btn-brand btn-sm', href: page('videoteca.html') }, 'Ir a la videoteca')));
@@ -72,7 +72,7 @@ async function loadVideos() {
   if (!session.isLoggedIn()) {
     mine = null;
     videosBox.setAttribute('aria-busy', 'false');
-    return mount(videosBox, emptyState('Iniciá sesión para ver tus videos', 'Acá aparecen los videos que compraste y cuántos días te quedan.',
+    return mount(videosBox, emptyState('Inicia sesión para ver tus videos', 'Acá aparecen los videos que compraste y cuántos días te quedan.',
       el('button', { type: 'button', class: 'btn btn-brand btn-sm', id: 'loginCta', onclick: () => openAuth() }, 'Iniciar sesión')));
   }
   mount(videosBox, skeletonGrid(3));

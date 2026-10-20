@@ -36,7 +36,7 @@ export function subscriptionCard() {
         onclick: async (e) => {
           const btn = e.currentTarget;
           const until = sub?.current_period_end ? new Date(sub.current_period_end).toLocaleDateString('es-ES') : 'el final del período pagado';
-          if (!confirm(`¿Cancelar tu suscripción? Mantenés el acceso hasta ${until} y después no se te vuelve a cobrar.`)) return;
+          if (!confirm(`¿Cancelar tu suscripción? Mantienes el acceso hasta ${until} y después no se te vuelve a cobrar.`)) return;
           btn.disabled = true;
           try { await paypalCancelSubscription(); toast('Cancelaste tu suscripción.', { type: 'info' }); await load(); }
           catch (err) { toast(messageFor(err), { type: 'error' }); btn.disabled = false; }

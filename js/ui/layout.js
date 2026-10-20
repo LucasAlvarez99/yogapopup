@@ -49,7 +49,7 @@ export function renderLayout(active) {
       el('h4', {}, title),
       el('ul', {}, ...items.map(([text, href]) => el('li', {}, el('a', { href: page(href) }, text)))));
     const socials = el('div', { class: 'col-lg-3' },
-      el('h4', {}, 'Seguinos'),
+      el('h4', {}, 'Síguenos'),
       el('div', { class: 'socials' }, ...SOCIAL_LINKS.map(({ label, href, iconName }) =>
         el('a', { href, target: '_blank', rel: 'noopener', 'aria-label': label }, icon(iconName)))));
     footer.className = 'site-footer';
@@ -61,6 +61,8 @@ export function renderLayout(active) {
         col('Más', 'Más', NAV.slice(4)),
         socials),
       el('p', { class: 'copyright' }, `© ${new Date().getFullYear()} Yoga Pop Up. Todos los derechos reservados. · `,
-        el('a', { href: page('privacidad.html') }, 'Política de privacidad'))));
+        el('a', { href: page('privacidad.html') }, 'Política de privacidad'), ' · ',
+        el('a', { href: page('aviso-legal.html') }, 'Aviso legal'), ' · ',
+        el('a', { href: page('condiciones.html') }, 'Condiciones de compra'))));
   }
 }

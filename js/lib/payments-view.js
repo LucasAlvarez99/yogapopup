@@ -28,7 +28,7 @@ export const statusInfo = (table, status) => table[status] ?? { label: String(st
 /** Qué le pasa a un pedido que pide revisión (lo escribe la base) y qué tiene que hacer quien gestiona. */
 export function reviewNoteText(note) {
   switch (note) {
-    case 'amount_mismatch': return 'PayPal cobró un importe distinto al del pedido. No se dio por pagado: revisalo en PayPal.';
+    case 'amount_mismatch': return 'PayPal cobró un importe distinto al del pedido. No se dio por pagado: revísalo en PayPal.';
     case 'paid_without_stock': return 'Se cobró cuando ya no había stock (pago tardío). Hay que reembolsar o conseguir el producto.';
     default: return note ? 'Este pedido necesita una revisión.' : '';
   }
@@ -54,7 +54,7 @@ export function parseShippingPrice(input) {
   const text = String(input ?? '').trim();
   const cents = text === '' ? null : eurosToCents(text);
   if (cents === null || cents < 0 || cents > MAX_SHIPPING_CENTS) {
-    return { ok: false, error: 'Escribí el costo del envío en euros (ej.: 10 o 9,50). Con 0 el envío es gratis.' };
+    return { ok: false, error: 'Escribe el costo del envío en euros (ej.: 10 o 9,50). Con 0 el envío es gratis.' };
   }
   return { ok: true, cents };
 }
@@ -81,7 +81,7 @@ export function sweepMessage(r) {
   if (r.paid) parts.push(`${r.paid} pagado${r.paid === 1 ? '' : 's'}`);
   if (r.cancelled) parts.push(`${r.cancelled} cancelado${r.cancelled === 1 ? '' : 's'} (stock liberado)`);
   if (r.failed) parts.push(`${r.failed} rechazado${r.failed === 1 ? '' : 's'}`);
-  if (r.errors) parts.push(`${r.errors} con error (reintentá)`);
+  if (r.errors) parts.push(`${r.errors} con error (reintenta)`);
   return parts.length ? `Conciliación: ${parts.join(', ')}.` : `Conciliación: nada pendiente (${r.checked ?? 0} pedidos revisados).`;
 }
 
@@ -94,7 +94,7 @@ export function parseClassPrice(input) {
   if (text === '') return { ok: true, cents: null };
   const cents = eurosToCents(text);
   if (cents === null || cents < 1 || cents > MAX_CLASS_PRICE_CENTS) {
-    return { ok: false, error: 'Escribí un precio válido en euros (ej.: 12,50), o dejalo vacío para no vender la clase suelta.' };
+    return { ok: false, error: 'Escribe un precio válido en euros (ej.: 12,50), o déjalo vacío para no vender la clase suelta.' };
   }
   return { ok: true, cents };
 }

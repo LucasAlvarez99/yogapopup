@@ -11,12 +11,12 @@ export const BODY_MAX = 600;
  */
 export function validateTestimonial({ body, rating } = {}) {
   const text = String(body ?? '').trim();
-  if (text.length < BODY_MIN) return { ok: false, field: 'body', error: `Escribí al menos ${BODY_MIN} caracteres.` };
+  if (text.length < BODY_MIN) return { ok: false, field: 'body', error: `Escribe al menos ${BODY_MIN} caracteres.` };
   if (text.length > BODY_MAX) return { ok: false, field: 'body', error: `El comentario no puede pasar de ${BODY_MAX} caracteres.` };
   let stars = null;
   if (rating !== '' && rating !== null && rating !== undefined) {
     stars = Number(rating);
-    if (!Number.isInteger(stars) || stars < 1 || stars > 5) return { ok: false, field: 'rating', error: 'Elegí una puntuación de 1 a 5.' };
+    if (!Number.isInteger(stars) || stars < 1 || stars > 5) return { ok: false, field: 'rating', error: 'Elige una puntuación de 1 a 5.' };
   }
   return { ok: true, value: { body: text, rating: stars } };
 }
@@ -37,7 +37,7 @@ export const SUSPENSION_HOURS = 168;
  */
 export const MY_STATUS = Object.freeze({
   pending: { label: 'En revisión', tone: 'warning', note: 'Gracias. Se publica cuando el equipo lo apruebe.' },
-  approved: { label: 'Publicado', tone: 'success', note: 'Tu comentario ya se ve en la página. Si lo editás, se actualiza al instante.' },
+  approved: { label: 'Publicado', tone: 'success', note: 'Tu comentario ya se ve en la página. Si lo editas, se actualiza al instante.' },
   hidden: { label: 'No publicado', tone: 'secondary', note: 'Tu comentario no se muestra en la página.' },
 });
 

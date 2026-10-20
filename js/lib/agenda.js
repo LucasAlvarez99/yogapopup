@@ -131,10 +131,10 @@ export function buildSessionInput(f, { now = new Date(), allowPast = false } = {
   const title = String(f.title ?? '').trim();
   if (!title) bad('El título es obligatorio.');
   if (title.length > 100) bad('El título admite hasta 100 caracteres.');
-  if (!SESSION_LEVELS.includes(f.level)) bad('Elegí un nivel válido.');
-  if (!SESSION_MODES.includes(f.mode)) bad('Elegí si la clase es en vivo o virtual.');
+  if (!SESSION_LEVELS.includes(f.level)) bad('Elige un nivel válido.');
+  if (!SESSION_MODES.includes(f.mode)) bad('Elige si la clase es en vivo o virtual.');
   const starts_at = arToIso(f.date, f.time);
-  if (!starts_at) bad('Elegí una fecha y una hora válidas (hora de Argentina).');
+  if (!starts_at) bad('Elige una fecha y una hora válidas (hora de Argentina).');
   if (!allowPast && new Date(starts_at) <= now) bad('La clase tiene que ser en el futuro.');
   const duration = intOrNull(f.duration ?? 60);
   if (duration === null || Number.isNaN(duration) || duration < 15 || duration > 240) bad('La duración debe estar entre 15 y 240 minutos.');

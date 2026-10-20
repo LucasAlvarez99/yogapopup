@@ -146,7 +146,7 @@ try {
   });
 
   const free = (state.sessions ?? []).find((x) => new Date(x.starts_at) > new Date(Date.now() + 60_000) && !x.mine && (x.capacity == null || x.booked < x.capacity));
-  if (!free) skip('Reserva real de una clase en vivo (reservar, verla en "Mis clases", cancelar)', 'no hay clases en vivo futuras con lugar; creá una desde el panel y repetí');
+  if (!free) skip('Reserva real de una clase en vivo (reservar, verla en "Mis clases", cancelar)', 'no hay clases en vivo futuras con lugar; crea una desde el panel y repite');
   else {
     await check('Reserva real de una clase en vivo: reservar, verla en "Mis clases" y cancelar', async () => {
       const rpc = (name, body) => fetch(`${base}/rest/v1/rpc/${name}`, { method: 'POST', headers: auth(), body: JSON.stringify(body ?? {}) });
@@ -169,7 +169,7 @@ try {
   await check('Comentarios automáticos: la migración 20261011120000 está aplicada (my_suspension responde y la cuenta de prueba no está suspendida)', async () => {
     const r = await fetch(`${base}/rest/v1/rpc/my_suspension`, { method: 'POST', headers: auth(), body: '{}' });
     assert.equal(r.status, 200, `estado ${r.status}: falta aplicar la migración (npm run sb:db-push)`);
-    assert.equal(await r.json(), null, 'la cuenta de prueba está suspendida: esperá a que termine o corré: update auth.users set banned_until = null where email = \'<la de prueba>\';');
+    assert.equal(await r.json(), null, 'la cuenta de prueba está suspendida: espera a que termine o corre: update auth.users set banned_until = null where email = \'<la de prueba>\';');
   });
 
   const created = await fetch(`${base}/rest/v1/testimonials?select=id,status`, {

@@ -30,17 +30,17 @@ const clean = (v) => String(v ?? '').trim().replace(/ +/g, ' ');
 export function validateShipTo(form = {}) {
   const v = Object.fromEntries(SHIP_FIELDS.map((f) => [f, clean(form[f])]));
   const errors = {};
-  if (v.name.length < 2) errors.name = 'Escribí tu nombre y apellido.';
+  if (v.name.length < 2) errors.name = 'Escribe tu nombre y apellido.';
   else if (v.name.length > 100) errors.name = 'El nombre es demasiado largo.';
-  if (v.address_line_1.length < 3) errors.address_line_1 = 'Escribí la calle y el número.';
+  if (v.address_line_1.length < 3) errors.address_line_1 = 'Escribe la calle y el número.';
   else if (v.address_line_1.length > 120) errors.address_line_1 = 'La dirección es demasiado larga.';
   if (v.address_line_2.length > 120) errors.address_line_2 = 'Es demasiado largo.';
   if (!/^[0-9]{5}$/.test(v.postal_code)) errors.postal_code = 'El código postal tiene 5 números (ej. 07800).';
-  if (v.city.length < 2) errors.city = 'Escribí la ciudad.';
+  if (v.city.length < 2) errors.city = 'Escribe la ciudad.';
   else if (v.city.length > 80) errors.city = 'El nombre de la ciudad es demasiado largo.';
-  if (!PROVINCES.includes(v.region)) errors.region = 'Elegí la provincia.';
-  if (!PHONE_RE.test(v.phone)) errors.phone = 'Escribí un teléfono de contacto (ej. +34 600 111 222).';
-  if (!EMAIL_RE.test(v.email) || v.email.length > 254) errors.email = 'Escribí un correo válido.';
+  if (!PROVINCES.includes(v.region)) errors.region = 'Elige la provincia.';
+  if (!PHONE_RE.test(v.phone)) errors.phone = 'Escribe un teléfono de contacto (ej. +34 600 111 222).';
+  if (!EMAIL_RE.test(v.email) || v.email.length > 254) errors.email = 'Escribe un correo válido.';
   return {
     ok: Object.keys(errors).length === 0,
     errors,

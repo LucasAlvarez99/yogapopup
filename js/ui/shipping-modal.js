@@ -39,10 +39,10 @@ function field(name, label, value, attrs = {}) {
 function form(initial, onSubmit) {
   const f = (k) => initial?.[k] ?? '';
   const region = el('select', { class: 'form-select', id: 'ship_region', name: 'region', autocomplete: 'address-level1' },
-    el('option', { value: '' }, 'Elegí la provincia'),
+    el('option', { value: '' }, 'Elige la provincia'),
     ...PROVINCES.map((p) => el('option', { value: p, selected: p === f('region') }, p)));
   const node = el('form', { novalidate: true, class: 'row g-3', id: 'shipForm' },
-    el('p', { class: 'col-12 mb-0' }, 'Llená el formulario con tu domicilio para hacer el envío.'),
+    el('p', { class: 'col-12 mb-0' }, 'Rellena el formulario con tu domicilio para hacer el envío.'),
     field('name', 'Nombre y apellido', f('name'), { autocomplete: 'name', maxlength: 100 }),
     field('address_line_1', 'Calle y número', f('address_line_1'), { autocomplete: 'address-line1' }),
     field('address_line_2', 'Piso, puerta, referencias (opcional)', f('address_line_2'), { autocomplete: 'address-line2' }),

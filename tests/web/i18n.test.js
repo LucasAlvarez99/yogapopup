@@ -98,7 +98,7 @@ const SAME = new Set([
   "Tomás R.",
   "Luli F.",
 ]);
-const PAGES_NOT_TRANSLATED = new Set(["panel.html", "privacidad.html"]);
+const PAGES_NOT_TRANSLATED = new Set(["panel.html", "privacidad.html", "aviso-legal.html", "condiciones.html"]);
 
 function visibleTexts(html) {
   const out = new Set();
@@ -126,6 +126,9 @@ for (const e of Deno.readDirSync(ROOT)) {
 
 Deno.test("la política de privacidad y el panel quedan fuera de la traducción automática, a propósito", () => {
   assert.match(read("privacidad.html"), /<main[^>]*translate="no"/, 'el texto legal debe llevar translate="no"');
+  for (const page of ["aviso-legal.html", "condiciones.html"]) {
+    assert.match(read(page), /<main[^>]*translate="no"/, `${page}: el texto legal debe llevar translate="no"`);
+  }
 });
 
 Deno.test("el selector de idioma está en la home y en el encabezado común", () => {

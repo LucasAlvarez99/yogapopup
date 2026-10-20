@@ -150,7 +150,7 @@ export class VideoPlayer {
     const hint = this.#o.durationHint;
     if (hint) ui.dur.textContent = formatClock(hint);
     if (this.#o.resumeAt >= 5) {
-      ui.resumeTxt.textContent = `Continuás en ${formatClock(this.#o.resumeAt)}`;
+      ui.resumeTxt.textContent = `Continúas en ${formatClock(this.#o.resumeAt)}`;
       ui.resume.hidden = false;
     } else ui.resume.hidden = true;
     ui.error.hidden = true;
@@ -265,7 +265,7 @@ export class VideoPlayer {
     const now = Date.now();
     if (now - this.#errors.since > 60_000) this.#errors = { auth: 0, since: now };
     if (++this.#errors.auth <= 2) return void this.#refreshSource();
-    this.#showError('No pudimos reproducir el video. Revisá tu conexión e intentá de nuevo.');
+    this.#showError('No pudimos reproducir el video. Revisa tu conexión e intenta de nuevo.');
   }
 
   /** Pide una URL firmada nueva y sigue reproduciendo desde el mismo punto, sin cortar la sesión. */

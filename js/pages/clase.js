@@ -45,7 +45,7 @@ async function offerAccess() {
     try { offer = await getClassOffer(classId); } catch { /* sin precio disponible: solo queda el aviso */ }
   }
   const boxes = [];
-  if (offer) boxes.push(buyClassBox({ classId, offer, onPurchased: () => { toast('¡Gracias! Ya podés ver la clase.', { type: 'success' }); start(); } }));
+  if (offer) boxes.push(buyClassBox({ classId, offer, onPurchased: () => { toast('¡Gracias! Ya puedes ver la clase.', { type: 'success' }); start(); } }));
   if (subscriptionOffered()) {
     // Solo se ofrecen los niveles que ven ESTA clase (si no se pudieron leer, se ofrecen todos).
     const minTier = session.isLoggedIn() ? await getClassMinTier(classId) : null;
@@ -154,7 +154,7 @@ async function start() {
     if (code === 'no_access') {
       const hasOptions = await offerAccess();
       return $gate({ ico: 'lock-fill', title: 'Esta clase no está incluida en tu acceso',
-        text: hasOptions ? 'Es un contenido restringido. Abajo podés elegir cómo acceder.' : 'Es un contenido restringido. Explora las clases disponibles para ti.', action: goVideoteca() });
+        text: hasOptions ? 'Es un contenido restringido. Abajo puedes elegir cómo acceder.' : 'Es un contenido restringido. Explora las clases disponibles para ti.', action: goVideoteca() });
     }
     if (code === 'video_not_ready') return $gate({ ico: 'hourglass-split', title: 'Estamos preparando este video', text: 'Vuelve en unos minutos.', action: el('button', { type: 'button', class: 'btn btn-brand btn-sm', onclick: start }, 'Comprobar de nuevo') });
     if (code === 'class_not_found') return $gate({ ico: 'question-circle', title: 'No encontramos esta clase', action: goVideoteca() });

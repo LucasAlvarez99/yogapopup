@@ -184,14 +184,14 @@ Detalle de cada fase, con sus tareas, más abajo en [Fases](#fases).
 ```
 yogapopup/
 ├── *.html                                Las páginas, tal cual se publican: index, clases, videoteca, clase, cuenta,
-│                                         panel, tienda, producto
+│                                         panel, tienda, producto y las legales (privacidad, aviso-legal, condiciones)
 ├── css/ · js/ · assets/                  Estilos, JS y recursos que usan las páginas
 │   └── js/config.js                      Config PÚBLICA del frontend (placeholders)
 ├── supabase/
 │   ├── migrations/                       Base de datos: tablas, RLS, permisos (Fase 0)
 │   ├── functions/
 │   │   ├── _shared/                      Capa R2, auth, repositorio, HTTP (Fase 0)
-│   │   ├── _tests/                       47 pruebas automáticas
+│   │   ├── _tests/                       Pruebas automáticas de las funciones
 │   │   ├── admin-create-upload/  admin-sync-video/  admin-delete-class/
 │   │   └── playback/  health/
 │   ├── .env  ·  .env.example             Secretos del BACKEND (R2)
@@ -232,7 +232,8 @@ npm install
 - **No** hay que hacer `npm install` dentro de `supabase/`, `supabase/functions/` ni `js/`.
 - Requisito: **Node.js 20 o superior**. El resto (CLI de Supabase, Deno para las pruebas y un servidor local)
   se instala solo con ese comando.
-- El sitio en sí **no tiene build ni dependencias de npm**: Bootstrap y las fuentes se cargan por CDN.
+- El sitio en sí es estático, sin framework: `npm run build` solo copia los archivos públicos a `dist/`. Bootstrap, los íconos y
+  supabase-js se sirven desde el propio sitio (`css/vendor/`, `js/vendor/`), sin CDN.
 
 ### Pasos
 
@@ -252,7 +253,7 @@ npm install
 | `npm run dev` | Sitio en http://localhost:3000 |
 | `npm run build` | Arma `dist/` con **solo** los archivos públicos |
 | `npm run preview` | Construye y sirve `dist/` en http://localhost:3001 |
-| `npm test` | 66 pruebas de las funciones (sin red) |
+| `npm test` | Pruebas de las funciones (sin red) |
 | `npm run verify` | Formato + lint + tipos + pruebas |
 | `npm run sb:login` / `sb:link` | Iniciar sesión / vincular el proyecto Supabase |
 | `npm run sb:db-push` | Aplica las migraciones a la base |
@@ -265,7 +266,11 @@ Los comandos `sb:*` aceptan `--dry-run` para ver qué ejecutarían.
 ### Publicar el sitio en Hostinger
 
 1. `npm run build`
-2. Subir a `public_html` el **contenido** de `dist/` (no la carpeta del proyecto).
+2. Subir a `public_html` el **contenido** de `dist/` (no la carpeta del proyecto). A mano (Administrador de archivos o FTP) o con
+   el workflow manual **«Publicar en Hostinger»** (`.github/workflows/hostinger.yml`: corre `verify`, arma `dist/` y lo sube por FTP).
+
+La guía completa de entrega (cuentas, correo, PayPal live, Hostinger y recorrido con el cliente) está en
+[`docs/ENTREGA.md`](docs/ENTREGA.md).
 
 `dist/` contiene solo `index.html`, `css/`, `js/`, `assets/` y `.htaccess`: por construcción no puede llevarse
 `.env`, `supabase/` ni `scripts/`. Si por error se subiera todo el proyecto, el `.htaccess` sigue bloqueando
@@ -976,11 +981,12 @@ usa:
 
 - Regla para el frontend: con `classes` **no usar `select('*')`** (la key de R2 está restringida);
   listar las columnas explícitamente.
-- La web usa imágenes de Unsplash enlazadas directamente y Bootstrap/fuentes por CDN sin SRI: conviene alojarlas o
-  fijarlas antes de producción.
-- 16 enlaces `href="#"` y el ícono de cuenta sin acción (se resuelven en las Fases 6 y 7); la navegación no tiene
-  enlace a "Videoteca".
-- Los textos usan voseo argentino y "Envíos a todo el país": revisar para España.
+- Las imágenes de la home siguen enlazadas desde Unsplash: reemplazarlas por fotos propias del cliente (en `assets/`) y quitar
+  `images.unsplash.com` de la CSP (`scripts/lib/security-headers.mjs`). Bootstrap, los íconos y supabase-js ya se sirven desde el propio sitio.
+- Los textos del sitio ya están en español de España (tuteo). Quedan dos pendientes de lenguaje: «talle» (en España, «talla»;
+  el código y los E2E lo usan en muchos sitios) y «Envíos a todo el país» (hoy solo se envía a España).
+- Páginas legales: `aviso-legal.html` y `condiciones.html` son una redacción base que debe revisar la gestoría o un asesor
+  (ver los comentarios al inicio de cada archivo).
 - Límite de frecuencia por usuario en las 4 funciones con sesión (ver `docs/BLINDAJE-FASES-0-16.md`); los topes
   (60/min reproducción y confirmación, 20/min subir y borrar) se ajustan en `supabase/functions/_shared/rate-limit.ts`.
 - Aún no verificado con servicios reales: CORS del bucket de R2 y los adaptadores de Supabase.

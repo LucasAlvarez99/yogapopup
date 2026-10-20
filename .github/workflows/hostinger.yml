@@ -1,0 +1,56 @@
+# Publica el sitio en Hostinger por FTP: arma dist/ (igual que `npm run build`, ver scripts/build-site.mjs) y sube SOLO su
+# contenido a public_html. Es MANUAL a propósito (Actions > "Publicar en Hostinger" > Run workflow): subir a producción es
+# una decisión, no un efecto de cada push. Antes de subir pasa formato, lint, tipos y pruebas (npm run verify).
+#
+# Configuración (una sola vez): Settings > Secrets and variables > Actions
+#   Secrets:    HOSTINGER_FTP_SERVER   p. ej. ftp.tudominio.com (hPanel > Archivos > Cuentas FTP)
+#               HOSTINGER_FTP_USER     el usuario FTP
+#               HOSTINGER_FTP_PASSWORD su contraseña
+#   Variables:  HOSTINGER_FTP_DIR      carpeta destino con "/" al final (por defecto: public_html/). Si el usuario FTP ya entra
+#                                      DENTRO de public_html, poné ./
+#
+# Dependencia nueva: SamKirkland/FTP-Deploy-Action (la que usa casi todo el mundo para esto). Va fijada a una versión concreta y
+# solo recibe las credenciales FTP, nunca claves de Supabase, R2 ni PayPal. No borra nada del servidor (sin clean-slate): si
+# quitaste un archivo del sitio, bórralo a mano en el Administrador de archivos de Hostinger.
+#
+# Ojo: esto sube lo que hay en js/config.js en ESTA rama. Para cobrar de verdad hay que haber cambiado antes el Client ID
+# de PayPal a "live" (docs/ENTREGA.md, sección 4).
+name: Publicar en Hostinger
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hostinger
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run build
+      # El .htaccess (cabeceras de seguridad incluidas) viaja dentro de dist/: tiene que estar antes de subir.
+      - name: Comprobar que dist/ es lo esperado
+        run: |
+          test -f dist/index.html
+          test -f dist/.htaccess
+          test ! -e dist/.env
+          test ! -e dist/supabase
+      - uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          username: ${{ secrets.HOSTINGER_FTP_USER }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./dist/
+          server-dir: ${{ vars.HOSTINGER_FTP_DIR || 'public_html/' }}

@@ -10,7 +10,7 @@ import { toast } from './toast.js';
 /**
  * "Lo que dice nuestra comunidad" (Fases 26-27) en la sección Sobre nosotros de la home.
  *  - Lista: comentarios APROBADOS. Si todavía no hay ninguno la lista queda vacía (no hay tarjetas de ejemplo).
- *  - Formulario: se abre en un pop up desde el botón "Dejá tu comentario"; requiere sesión; uno por persona.
+ *  - Formulario: se abre en un pop up desde el botón "Deja tu comentario"; requiere sesión; uno por persona.
  *    Se publica al instante (sin aprobación). Al enviar se muestra un mensaje y el pop up se cierra solo.
  *    Si trae una palabra prohibida la base lo deja oculto y suspende la cuenta 168 h: se le explica y se cierra su sesión.
  * Quién puede qué lo decide la base (RLS); esto solo ordena la interfaz.
@@ -42,7 +42,7 @@ export function mountTestimonialModal(trigger, { onChange = () => {} } = {}) {
   let modalEl, bsModal, titleEl, bodyEl, closeTimer = null, isOpen = false, isHiding = false, token = 0, signOutOnClose = false;
 
   function build() {
-    titleEl = el('h2', { class: 'modal-title', id: 'tmModalTitle' }, 'Dejá tu comentario');
+    titleEl = el('h2', { class: 'modal-title', id: 'tmModalTitle' }, 'Deja tu comentario');
     bodyEl = el('div', { class: 'modal-body' });
     modalEl = el('div', { class: 'modal fade yp-auth testimonial-modal', id: 'tmModal', tabindex: -1, 'aria-labelledby': 'tmModalTitle', 'aria-hidden': 'true' },
       el('div', { class: 'modal-dialog modal-dialog-centered' },
@@ -68,7 +68,7 @@ export function mountTestimonialModal(trigger, { onChange = () => {} } = {}) {
   });
 
   function showSuccess(existing) {
-    titleEl.textContent = existing ? 'Tu comentario' : 'Dejá tu comentario';
+    titleEl.textContent = existing ? 'Tu comentario' : 'Deja tu comentario';
     mount(bodyEl, el('div', { class: 'tm-success', id: 'tmSuccess', role: 'status' },
       icon('check-circle-fill', 'yp-auth-ok'),
       el('h3', { class: 'h4 mt-2' }, existing ? '¡Cambios guardados!' : '¡Comentario enviado!'),
@@ -87,7 +87,7 @@ export function mountTestimonialModal(trigger, { onChange = () => {} } = {}) {
       el('p', { class: 'mt-2 mb-2' }, until
         ? `Incluye palabras que no permitimos en nuestra comunidad. Por eso tu cuenta quedó suspendida por ${SUSPENSION_HOURS} horas (7 días).`
         : 'Tu comentario no se muestra en la página.'),
-      until ? el('p', { class: 'yp-auth-note mb-3', id: 'tmBlockedUntil' }, `Podés volver a ingresar el ${formatSuspensionEnd(until)}.`) : null,
+      until ? el('p', { class: 'yp-auth-note mb-3', id: 'tmBlockedUntil' }, `Puedes volver a ingresar el ${formatSuspensionEnd(until)}.`) : null,
       el('button', { type: 'button', class: 'btn btn-brand', id: 'tmBlockedOk', onclick: () => bsModal.hide() }, 'Entendido')));
   }
 
@@ -102,13 +102,13 @@ export function mountTestimonialModal(trigger, { onChange = () => {} } = {}) {
     if (!user) {
       titleEl.textContent = '¿Practicaste con nosotros?';
       return mount(bodyEl, el('div', { class: 'testimonial-box' },
-        el('p', { class: 'yp-auth-note' }, 'Contanos cómo te fue. Tu comentario se publica después de que el equipo lo revise.'),
+        el('p', { class: 'yp-auth-note' }, 'Cuéntanos cómo te fue. Tu comentario se publica después de que el equipo lo revise.'),
         el('button', {
           type: 'button', class: 'btn btn-brand w-100', id: 'tmLogin',
           onclick: async () => { await whenHidden(); if (await openAuth()) open(); },
         }, 'Iniciar sesión para comentar')));
     }
-    titleEl.textContent = 'Dejá tu comentario';
+    titleEl.textContent = 'Deja tu comentario';
     mount(bodyEl, el('div', { class: 'testimonial-box', 'aria-busy': 'true' }, el('p', { class: 'text-muted small mb-0' }, 'Cargando…')));
     let existing = null, until = null;
     try { [existing, until] = await Promise.all([getMyTestimonial(user.id), getMySuspension()]); }
@@ -116,7 +116,7 @@ export function mountTestimonialModal(trigger, { onChange = () => {} } = {}) {
     if (mine !== token) return;
     if (until) return showBlocked(until);   // todavía suspendida (conserva un token vivo): no se ofrece el formulario
     mount(bodyEl, form(existing));
-    titleEl.textContent = existing ? 'Tu comentario' : 'Dejá tu comentario';
+    titleEl.textContent = existing ? 'Tu comentario' : 'Deja tu comentario';
     modalEl.querySelector('#tmBody')?.focus();
   }
 

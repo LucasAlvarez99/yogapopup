@@ -5,6 +5,7 @@ import { sellableTiers, tierBenefitLines, tierPriceLabel } from '../lib/tiers.js
 import { AppError, messageFor } from '../lib/errors.js';
 import { renderSubscriptionButtons } from '../lib/paypal.js';
 import { toast } from './toast.js';
+import { purchaseNotice } from './legal-notice.js';
 
 /** ¿Se ofrece la suscripción? Con pagos configurados sí; qué niveles se pueden contratar lo dice la base (ver tierPicker). */
 export const subscriptionOffered = () => paymentsEnabled;
@@ -51,7 +52,7 @@ export function subscribeBox({ tier, onActive } = {}) {
       }
     },
     onCancel: () => toast('Cancelaste el alta. No se te cobró nada.', { type: 'info' }),
-    onError: (err) => toast(err instanceof AppError ? messageFor(err) : 'PayPal no pudo procesar la suscripción. Probá de nuevo.', { type: 'error' }),
+    onError: (err) => toast(err instanceof AppError ? messageFor(err) : 'PayPal no pudo procesar la suscripción. Prueba de nuevo.', { type: 'error' }),
   }).then(() => { status.textContent = ''; }).catch((err) => {
     mount(box, el('p', { class: 'text-danger small', role: 'alert' }, icon('exclamation-triangle'), ' ', messageFor(err)));
   });
@@ -66,7 +67,7 @@ export function subscribeBox({ tier, onActive } = {}) {
 export function tierPicker({ onActive, allowedTiers = null } = {}) {
   const box = el('div', { class: 'tier-picker', id: 'tierPicker', 'aria-busy': 'true' }, el('p', { class: 'small text-muted mb-0', role: 'status' }, 'Cargando suscripciones…'));
   // Se avisa SIEMPRE, antes de elegir: sin cuenta de PayPal no se puede pagar la suscripción.
-  const paypalNotice = () => el('p', { class: 'tier-notice-inline', role: 'note' }, icon('paypal'), ' ', el('strong', {}, 'Necesitás una cuenta de PayPal para suscribirte.'),
+  const paypalNotice = () => el('p', { class: 'tier-notice-inline', role: 'note' }, icon('paypal'), ' ', el('strong', {}, 'Necesitas una cuenta de PayPal para suscribirte.'),
     ' Por ahora es el único medio de pago de las suscripciones.');
   let tiers = [];
 
@@ -86,6 +87,7 @@ export function tierPicker({ onActive, allowedTiers = null } = {}) {
     mount(box,
       paypalNotice(),
       card(t, [subscribeBox({ tier: t.tier, onActive })]),
+      purchaseNotice({ digital: true }),
       el('button', { type: 'button', class: 'btn btn-link btn-sm px-0 mt-2', id: 'tierBack', onclick: showList }, 'Elegir otro nivel'));
   }
 

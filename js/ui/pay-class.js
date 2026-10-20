@@ -5,6 +5,7 @@ import { classToItems, outcomeMessage } from '../lib/checkout.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { renderCheckoutButtons } from '../lib/paypal.js';
 import { toast } from './toast.js';
+import { purchaseNotice } from './legal-notice.js';
 
 /**
  * Compra de UNA clase suelta con PayPal. `offer` = { price_cents } leído de la base solo para mostrarlo: el cobro
@@ -17,7 +18,7 @@ export function buyClassBox({ classId, offer, onPurchased }) {
   const box = el('div', { class: 'pp-box' },
     el('p', { class: 'fw-semibold mb-1' }, 'Comprar esta clase'),
     el('p', { class: 'mb-2' }, el('strong', {}, formatPrice(offer.price_cents)), el('span', { class: 'small ms-1' }, '· IVA incluido · acceso por 30 días a esta clase')),
-    status, slot);
+    status, slot, purchaseNotice({ digital: true }));
 
   const busy = (text) => { status.textContent = text; slot.style.opacity = text ? '.4' : ''; slot.style.pointerEvents = text ? 'none' : ''; };
 
@@ -40,7 +41,7 @@ export function buyClassBox({ classId, offer, onPurchased }) {
       }
     },
     onCancel: () => toast('Cancelaste el pago. No se te cobró nada.', { type: 'info' }),
-    onError: (err) => toast(err instanceof AppError ? messageFor(err) : 'PayPal no pudo procesar el pago. Probá de nuevo.', { type: 'error' }),
+    onError: (err) => toast(err instanceof AppError ? messageFor(err) : 'PayPal no pudo procesar el pago. Prueba de nuevo.', { type: 'error' }),
   }).then(() => { status.textContent = ''; }).catch((err) => {
     mount(box, el('p', { class: 'text-danger small', role: 'alert' }, icon('exclamation-triangle'), ' ', messageFor(err)));
   });

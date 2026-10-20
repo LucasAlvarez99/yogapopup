@@ -64,7 +64,7 @@ export function buildProductInput(raw, { previousCategory = null, knownCategorie
 
   const price_cents = eurosToCents(raw.price);
   if (price_cents === null) {
-    return { error: 'Ingresá un precio válido en euros, por ejemplo 19,99 (sin separador de miles).' };
+    return { error: 'Introduce un precio válido en euros, por ejemplo 19,99 (sin separador de miles).' };
   }
 
   const stock = parseStock(raw.stock);

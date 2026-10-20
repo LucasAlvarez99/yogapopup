@@ -9,6 +9,12 @@ const fail = (name, detail) => ({ level: 'fail', name, detail });
 
 const PLACEHOLDER = /TU-PROYECTO|TU-ANON|TU-DOMINIO|REEMPLAZAR|xxxx|example\.com/i;
 
+/**
+ * Un dato legal que sigue siendo un marcador ("Tramitando", "pendiente", "completar", "xxx", "-", "N/A"…).
+ * Está escrito, pero no es el dato real: la política y las condiciones lo mostrarían tal cual.
+ */
+const LEGAL_PLACEHOLDER = /tr[aá]mit|pendiente|completar|por definir|a definir|^\s*(tbd|todo|xx+|n\/?a|-+|\.+|\?+)\s*$/i;
+
 /** Decodifica el payload de un JWT sin verificarlo (solo para inspeccionar el rol declarado). */
 export function jwtPayload(token) {
   try {
@@ -45,8 +51,11 @@ export function checkFrontendConfig(cfg = {}) {
     // La política muestra los datos del responsable desde LEGAL: sin ellos la página dice "pendiente de completar".
     const labels = { NAME: 'nombre o razón social', TAX_ID: 'NIF/CIF', ADDRESS: 'domicilio', EMAIL: 'correo de contacto' };
     const missing = Object.keys(labels).filter((k) => !String(cfg.LEGAL?.[k] || '').trim());
+    const provisional = Object.keys(labels).filter((k) => !missing.includes(k) && LEGAL_PLACEHOLDER.test(String(cfg.LEGAL[k])));
     if (missing.length) out.push(warn('js/config.js · LEGAL', `faltan los datos del responsable de la política de privacidad: ${missing.map((k) => labels[k]).join(', ')}`));
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(cfg.LEGAL.EMAIL))) out.push(warn('js/config.js · LEGAL', `el correo de contacto (${cfg.LEGAL.EMAIL}) no parece válido`));
+    else if (provisional.length) {
+      out.push(warn('js/config.js · LEGAL', `siguen con un valor provisional (no es el dato real) y se mostrarían así en la política y las condiciones: ${provisional.map((k) => `${labels[k]} («${String(cfg.LEGAL[k]).trim()}»)`).join(', ')}`));
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(cfg.LEGAL.EMAIL))) out.push(warn('js/config.js · LEGAL', `el correo de contacto (${cfg.LEGAL.EMAIL}) no parece válido`));
     else out.push(ok('js/config.js · LEGAL', 'datos del responsable completos'));
   }
   return out;

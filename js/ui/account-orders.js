@@ -46,7 +46,7 @@ export function ordersCard() {
       }, `Ver intentos sin completar (${parts.incomplete.length})`)
       : null;
     mount(body,
-      parts.main.length ? el('ul', { class: 'acc-list', id: 'accOrdersMain' }, ...parts.main.map(row)) : el('p', { class: 'text-muted' }, 'No tenés compras confirmadas.'),
+      parts.main.length ? el('ul', { class: 'acc-list', id: 'accOrdersMain' }, ...parts.main.map(row)) : el('p', { class: 'text-muted' }, 'No tienes compras confirmadas.'),
       toggle, incomplete);
   })();
   return card;

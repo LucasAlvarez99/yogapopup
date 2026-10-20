@@ -45,7 +45,7 @@ function sessionForm({ initial = null, onSave, onCancel }) {
       el('div', { class: 'col-md-3' }, field('sfMode', 'Modalidad', modeSel)),
       el('div', { class: 'col-md-3' }, field('sfDur', 'Duración (min)', el('input', { class: 'form-control', id: 'sfDur', type: 'number', min: 15, max: 240, value: init.duration_minutes ?? 60 }))),
       el('div', { class: 'col-md-3' }, field('sfCap', 'Cupo', el('input', { class: 'form-control', id: 'sfCap', type: 'number', min: 1, max: 500, value: init.capacity ?? '' }), 'Vacío = sin límite'))),
-    el('div', { class: 'form-check mb-3' }, published, el('label', { class: 'form-check-label', for: 'sfPub' }, 'Visible en la home (si lo destildás queda como borrador)')),
+    el('div', { class: 'form-check mb-3' }, published, el('label', { class: 'form-check-label', for: 'sfPub' }, 'Visible en la home (si lo desmarcas queda como borrador)')),
     err,
     el('div', { class: 'd-flex gap-2' },
       el('button', { type: 'submit', class: 'btn btn-brand' }, initial ? 'Guardar cambios' : 'Agendar clase'),
@@ -106,7 +106,7 @@ export async function showAgenda(root, { teacherId, isCurrent = () => true, titl
       },
     });
     const list = rows.length === 0
-      ? emptyState('Todavía no tenés clases agendadas', 'Creá la primera con el formulario de arriba: aparece en la home apenas la publiques.')
+      ? emptyState('Todavía no tienes clases agendadas', 'Crea la primera con el formulario de arriba: aparece en la home en cuanto la publiques.')
       : el('div', {}, ...rows.map((s) => sessionRow(s, {
         onEdit: () => { draw(rows, s); root.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); },
         onDelete: async () => {
@@ -200,7 +200,7 @@ export async function showTeachersAdmin(root, { isCurrent = () => true } = {}) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = input.value.trim();
-      if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Escribí un correo válido.', { type: 'error' });
+      if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Escribe un correo válido.', { type: 'error' });
       btn.disabled = true;
       try {
         const role = await addTeacherByEmail(email, alsoAdmin.checked);

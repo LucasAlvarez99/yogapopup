@@ -7,6 +7,8 @@ import { isEmail, PRIVACY_VERSION } from '../lib/legal.js';
  * Política de privacidad: el texto es estático (privacidad.html); aquí solo se rellenan los datos del responsable
  * desde js/config.js (LEGAL), SIEMPRE como texto (nunca como HTML). Lo que falte se muestra como "pendiente de
  * completar" a la vista, para que no pase desapercibido antes de publicar.
+ * Este mismo script sirve a las otras páginas legales (aviso-legal.html y condiciones.html): cada una marca sus datos
+ * con data-legal="NAME|TAX_ID|ADDRESS|EMAIL".
  */
 const pending = () => el('em', { class: 'yp-pending' }, '[pendiente de completar]');
 

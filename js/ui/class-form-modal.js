@@ -199,7 +199,7 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
       // El nivel no viaja por la función de subida (solo prepara el video): se guarda en la clase ya creada.
       if (firstAttempt && meta && meta.min_tier !== 1) {
         try { await adminUpdateClass(cls.id, { min_tier: meta.min_tier }); }
-        catch (err) { toast(`La clase se creó, pero el nivel no se guardó: ${messageFor(err)}. Editá la clase para elegirlo.`, { type: 'error', ms: 7000 }); }
+        catch (err) { toast(`La clase se creó, pero el nivel no se guardó: ${messageFor(err)}. Edita la clase para elegirlo.`, { type: 'error', ms: 7000 }); }
       }
 
       const thumbFile = firstAttempt ? form.cfThumb.files[0] : null; // la miniatura se sube una sola vez

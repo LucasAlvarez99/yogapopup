@@ -385,7 +385,7 @@ await test('home: suscripciones con lo que da cada nivel (videos que suman, desc
   assert.deepEqual(cards[2].lines, ['Todos los videos, sin excepciones', '7 % de descuento en toda la tienda', '1 clase virtual gratis por mes']);
   assert.equal(cards[2].extra, 'Acceso prioritario a novedades', 'el texto libre del panel también se muestra');
   // El aviso de PayPal es fijo y se ve siempre, y la home enlaza a la videoteca para comprar videos sueltos (30 días)
-  assert.match(await text(page, '.tier-notice'), /necesitás una cuenta de PayPal/);
+  assert.match(await text(page, '.tier-notice'), /necesitas una cuenta de PayPal/);
   assert.match(await text(page, '.tiers-single'), /30 días/);
   assert.ok(await page.$('a[href="#suscripciones"]'), 'el menú lleva a las suscripciones');
   // Sin sesión, "Suscribirme" abre el acceso (no empieza ningún pago)
@@ -438,7 +438,7 @@ await test('videoteca: los videos se agregan al carrito como los productos (un v
   assert.equal(norm(await text(page, '#cartSubtotal')), '14,99 €');
 });
 
-await test('videoteca: un video que ya tenés (comprado o incluido en tu suscripción) se ve, no se vuelve a comprar', async (page) => {
+await test('videoteca: un video que ya tienes (comprado o incluido en tu suscripción) se ve, no se vuelve a comprar', async (page) => {
   await signup('ana@test.dev');
   await page.goto(`${S}/videoteca.html`);
   await loginViaModal(page, 'ana@test.dev');
@@ -468,7 +468,7 @@ await test('clases: página con la agenda en vivo y "Mis videos" (comprados, con
   // la agenda de profesores (como en la home)
   await waitFor(page, () => document.querySelectorAll('#classesAgenda .ag-photo, #classesAgenda .ag-teacher, #classesAgenda .yp-card').length > 0, null, 15000);
   // sin sesión: pide iniciar sesión para ver los videos
-  await waitFor(page, () => /Iniciá sesión para ver tus videos/.test(document.getElementById('myVideos').textContent));
+  await waitFor(page, () => /Inicia sesión para ver tus videos/.test(document.getElementById('myVideos').textContent));
   await signup('ana@test.dev');
   await loginViaModal(page, 'ana@test.dev');
   await waitFor(page, () => /Todavía no compraste videos/.test(document.getElementById('myVideos').textContent));
@@ -756,7 +756,7 @@ await test('progreso: se guarda periódicamente y al pausar; al volver retoma y 
 
   await page.reload();
   await page.waitForSelector('.yp-resume:not([hidden])', { timeout: 15000 });
-  assert.match(await text(page, '.yp-resume'), /Continuás en 0:0[3-9]/);
+  assert.match(await text(page, '.yp-resume'), /Continúas en 0:0[3-9]/);
   await waitFor(page, (t) => document.querySelector('.yp-video').currentTime >= t - 1.5, tPause, 15000);
   assert.match(await text(page, '#info'), /Llevas \d+ %/);
 });
@@ -944,7 +944,7 @@ await test('cuenta: registro que exige confirmar el correo, y recuperación de c
   await page.type('#authEmail', 'nuevo@test.dev');
   await page.type('#authPass', PASS);
   await page.click('.yp-auth button[type=submit]');
-  await waitFor(page, () => /Revisá tu correo|Revisa tu correo/.test(document.querySelector('.yp-auth .modal-title').textContent));
+  await waitFor(page, () => /Revisa tu correo|Revisa tu correo/.test(document.querySelector('.yp-auth .modal-title').textContent));
   assert.match(await text(page, '.yp-auth-note'), /nuevo@test\.dev/);
   await page.click('.yp-auth [data-bs-dismiss=modal].btn');
   await waitFor(page, () => !document.querySelector('.modal-backdrop, .modal.show'), null, 5000); // cierre completo, no un tiempo fijo
@@ -1194,7 +1194,7 @@ await test('envío: el pop up pide el domicilio, marca lo que falta y devuelve l
   });
   await waitFor(page, () => document.querySelector('#shipModal')?.classList.contains('show'), null, 10000);
   await new Promise((r) => setTimeout(r, 450));
-  assert.match(await text(page, '#shipModal'), /Llená el formulario con tu domicilio para hacer el envío/);
+  assert.match(await text(page, '#shipModal'), /Rellena el formulario con tu domicilio para hacer el envío/);
   assert.equal(await page.$eval('#ship_email', (i) => i.value), 'ana@test.dev', 'el mail de la cuenta viene cargado');
   // vacío: no se envía y cada campo dice qué corregir
   await page.$eval('#shipForm button[type=submit]', (b) => b.click());
@@ -1253,7 +1253,7 @@ await test('cuenta · Mi suscripción: activa con próximo cobro; cancelar manti
   await page.click('#cancelSubscription');
   await waitFor(page, () => document.querySelector('#accSubscription [data-state]')?.dataset.state === 'cancelled', null, 10000);
   assert.equal((await be.state()).log.cancelSubscriptions, 1);
-  assert.match(await text(page, '#accSubscription'), /Seguís teniendo acceso hasta el /);
+  assert.match(await text(page, '#accSubscription'), /Sigues teniendo acceso hasta el /);
   assert.equal(await count(page, '#cancelSubscription'), 0);
 });
 
@@ -1272,7 +1272,7 @@ await test('cuenta · Mi suscripción: sin suscripción lo dice y no muestra can
   await openAccount(page, 'nosub@test.dev');
   await waitFor(page, () => document.querySelector('#accSubscription [data-state]'), null, 10000);
   assert.equal(await page.$eval('#accSubscription [data-state]', (n) => n.dataset.state), 'none');
-  assert.match(await text(page, '#accSubscription'), /No tenés una suscripción activa/);
+  assert.match(await text(page, '#accSubscription'), /No tienes una suscripción activa/);
   assert.equal(await count(page, '#cancelSubscription'), 0);
 });
 
@@ -1310,7 +1310,7 @@ const tmModalClosed = (page) => waitFor(page, () => !document.querySelector('#tm
 
 await test('comentarios: sin sesión el pop up pide iniciar sesión y no escribe nada', async (page) => {
   await page.goto(S);
-  assert.match(await text(page, '#openTestimonial'), /Dejá tu comentario/, 'el botón está debajo de "Explorar Yoga Pop Up"');
+  assert.match(await text(page, '#openTestimonial'), /Deja tu comentario/, 'el botón está debajo de "Explorar Yoga Pop Up"');
   await openTm(page);
   await waitFor(page, () => document.querySelector('#tmLogin'), null, 10000);
   assert.equal(await count(page, '#tmForm'), 0);
@@ -1384,7 +1384,7 @@ await test('comentarios: una palabra prohibida no se publica y suspende la cuent
   await page.click('#tmForm button[type=submit]');
   await waitFor(page, () => document.querySelector('#tmBlocked'), null, 8000);
   assert.match(await text(page, '#tmBlocked'), /168 horas/);
-  assert.match(await text(page, '#tmBlockedUntil'), /Podés volver a ingresar el/);
+  assert.match(await text(page, '#tmBlockedUntil'), /Puedes volver a ingresar el/);
   const state = await be.state();
   assert.equal(state.testimonials.length, 1);
   assert.equal(state.testimonials[0].status, 'hidden', 'con palabra prohibida no se publica');
@@ -1533,7 +1533,7 @@ await test('panel · profesor (solo rol profesor): ve SOLO "Mi agenda" y "Mi per
   const tabs = await page.$$eval('.nav-tabs .nav-link', (n) => n.map((x) => x.textContent));
   assert.deepEqual(tabs, ['Mi agenda', 'Mi perfil'], 'un profesor no ve Clases, Productos ni Profesores');
   await page.waitForSelector('#sfTitle');
-  assert.match(await text(page, '#panelContent'), /Todavía no tenés clases agendadas/);
+  assert.match(await text(page, '#panelContent'), /Todavía no tienes clases agendadas/);
   // Validación: sin título no guarda y explica
   await page.click('#panelContent form button[type=submit]');
   await waitFor(page, () => /título es obligatorio/.test(document.querySelector('#panelContent form [role=alert]')?.textContent ?? ''));
@@ -1653,7 +1653,7 @@ await test('panel · developer: da de alta a un profesor por correo (con "Tambi�
 
 await test('panel: sin sesión pide iniciar sesión y un usuario común ve "Acceso restringido"', async (page) => {
   await page.goto(`${S}/panel.html`);
-  await waitFor(page, () => document.querySelector('#panel')?.innerText.includes('Iniciá sesión para ver el panel'), null, 10000);
+  await waitFor(page, () => document.querySelector('#panel')?.innerText.includes('Inicia sesión para ver el panel'), null, 10000);
   await signup('comun@test.dev');
   await loginViaModal(page, 'comun@test.dev');
   await waitFor(page, () => document.querySelector('#panel')?.innerText.includes('Acceso restringido'), null, 10000);

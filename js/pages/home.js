@@ -75,7 +75,7 @@ async function loadProducts() {
 }
 loadProducts();
 
-// Practicá acompañado: carrusel de profesores + agenda de clases en vivo (datos reales; sin tarjetas de ejemplo).
+// Practica acompañado: carrusel de profesores + agenda de clases en vivo (datos reales; sin tarjetas de ejemplo).
 const agendaBox = document.getElementById('homeAgenda');
 if (agendaBox) {
   if (!supabase) {

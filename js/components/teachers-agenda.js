@@ -8,7 +8,7 @@ import { messageFor } from '../lib/errors.js';
 import { emptyState, errorState } from '../ui/states.js';
 
 /**
- * "Practicá acompañado": carrusel de profesores + agenda de clases en vivo (calendario del mes, horarios del día y reserva).
+ * "Practica acompañado": carrusel de profesores + agenda de clases en vivo (calendario del mes, horarios del día y reserva).
  *
  * Todo lo que viene de la base entra como TEXTO (`el()`), nunca como HTML. Los datos externos se piden por `api`
  * (inyectable para probar el componente sin red) y la sesión por `auth`. El permiso de reservar lo decide la base:
@@ -39,7 +39,7 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
     }
     root.setAttribute('aria-busy', 'false');
     if (st.teachers.length === 0) {
-      return mount(root, emptyState('Muy pronto, nuestras clases en vivo', 'Estamos sumando profesores y horarios. Volvé en unos días.'));
+      return mount(root, emptyState('Muy pronto, nuestras clases en vivo', 'Estamos sumando profesores y horarios. Vuelve en unos días.'));
     }
     await loadMonth({ jump: true });
   }
@@ -132,7 +132,7 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
     const list = daySessions();
     if (list.length === 0) {
       return el('p', { class: 'ag-empty', role: 'status' }, st.sessions.length === 0
-        ? `Todavía no hay clases agendadas este mes con ${teacher().public_name}.` : 'Elegí un día marcado en el calendario.');
+        ? `Todavía no hay clases agendadas este mes con ${teacher().public_name}.` : 'Elige un día marcado en el calendario.');
     }
     return el('ul', { class: 'ag-slots' }, ...list.map((s) => {
       const full = isFull(s);

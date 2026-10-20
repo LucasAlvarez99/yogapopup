@@ -11,12 +11,12 @@ const VIDEO_EXT = /\.(mp4|m4v|mov|webm)$/i;
 
 /** @returns {string|null} el motivo por el que el archivo no sirve, o null si está bien. */
 export function videoFileProblem(file) {
-  if (!file) return 'Elegí un archivo de video.';
+  if (!file) return 'Elige un archivo de video.';
   // Algunos sistemas dejan `type` vacío para .mov/.mkv: en ese caso se mira la extensión.
   const isVideo = file.type ? /^video\//i.test(file.type) : VIDEO_EXT.test(file.name || '');
   if (!isVideo) return 'El archivo tiene que ser un video (MP4, MOV o WebM).';
   if (!(file.size > 0)) return 'El archivo está vacío.';
-  if (file.size > MAX_VIDEO_BYTES) return 'El video pesa más de 5 GB: comprimilo antes de subirlo.';
+  if (file.size > MAX_VIDEO_BYTES) return 'El video pesa más de 5 GB: comprímelo antes de subirlo.';
   return null;
 }
 

@@ -457,7 +457,7 @@ const pickProductFields = (obj) => Object.fromEntries(Object.entries(obj).filter
 
 function productError(error) {
   if (error.code === '42501') return new AppError('admin_only');
-  if (error.code === '23514') return new AppError('invalid_input', 'Revisá los datos: hay un valor fuera de rango (precio, stock o largo de un texto).');
+  if (error.code === '23514') return new AppError('invalid_input', 'Revisa los datos: hay un valor fuera de rango (precio, stock o largo de un texto).');
   if (error.code === 'PGRST116') return new AppError('product_not_found');
   if (error.code === '22023') return new AppError('sizes_invalid', error.message);
   return new AppError('internal_error', error.message);

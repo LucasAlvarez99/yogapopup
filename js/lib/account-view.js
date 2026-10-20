@@ -109,7 +109,7 @@ export function describeOrder(order, { now = new Date() } = {}) {
     const until = new Date(new Date(order.paid_at).getTime() + CLASS_ACCESS_DAYS * 86_400_000);
     accessNote = until > now
       ? `Acceso hasta el ${formatDate(until)}`
-      : `El acceso venció el ${formatDate(until)}. Para volver a verla, comprala de nuevo.`;
+      : `El acceso venció el ${formatDate(until)}. Para volver a verla, cómprala de nuevo.`;
   }
   return {
     id: order.id,
@@ -164,7 +164,7 @@ export function describeSubscription(
 
   const noActive = (state) => ({
     state,
-    headline: 'No tenés una suscripción activa.',
+    headline: 'No tienes una suscripción activa.',
     details: [],
     canCancel: false,
     canSubscribe: true,
@@ -183,7 +183,7 @@ export function describeSubscription(
       canCancel: false,
       canSubscribe: true,
       details: [
-        until ? `Seguís teniendo acceso hasta el ${until}.` : 'Seguís teniendo acceso hasta que termine el período pagado.',
+        until ? `Sigues teniendo acceso hasta el ${until}.` : 'Sigues teniendo acceso hasta que termine el período pagado.',
         'Después de esa fecha no se te cobra ni se renueva.',
       ],
     };
@@ -198,8 +198,8 @@ export function describeSubscription(
       details: [
         plan,
         until && stillPaid
-          ? `PayPal no pudo cobrar la renovación. Tenés acceso hasta el ${until}; actualizá tu medio de pago en PayPal para no perderlo.`
-          : 'PayPal no pudo cobrar la renovación. Actualizá tu medio de pago en PayPal.',
+          ? `PayPal no pudo cobrar la renovación. Tienes acceso hasta el ${until}; actualiza tu medio de pago en PayPal para no perderlo.`
+          : 'PayPal no pudo cobrar la renovación. Actualiza tu medio de pago en PayPal.',
         last,
       ].filter(Boolean),
     };

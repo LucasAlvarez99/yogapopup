@@ -213,6 +213,9 @@
 .legal p, .legal li { line-height: 1.65; }
 .legal ul { padding-left: 1.2rem; }
 .legal .legal-meta { color: var(--color-text-muted); font-size: .9rem; }
+.legal-note { font-size: .82rem; line-height: 1.45; color: var(--color-text-muted); margin: .6rem 0; }
+.legal-note span { display: block; margin-top: .2rem; }
+.legal-note a { color: inherit; text-decoration: underline; }
 .legal .yp-pending { background: #fff3cd; color: #664d03; padding: 0 .35em; border-radius: .3em; font-style: normal; }
 
 /* ---- Precio con IVA incluido y, al lado más chico, el precio sin IVA ---- */

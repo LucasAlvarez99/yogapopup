@@ -7,6 +7,7 @@ import { AppError, messageFor } from '../lib/errors.js';
 import { renderCheckoutButtons } from '../lib/paypal.js';
 import { openAuth } from './auth-modal.js';
 import { toast } from './toast.js';
+import { purchaseNotice } from './legal-notice.js';
 
 /**
  * Pantalla de pago dentro del carrito: resumen + botones de PayPal.
@@ -42,8 +43,8 @@ export function checkoutView({ validation, shipTo = null, shippingCents = 0, onE
     busy('');
     const kind = classifyPaymentError(err);
     if (kind === 'stale') { toast(messageFor(err), { type: 'error' }); return onStale(); }
-    if (kind === 'login') return openAuth({ message: 'Tu sesión venció. Iniciá sesión para pagar.' });
-    toast(err instanceof AppError ? messageFor(err) : 'PayPal no pudo procesar el pago. Probá de nuevo.', { type: 'error' });
+    if (kind === 'login') return openAuth({ message: 'Tu sesión venció. Inicia sesión para pagar.' });
+    toast(err instanceof AppError ? messageFor(err) : 'PayPal no pudo procesar el pago. Prueba de nuevo.', { type: 'error' });
   }
 
   renderCheckoutButtons(slot, {
@@ -86,7 +87,8 @@ export function checkoutView({ validation, shipTo = null, shippingCents = 0, onE
       : null,
     el('div', { class: 'subtotal' }, el('span', {}, 'Total'), el('strong', { id: 'checkoutTotal' }, formatPrice(totals.totalCents))),
     totals.taxCents > 0 ? el('p', { class: 'cart-tax' }, `IVA incluido: ${formatPrice(totals.taxCents)}`) : null,
-    validation.hasClasses ? el('p', { class: 'cart-note' }, icon('play-circle'), ' Tus videos se activan apenas se confirma el pago.') : null,
+    validation.hasClasses ? el('p', { class: 'cart-note' }, icon('play-circle'), ' Tus videos se activan en cuanto se confirma el pago.') : null,
+    purchaseNotice({ digital: validation.hasClasses, physical: validation.hasProducts }),
     status, slot, back);
 }
 

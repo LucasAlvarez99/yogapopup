@@ -102,7 +102,7 @@ Deno.test("compras: describeOrder resume renglones y solo ofrece 'ver clase' si 
   const vigente = describeOrder(c, { now: new Date("2026-01-20T00:00:00Z") });
   assert.match(vigente.accessNote, /^Acceso hasta el /);
   const vencida = describeOrder(c, { now: new Date("2026-03-01T00:00:00Z") });
-  assert.match(vencida.accessNote, /^El acceso venció el .*comprala de nuevo/);
+  assert.match(vencida.accessNote, /^El acceso venció el .*cómprala de nuevo/);
   assert.equal(describeOrder(base).accessNote, "", "un pedido de la tienda no vence");
   assert.equal(describeOrder({ ...c, status: "refunded" }).accessNote, "");
   assert.equal(describeOrder({ ...c, status: "refunded" }).classId, null);
@@ -167,7 +167,7 @@ Deno.test("suscripción: cada estado dice lo que corresponde y ofrece lo que cor
   assert.equal(cancelled.state, "cancelled");
   assert.equal(cancelled.canCancel, false);
   assert.ok(
-    cancelled.details[0].startsWith("Seguís teniendo acceso hasta el "),
+    cancelled.details[0].startsWith("Sigues teniendo acceso hasta el "),
   );
 
   const suspended = describeSubscription({

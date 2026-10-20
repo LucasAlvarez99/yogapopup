@@ -156,6 +156,40 @@ Deno.test("doctor · frontend: los datos del responsable de la política de priv
   assert.equal(find({ ...base, PRIVACY_URL: "" }), undefined);
 });
 
+Deno.test("doctor · frontend: un dato legal con valor provisional ('Tramitando', 'pendiente'…) NO cuenta como completo", () => {
+  const base = {
+    SUPABASE_URL: "https://abcdwxyz.supabase.co",
+    SUPABASE_ANON_KEY: jwt({ role: "anon" }),
+    PRIVACY_URL: "privacidad.html",
+  };
+  const find = (legal) => checkFrontendConfig({ ...base, LEGAL: legal }).find((x) => x.name === "js/config.js · LEGAL");
+
+  const provisional = find({
+    NAME: "YogaPopup",
+    TAX_ID: "Tramitando",
+    ADDRESS: "Pendiente de completar",
+    EMAIL: "hola@yogapopup.es",
+  });
+  assert.equal(provisional.level, "warn");
+  assert.match(provisional.detail, /provisional/);
+  assert.match(provisional.detail, /NIF\/CIF \(«Tramitando»\)/);
+  assert.match(provisional.detail, /domicilio/);
+  assert.doesNotMatch(provisional.detail, /nombre o razón|correo/);
+
+  for (const v of ["-", "N/A", "xxx", "TBD", "en trámite", "A definir"]) {
+    assert.equal(
+      find({ NAME: "Yoga SL", TAX_ID: v, ADDRESS: "Calle 1, Ibiza", EMAIL: "hola@yogapopup.es" }).level,
+      "warn",
+      v,
+    );
+  }
+  // Datos reales: en verde.
+  assert.equal(
+    find({ NAME: "Yoga SL", TAX_ID: "B12345678", ADDRESS: "Calle Mayor 1, Madrid", EMAIL: "hola@yogapopup.es" }).level,
+    "ok",
+  );
+});
+
 // ------------------------------------------------------------------ pagos con PayPal (Fases 17-22)
 const lvl = (results) => Object.fromEntries(results.map((r) => [r.name, r.level]));
 const GOOD_ENV = {

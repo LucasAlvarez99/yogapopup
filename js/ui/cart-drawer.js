@@ -165,11 +165,11 @@ function footer(validation) {
       ? el('p', { class: 'cart-tax', id: 'cartTax' }, `IVA incluido: ${formatPrice(validation.taxCents)} · sin IVA: ${formatPrice(validation.netCents)}`)
       : null,
     validation.hasProducts ? el('p', { class: 'cart-note' }, icon('truck'), ' Todos nuestros productos se envían a domicilio.') : null,
-    validation.hasClasses ? el('p', { class: 'cart-note' }, icon('play-circle'), ' Los videos se activan apenas se confirma el pago y los ves durante 30 días.') : null,
+    validation.hasClasses ? el('p', { class: 'cart-note' }, icon('play-circle'), ' Los videos se activan en cuanto se confirma el pago y los ves durante 30 días.') : null,
     paymentsEnabled
       ? el('button', {
         type: 'button', class: 'btn btn-brand w-100 mb-2', id: 'cartCheckout', disabled: !canCheckout(validation),
-        title: canCheckout(validation) ? null : 'Actualizá tu carrito para poder pagar', onclick: () => startCheckout(validation),
+        title: canCheckout(validation) ? null : 'Actualiza tu carrito para poder pagar', onclick: () => startCheckout(validation),
       }, 'Finalizar compra ', icon('arrow-right'))
       // Sin PayPal configurado no se simula una compra que no existe.
       : el('button', { type: 'button', class: 'btn btn-brand w-100 mb-2', disabled: true, title: 'El pago online llega pronto' },
@@ -180,7 +180,7 @@ function footer(validation) {
 }
 
 async function startCheckout(validation) {
-  if (!session.isLoggedIn()) return openAuth({ message: 'Iniciá sesión para pagar tu pedido.' });
+  if (!session.isLoggedIn()) return openAuth({ message: 'Inicia sesión para pagar tu pedido.' });
   // Con productos físicos: primero el pop up con el domicilio (se guarda en el pedido) y el costo de envío vigente.
   let shipTo = null;
   let shippingCents = 0;

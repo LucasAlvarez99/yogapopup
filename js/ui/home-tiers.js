@@ -15,7 +15,7 @@ function tierCard(t) {
     title: available ? null : 'Pronto vas a poder suscribirte',
   }, available ? 'Suscribirme' : 'Próximamente');
   choose.addEventListener('click', () => {
-    if (!session.isLoggedIn()) return openAuth({ message: 'Creá tu cuenta o iniciá sesión para suscribirte.' });
+    if (!session.isLoggedIn()) return openAuth({ message: 'Crea tu cuenta o inicia sesión para suscribirte.' });
     location.href = `${page('cuenta.html')}#accSubscription`; // ahí están los botones de PayPal de cada nivel
   });
   return el('article', { class: 'tier-card tier-card-home', 'data-tier': String(t.tier) },

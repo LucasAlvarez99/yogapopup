@@ -182,7 +182,7 @@ ejecutar `supabase/first_class.example.sql` con esa key y la duración.)
 npm run build             # arma dist/ con SOLO los archivos públicos
 ```
 
-Sube a `public_html` el **contenido** de `dist/` (no la carpeta del proyecto). Después abre el sitio, crea una
+Sube a `public_html` el **contenido** de `dist/` (no la carpeta del proyecto). (También hay un workflow manual de GitHub, «Publicar en Hostinger», que lo hace por FTP; ver `docs/ENTREGA.md`.) Después abre el sitio, crea una
 cuenta, entra a la videoteca y reproduce la clase en el móvil y en el ordenador.
 
 ## 10 · UptimeRobot (cliente)

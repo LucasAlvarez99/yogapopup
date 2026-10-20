@@ -37,19 +37,21 @@ export function buildReminderEmail(
   const mode = row.mode === "virtual" ? "clase virtual" : "clase en vivo";
   const teacher = row.teacher_name ? ` con ${row.teacher_name}` : "";
   const where = cfg.siteUrl ? `${cfg.siteUrl.replace(/\/+$/, "")}/cuenta.html` : null;
-  const line1 = `Te recordamos que hoy tenés tu ${mode} «${row.title}»${teacher}.`;
+  const line1 = `Te recordamos que hoy tienes tu ${mode} «${row.title}»${teacher}.`;
   const line2 = `Es hoy, ${day}, a las ${time} (${row.duration_minutes} min).`;
   const line3 = where
-    ? `Podés ver o cancelar tu reserva (hasta que empiece la clase) desde tu cuenta: ${where}`
-    : "Podés ver o cancelar tu reserva (hasta que empiece la clase) desde tu cuenta.";
+    ? `Puedes ver o cancelar tu reserva (hasta que empiece la clase) desde tu cuenta: ${where}`
+    : "Puedes ver o cancelar tu reserva (hasta que empiece la clase) desde tu cuenta.";
   const text = [greeting, "", line1, line2, "", line3, "", `— ${cfg.brandName}`].join("\n");
   const link = where ? ` <a href="${escapeHtml(where)}">tu cuenta</a>` : " tu cuenta";
   const html = `<p>${escapeHtml(greeting)}</p>` +
-    `<p>Te recordamos que hoy tenés tu ${mode} <strong>«${escapeHtml(row.title)}»</strong>${escapeHtml(teacher)}.</p>` +
+    `<p>Te recordamos que hoy tienes tu ${mode} <strong>«${escapeHtml(row.title)}»</strong>${
+      escapeHtml(teacher)
+    }.</p>` +
     `<p>Es hoy, <strong>${escapeHtml(day)}</strong>, a las <strong>${
       escapeHtml(time)
     }</strong> (${row.duration_minutes} min).</p>` +
-    `<p>Podés ver o cancelar tu reserva (hasta que empiece la clase) desde${link}.</p>` +
+    `<p>Puedes ver o cancelar tu reserva (hasta que empiece la clase) desde${link}.</p>` +
     `<p>— ${escapeHtml(cfg.brandName)}</p>`;
   return { to: row.email ?? "", subject: `Hoy a las ${time}: ${row.title}`.slice(0, 150), text, html };
 }

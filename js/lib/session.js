@@ -127,12 +127,12 @@ export async function updatePassword(newPassword) {
 export function authMessage(err) {
   const msg = String(err?.message || '').toLowerCase();
   if (msg.includes('invalid login')) return 'El correo o la contraseña no son correctos.';
-  if (msg.includes('banned')) return 'Tu cuenta está suspendida temporalmente por incumplir las normas de convivencia. Probá de nuevo cuando termine la suspensión.';
-  if (msg.includes('email not confirmed')) return 'Confirmá tu correo antes de entrar: te enviamos un enlace.';
-  if (msg.includes('already registered') || msg.includes('already been registered')) return 'Ya existe una cuenta con ese correo. Probá iniciar sesión.';
+  if (msg.includes('banned')) return 'Tu cuenta está suspendida temporalmente por incumplir las normas de convivencia. Prueba de nuevo cuando termine la suspensión.';
+  if (msg.includes('email not confirmed')) return 'Confirma tu correo antes de entrar: te enviamos un enlace.';
+  if (msg.includes('already registered') || msg.includes('already been registered')) return 'Ya existe una cuenta con ese correo. Prueba iniciar sesión.';
   if (msg.includes('password') && msg.includes('characters')) return 'La contraseña es demasiado corta (mínimo 8 caracteres).';
-  if (msg.includes('rate limit') || err?.status === 429) return 'Demasiados intentos. Esperá un momento e intentá de nuevo.';
-  if (msg.includes('weak') || msg.includes('pwned')) return 'Elegí una contraseña más segura.';
-  if (msg.includes('fetch') || msg.includes('network')) return 'No pudimos conectar. Revisá tu conexión.';
-  return 'No pudimos completar la acción. Probá de nuevo.';
+  if (msg.includes('rate limit') || err?.status === 429) return 'Demasiados intentos. Espera un momento e intenta de nuevo.';
+  if (msg.includes('weak') || msg.includes('pwned')) return 'Elige una contraseña más segura.';
+  if (msg.includes('fetch') || msg.includes('network')) return 'No pudimos conectar. Revisa tu conexión.';
+  return 'No pudimos completar la acción. Prueba de nuevo.';
 }
