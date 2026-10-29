@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "deno": "2.9.6",
-    "puppeteer-core": "25.11.0",
+    "puppeteer-core": "25.16.0",
     "serve": "14.2.6",
     "supabase": "2.117.0"
   },
