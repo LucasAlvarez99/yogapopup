@@ -230,7 +230,8 @@ npm install
 ```
 
 - **No** hay que hacer `npm install` dentro de `supabase/`, `supabase/functions/` ni `js/`.
-- Requisito: **Node.js 20 o superior**. El resto (CLI de Supabase, Deno para las pruebas y un servidor local)
+- Requisito: **Node.js 24.22.1 o superior** (LTS). La versión recomendada y fijada está en `.nvmrc`.
+  El resto (CLI de Supabase, Deno para las pruebas y un servidor local)
   se instala solo con ese comando.
 - El sitio en sí **no tiene build ni dependencias de npm**: Bootstrap y las fuentes se cargan por CDN.
 

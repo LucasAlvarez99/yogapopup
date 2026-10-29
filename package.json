@@ -4,7 +4,7 @@
   "private": true,
   "description": "YogaPop Up: sitio estático + videos en Cloudflare R2 + Supabase (auth, clases, progreso)",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=24.22.1"
   },
   "scripts": {
     "dev": "serve . -l 3000 -c serve.json",
