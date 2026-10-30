@@ -19,7 +19,7 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
   // mientras estén vacíos la página muestra "pendiente de completar" y `npm run doctor` lo avisa.
   LEGAL: {
     NAME: 'YogaPopup',     // nombre y apellidos, o razón social
-    TAX_ID: 'Tramitando',   // NIF / CIF
+    TAX_ID: '27-38902210-7',   // NIF / CIF
     ADDRESS: 'Tramitando',  // domicilio (calle, número, código postal, localidad, provincia)
     EMAIL: 'Manuelaperuzzotti@gmail.com',    // correo para ejercer derechos de privacidad
   },
@@ -29,7 +29,7 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
   //   Vacío = no se muestran botones de pago (la tienda y las suscripciones quedan en "pronto").
   //   Los 3 niveles de suscripción (nombre, beneficios y precio) se editan desde el panel > Pagos > Planes de suscripción.
   PAYPAL: {
-    CLIENT_ID: 'Adjm1jBhCvYq4TEe_gxsmleLjM4bThBUkjMLGlMkjHb35xG5915O83si9lTjq_OVXYeZcNwxHjdY5Hel',
+    CLIENT_ID: 'BAAVo6AljWRup6BRDRI31E_kuH6ZDJwIPJogr8-0t1YhC9SoTGdkTy_nxud3L3C8qbCgqh0bWu8dtCzAIo',
   },
   // Cada cuántos segundos de reproducción se guarda el progreso.
   PROGRESS_INTERVAL_SECONDS: 15,
