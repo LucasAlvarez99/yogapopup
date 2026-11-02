@@ -9,7 +9,7 @@ const NAV = [
   ['Suscripciones', 'index.html#suscripciones', 'suscripciones'],
   ['Clases', 'clases.html', 'clases'],
   ['Videoteca', 'videoteca.html', 'videoteca'],
-  ['Merchandising', 'tienda.html', 'tienda'],
+  ['Shop', 'tienda.html', 'tienda'],
   ['Sobre nosotros', 'index.html#nosotros', 'nosotros'],
 ];
 

@@ -1508,9 +1508,10 @@ await test('idioma: el selector traduce la página, se recuerda al recargar y vu
   await page.keyboard.press('Escape');
   // Se recuerda al recargar y en otras páginas
   await page.goto(`${S}/tienda.html`);
-  await waitFor(page, () => document.documentElement.lang === 'en' && /Shop/.test(document.querySelector('h1')?.textContent ?? ''), null, 10000);
+  // El título ya se llama "Shop" en los dos idiomas: el cambio de idioma se comprueba con la bajada de la página.
+  await waitFor(page, () => document.documentElement.lang === 'en' && /Designed to support your practice/.test(document.querySelector('.page-hero p')?.textContent ?? ''), null, 10000);
   await page.select('.lang-select', 'es');
-  await waitFor(page, () => document.documentElement.lang === 'es' && /Tienda/.test(document.querySelector('h1').textContent));
+  await waitFor(page, () => document.documentElement.lang === 'es' && /Diseñado para acompañar tu práctica/.test(document.querySelector('.page-hero p').textContent));
   // ?lang=en sirve para compartir un enlace
   await page.goto(`${S}/tienda.html?lang=en`);
   await waitFor(page, () => document.documentElement.lang === 'en', null, 10000);
