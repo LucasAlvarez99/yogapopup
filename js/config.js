@@ -16,7 +16,7 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
   // acceso (recuperar contraseña, confirmar cuenta). Vacío = vuelven a la página desde la que se pidió el correo; si se pidió
   // desde localhost, el enlace apunta a localhost y no abre en otro equipo. También hay que ponerla en Supabase > Authentication >
   // URL Configuration (Site URL y Redirect URLs).
-  SITE_URL: '',
+  SITE_URL: 'https://yogapopuplife.com',
   // URL de la política de privacidad. Con valor, el registro exige aceptarla (RGPD/LOPDGDD) y guarda cuándo y qué versión.
   // Relativa al sitio ('privacidad.html') o una URL https completa.
   PRIVACY_URL: 'privacidad.html',
