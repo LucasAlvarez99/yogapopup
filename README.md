@@ -538,7 +538,7 @@ ping de UptimeRobot a `/functions/v1/health` cada 5 min) y **no incluye copias d
       (`stockInfo`: `null` = sin control de stock, `0` = agotado, `≤5` = "Últimas N unidades")
 - [x] El botón "agregar al carrito" existe pero está deshabilitado ("Próximamente"): el carrito es la
       Fase 15-16, así que por ahora no simula una compra que no existe
-- [x] La sección "Merchandising" de la home y su navegación ya apuntaban a un ancla `#tienda` sin
+- [x] La sección "Shop" de la home y su navegación ya apuntaban a un ancla `#tienda` sin
       página real; ahora enlazan a `tienda.html`
 - [x] 6 pruebas unitarias (`tests/web/tienda.test.js`) para `formatPrice`/`stockInfo`/`filterProducts`/
       `categoriesOf` — encontraron y corrigieron un bug real: buscar la palabra "null" en la tienda

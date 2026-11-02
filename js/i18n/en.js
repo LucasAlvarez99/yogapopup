@@ -39,7 +39,7 @@ const exact = {
   // ---- Encabezado, pie y navegación
   'Yoga Pop Up · Yoga & Conexión': 'Yoga Pop Up · Yoga & Connection',
   'Inicio': 'Home', 'Cursos': 'Courses', 'Clases': 'Classes', 'Videoteca': 'Video library',
-  'Merchandising': 'Merch', 'Sobre nosotros': 'About us', 'Tienda': 'Shop', 'Más': 'More',
+  'Sobre nosotros': 'About us', 'Tienda': 'Shop', 'Más': 'More',
   'Mi perfil': 'My profile', 'Mi cuenta': 'My account', 'Mi cuenta (sesión iniciada)': 'My account (signed in)',
   'Iniciar sesión o crear cuenta': 'Sign in or create an account',
   'Abrir menú': 'Open menu', 'Abrir carrito': 'Open cart', 'Navegación': 'Navigation',
@@ -63,7 +63,7 @@ const exact = {
   'Cursos, clases, videos y más. Todo lo que necesitás para tu práctica, en un solo lugar.':
     'Courses, classes, videos and more. Everything you need for your practice, in one place.',
   'Explorar cursos': 'Explore courses', 'Ver clases gratis': 'See free classes',
-  'Respirá': 'Breathe', 'Conectá': 'Connect', 'Avanzá': 'Move forward',
+  'Aparece': 'Show up', 'sucede': 'it happens', 'se goza': 'enjoy it', 'se mueve': 'move',
   'Todo lo que necesitás para tu práctica': 'Everything you need for your practice',
   'Ver todos': 'See all', 'Aprendé a tu ritmo': 'Learn at your own pace',
   'Cursos completos para todos los niveles, desde cero hasta avanzados.': 'Complete courses for every level, from scratch to advanced.',
@@ -234,8 +234,6 @@ const exact = {
   'Lo que dice nuestra comunidad': 'What our community says',
   'Los cursos son increíbles. La calidad de los videos y las explicaciones son excelentes. ¡Ya siento el cambio!':
     "The courses are incredible. The video quality and the explanations are excellent. I can already feel the change!",
-  'El merchandising es de muy buena calidad. El mat es una maravilla, se nota la diferencia.':
-    'The merch is very good quality. The mat is wonderful, you can feel the difference.',
   'Las clases en vivo me encantan, la profe transmite mucha calma y claridad. Totalmente recomendadas.':
     'I love the live classes, the teacher conveys so much calm and clarity. Highly recommended.',
   'Tu práctica también es un estilo de vida.': 'Your practice is also a way of life.',
@@ -292,7 +290,7 @@ const exact = {
   'Revisá los datos ingresados.': 'Check the data you entered.',
 
   // ---- Tienda y producto
-  'Tienda · Yoga Pop Up': 'Shop · Yoga Pop Up', 'Producto · Yoga Pop Up': 'Product · Yoga Pop Up',
+  'Shop · Yoga Pop Up': 'Shop · Yoga Pop Up', 'Producto · Yoga Pop Up': 'Product · Yoga Pop Up',
   'Diseñado para acompañar tu práctica: mats, ropa, accesorios y guías.': 'Designed to support your practice: mats, clothing, accessories and guides.',
   'Buscar productos…': 'Search products…', 'Buscar productos': 'Search products',
   'Todavía no hay productos': 'No products yet', 'Estamos preparando la tienda. Vuelve pronto.': "We're preparing the shop. Check back soon.",
