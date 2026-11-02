@@ -20,10 +20,10 @@ function close() {
 function open(anchor) {
   close();
   const { user, profile } = session.getState();
-  const name = profile?.display_name || user.email;
+  const name = profile?.display_name || 'Mi cuenta'; // el correo no se muestra en el perfil
   const items = [
-    el('div', { class: 'yp-account-who' }, el('strong', {}, name), profile?.display_name ? el('small', {}, user.email) : null),
-    // Mi perfil = la página de la cuenta: nombre, contraseña, progreso, compras y suscripción.
+    el('div', { class: 'yp-account-who' }, el('strong', {}, name)),
+    // Mi perfil = la página de la cuenta: nombre, progreso, compras y suscripción.
     el('a', { class: 'yp-account-item', href: page('cuenta.html'), role: 'menuitem' }, icon('person-circle'), 'Mi perfil'),
     el('a', { class: 'yp-account-item', href: page('videoteca.html'), role: 'menuitem' }, icon('collection-play'), 'Videoteca'),
     // El enlace a /interno (session.isDeveloper()) se añade cuando esa página exista: no se muestra

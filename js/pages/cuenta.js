@@ -15,7 +15,7 @@ import { couponsCard } from '../ui/account-coupons.js';
 import { ordersCard } from '../ui/account-orders.js';
 import { progressCard } from '../ui/account-progress.js';
 
-/** Mi cuenta: datos, mi suscripción, mis próximas clases en vivo, cambiar la contraseña y cerrar sesión. */
+/** Mi cuenta: nombre, mi suscripción, mis compras, mi progreso, mis próximas clases en vivo y cerrar sesión (sin mostrar el correo ni cambiar la contraseña desde acá). */
 const root = document.getElementById('account');
 
 async function saveName(name) {
@@ -67,8 +67,6 @@ function render() {
 
   const nameForm = el('form', { class: 'yp-card', novalidate: true },
     el('h2', { class: 'yp-block-title' }, 'Tus datos'),
-    el('div', { class: 'mb-3' }, el('label', { class: 'form-label', for: 'accEmail' }, 'Correo electrónico'),
-      el('input', { class: 'form-control', id: 'accEmail', value: user.email, readonly: true })),
     el('div', { class: 'mb-3' }, el('label', { class: 'form-label', for: 'accName' }, 'Nombre'),
       el('input', { class: 'form-control', id: 'accName', maxlength: 80, value: profile?.display_name || '', autocomplete: 'name' })),
     el('button', { type: 'submit', class: 'btn btn-brand' }, 'Guardar cambios'));
@@ -80,19 +78,7 @@ function render() {
     catch { toast('No se pudieron guardar los cambios.', { type: 'error' }); btn.disabled = false; }
   });
 
-  const passForm = el('form', { class: 'yp-card', novalidate: true },
-    el('h2', { class: 'yp-block-title' }, 'Cambiar contraseña'),
-    el('div', { class: 'mb-3' }, el('label', { class: 'form-label', for: 'accPass' }, 'Contraseña nueva (mínimo 8 caracteres)'),
-      el('input', { class: 'form-control', id: 'accPass', type: 'password', minlength: 8, autocomplete: 'new-password' })),
-    el('button', { type: 'submit', class: 'btn btn-outline-brand' }, 'Actualizar contraseña'));
-  passForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (passForm.accPass.value.length < 8) return toast('La contraseña debe tener al menos 8 caracteres.', { type: 'error' });
-    try { await session.updatePassword(passForm.accPass.value); passForm.reset(); toast('Contraseña actualizada.', { type: 'success' }); }
-    catch (err) { toast(session.authMessage(err), { type: 'error' }); }
-  });
-
-  const cards = [nameForm, passForm, ...(paymentsEnabled ? [subscriptionCard(), couponsCard(), ordersCard()] : []), progressCard(), bookingsCard()];
+  const cards = [nameForm, ...(paymentsEnabled ? [subscriptionCard(), couponsCard(), ordersCard()] : []), progressCard(), bookingsCard()];
   mount(root, el('div', { class: 'row g-4' }, ...cards.map((c) => el('div', { class: 'col-lg-6' }, c))),
     el('button', { type: 'button', class: 'btn btn-soft mt-4', onclick: async () => { await session.signOut(); location.href = 'index.html'; } }, 'Cerrar sesión'));
 }
