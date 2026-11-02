@@ -20,7 +20,7 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
   LEGAL: {
     NAME: 'YogaPopup',     // nombre y apellidos, o razón social
     TAX_ID: '27-38902210-7',   // NIF / CIF
-    ADDRESS: 'Tramitando',  // domicilio (calle, número, código postal, localidad, provincia)
+    ADDRESS: "Carrer Montnegre (o Carretera de l'Aeroport, km 4), 07817 Sant Jordi de ses Salines, Sant Josep de sa Talaia, Illes Balears, España.",  // domicilio (calle, número, código postal, localidad, provincia)
     EMAIL: 'Manuelaperuzzotti@gmail.com',    // correo para ejercer derechos de privacidad
   },
   // Pagos con PayPal (fases 17-22). Guía: docs/PAYPAL.md.
