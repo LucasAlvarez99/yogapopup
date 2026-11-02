@@ -1,11 +1,13 @@
 import { listMyProgress } from '../lib/api.js';
-import { groupProgress } from '../lib/account-view.js';
+import { DEFAULT_THUMBS, groupProgress } from '../lib/account-view.js';
 import { formatDate } from '../lib/format.js';
 import { messageFor } from '../lib/errors.js';
 import { el, mount } from '../lib/dom.js';
+import { thumb } from './account-thumb.js';
 
 function row(item) {
-  return el('li', { class: 'acc-row' },
+  return el('li', { class: 'acc-row acc-order' },
+    thumb({ src: item.thumbnailUrl || DEFAULT_THUMBS.class, fallback: DEFAULT_THUMBS.class, kind: 'class' }),
     el('div', { class: 'acc-row-main' },
       el('a', { class: 'acc-row-title', href: `clase.html?id=${encodeURIComponent(item.classId)}`, translate: 'no' }, item.title),
       el('div', { class: 'progress acc-progress mt-1', role: 'progressbar', 'aria-valuenow': item.percent, 'aria-valuemin': 0, 'aria-valuemax': 100 },

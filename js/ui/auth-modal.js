@@ -200,4 +200,12 @@ export function openAuth({ view: v = 'login', message = '' } = {}) {
 /** Debe llamarse una vez por página: abre el modal de "contraseña nueva" al volver del enlace del correo. */
 export function initAuthUi() {
   session.onChange((_state, event) => { if (event === 'PASSWORD_RECOVERY') openAuth({ view: 'recovery' }); });
+  // Un enlace vencido o ya usado (los programas de correo a veces lo "abren" antes que la persona) vuelve con el error
+  // pegado en la dirección (#error=access_denied&error_code=otp_expired…). Se limpia la dirección y se explica qué hacer.
+  const params = new URLSearchParams(location.hash.replace(/^#/, ''));
+  if (params.get('error_code')) {
+    history.replaceState(null, '', location.pathname + location.search);
+    const expired = /otp_expired|expired/i.test(`${params.get('error_code')} ${params.get('error_description')}`);
+    openAuth({ view: 'forgot', message: expired ? 'Ese enlace venció o ya se usó. Pedí uno nuevo y abrilo enseguida.' : 'No pudimos validar el enlace. Pedí uno nuevo.' });
+  }
 }

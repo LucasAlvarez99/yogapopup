@@ -34,6 +34,7 @@ export function groupProgress(rows) {
         lastWatchedAt: r.last_watched_at || null,
         resumeLabel: done ? 'Volver a verla' : `Continuar desde ${formatClock(seconds)}`,
         locked: r.classes.access_level === 'restricted',
+        thumbnailUrl: r.classes.thumbnail_url || null,
       };
     })
     .sort((a, b) => time(b.lastWatchedAt) - time(a.lastWatchedAt));
@@ -44,6 +45,29 @@ export function groupProgress(rows) {
 }
 
 // ------------------------------------------------------------------ Fase 24 · Mis compras
+
+/** Fotos predeterminadas para cuando lo comprado no tiene foto propia (producto borrado, sin imagen, video sin miniatura). */
+export const DEFAULT_THUMBS = Object.freeze({
+  product: 'assets/web/default-producto.jpg',
+  class: 'assets/web/default-video.jpg',
+});
+
+/**
+ * Foto de referencia de un pedido, como en un historial de compras: la del primer producto o video que tenga foto; si
+ * ninguno la tiene, la predeterminada de su tipo. `more` = cuántas líneas más trae el pedido (para mostrar "+2").
+ * @returns {{ src: string, fallback: string, kind: 'product'|'class', more: number }}
+ */
+export function orderThumb(order) {
+  const items = order?.order_items ?? [];
+  const kind = order?.kind === 'class' || items.some((i) => i.item_type === 'class') ? 'class' : 'product';
+  const own = items.map((i) => i.products?.image_url || i.classes?.thumbnail_url).find((u) => typeof u === 'string' && u !== '');
+  return { src: own || DEFAULT_THUMBS[kind], fallback: DEFAULT_THUMBS[kind], kind, more: Math.max(0, items.length - 1) };
+}
+
+/** Id del producto de un pedido de tienda, para ofrecer "Volver a comprar" (null si ya no existe o es un video). */
+export function reorderProductId(order) {
+  return (order?.order_items ?? []).find((i) => i.item_type === 'product' && i.product_id)?.product_id ?? null;
+}
 
 /** Cómo se le cuenta a la persona el estado de un pedido (sin jerga: nada de "capture" ni "paypal_status"). */
 export const ORDER_STATUS_FOR_USER = Object.freeze({
@@ -114,7 +138,7 @@ export function describeOrder(order, { now = new Date() } = {}) {
   return {
     id: order.id,
     date: formatDate(order.paid_at || order.created_at),
-    kind: order.kind === 'class' ? 'Clase' : 'Tienda',
+    kind: order.kind === 'class' ? 'Clase' : 'Shop',
     summary: describeOrderItems(items) ||
       (order.kind === 'class' ? 'Clase suelta' : 'Pedido'),
     total: formatPrice(order.total_cents),
@@ -122,6 +146,8 @@ export function describeOrder(order, { now = new Date() } = {}) {
     accessNote,
     refundNote: refunded > 0 && order.status !== 'refunded' ? `Reembolsado parcialmente: ${formatPrice(refunded)}` : '',
     classId: order.status === 'paid' && classItem ? classItem.class_id : null,
+    thumb: orderThumb(order),
+    reorderId: order.kind === 'class' ? null : reorderProductId(order),
     breakdown: orderBreakdown(order),
   };
 }

@@ -215,12 +215,14 @@ function myId() {
 
 /** "Mis compras" (Fase 24): pedidos propios (tienda y clases sueltas) con sus renglones. */
 export async function listMyOrders(limit = 50) {
-  const run = (cols) => db().from('orders')
-    .select(`id,kind,status,total_cents,tax_cents,${cols}refunded_cents,created_at,paid_at,order_items(title,size,qty,unit_cents,item_type,class_id)`)
+  const run = (cols, withPhotos = true) => db().from('orders')
+    .select(`id,kind,status,total_cents,tax_cents,${cols}refunded_cents,created_at,paid_at,order_items(title,size,qty,unit_cents,item_type,class_id,product_id${withPhotos ? ',products(image_url),classes(thumbnail_url)' : ''})`)
     .eq('user_id', myId())
     .order('created_at', { ascending: false }).limit(limit);
   let { data, error } = await run('shipping_cents,');
-  if (error && isSchemaBehind(error)) ({ data, error } = await run('')); // base sin la migración del envío
+  // Las fotos son un extra: si la consulta con ellas falla (permisos o esquema), se repite sin fotos y se usa la predeterminada.
+  if (error) ({ data, error } = await run('shipping_cents,', false));
+  if (error && isSchemaBehind(error)) ({ data, error } = await run('', false)); // base sin la migración del envío
   if (error) {
     if (isSchemaBehind(error)) return [];
     throw new AppError('internal_error', error.message);

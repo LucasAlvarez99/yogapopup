@@ -12,7 +12,9 @@ export async function initLanguage() {
       class: 'lang-select', 'aria-label': 'Idioma', title: 'Idioma',
       onchange: (e) => setLang(e.target.value),
     }, ...Object.entries(LANGS).map(([code, name]) => el('option', { value: code, translate: 'no' }, name)));
-    slot.replaceChildren(el('span', { class: 'lang-picker' }, el('i', { class: 'bi bi-translate', 'aria-hidden': 'true' }), select));
+    slot.replaceChildren(el('span', { class: 'lang-picker' },
+      el('i', { class: 'bi bi-globe2 lang-globe', 'aria-hidden': 'true' }), select,
+      el('i', { class: 'bi bi-chevron-down lang-chevron', 'aria-hidden': 'true' })));
     select.value = getLang();
     onLangChange((lang) => { select.value = lang; });
   });

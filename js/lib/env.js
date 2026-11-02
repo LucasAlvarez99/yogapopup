@@ -7,6 +7,8 @@ export const cfg = Object.freeze({
   SUPABASE_ANON_KEY: String(raw.SUPABASE_ANON_KEY || ''),
   FUNCTIONS_URL: trim(raw.FUNCTIONS_URL || (raw.SUPABASE_URL ? `${trim(raw.SUPABASE_URL)}/functions/v1` : '')),
   PRIVACY_URL: String(raw.PRIVACY_URL || ''),
+  /** Dirección pública del sitio para los enlaces de los correos de acceso. Solo https (o http en localhost); si no es válida, se ignora. */
+  SITE_URL: /^(https:\/\/[a-z0-9.-]+(:\d+)?|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/i.test(trim(raw.SITE_URL)) ? trim(raw.SITE_URL) : '',
   /** Responsable del tratamiento: se muestra en privacidad.html. Texto plano (nunca HTML). */
   LEGAL: Object.freeze({
     NAME: String(raw.LEGAL?.NAME || '').trim().slice(0, 200),
@@ -32,3 +34,6 @@ export const paymentsEnabled = isConfigured && cfg.PAYPAL.CLIENT_ID !== '';
 /** URL absoluta de la raíz del sitio (js/lib/ -> ../../). */
 export const ROOT = new URL('../../', import.meta.url).href;
 export const page = (name) => new URL(name, ROOT).href;
+
+/** Enlace que se le pone a los correos de acceso: el dominio público si está configurado; si no, esta misma página. */
+export const siteUrl = (name) => (cfg.SITE_URL ? `${cfg.SITE_URL}/${name}` : page(name));

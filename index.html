@@ -27,10 +27,14 @@
         <span class="brand-text">Yoga Pop Up</span>
       </a>
 
-      <div class="d-flex align-items-center gap-1 order-xl-3">
+      <div class="nav-actions order-xl-3">
         <button class="icon-btn d-xl-none" type="button" data-bs-toggle="collapse" data-bs-target="#mainMenu" aria-controls="mainMenu" aria-expanded="false" aria-label="Abrir menú">
           <i class="bi bi-list"></i>
         </button>
+        <form class="search-pill nav-search" role="search">
+          <i class="bi bi-search"></i>
+          <input type="search" class="form-control" placeholder="Buscar en el sitio..." aria-label="Buscar">
+        </form>
         <span data-lang-slot></span>
         <a class="icon-btn" href="cuenta.html" aria-label="Mi cuenta" data-account-toggle><i class="bi bi-person"></i></a>
         <button class="icon-btn position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#cartDrawer" aria-controls="cartDrawer" aria-label="Abrir carrito" data-cart-toggle>
@@ -40,7 +44,7 @@
       </div>
 
       <div class="collapse navbar-collapse order-xl-2" id="mainMenu">
-        <ul class="navbar-nav mx-xl-auto gap-xl-1">
+        <ul class="navbar-nav gap-xl-1">
           <li class="nav-item"><a class="nav-link active" href="#inicio">Inicio</a></li>
           <li class="nav-item"><a class="nav-link" href="#cursos">Cursos</a></li>
           <li class="nav-item"><a class="nav-link" href="#suscripciones">Suscripciones</a></li>
@@ -49,9 +53,9 @@
           <li class="nav-item"><a class="nav-link" href="tienda.html">Shop</a></li>
           <li class="nav-item"><a class="nav-link" href="#nosotros">Sobre nosotros</a></li>
         </ul>
-        <form class="search-pill" role="search">
+        <form class="search-pill d-xl-none" role="search">
           <i class="bi bi-search"></i>
-          <input type="search" class="form-control" placeholder="Buscar cursos, clases, productos..." aria-label="Buscar">
+          <input type="search" class="form-control" placeholder="Buscar en el sitio..." aria-label="Buscar">
         </form>
       </div>
     </div>

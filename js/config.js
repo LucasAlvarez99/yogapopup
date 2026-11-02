@@ -12,6 +12,11 @@ window.YOGAPOPUP_CONFIG = Object.freeze({
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4cGlpemhmemphamtleXljaWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4ODc4NjQsImV4cCI6MjEwNTQ2Mzg2NH0.C0utCJT0607o9iKKC7E1q9PLN0_4SW2m13N_WIxEjXw',
   // Opcional (por defecto: SUPABASE_URL + '/functions/v1')
   FUNCTIONS_URL: 'https://txpiizhfzjajkeyycigb.supabase.co/functions/v1',
+  // Dirección pública del sitio (ej.: 'https://tudominio.com', sin barra final). Es a donde vuelven los enlaces de los correos de
+  // acceso (recuperar contraseña, confirmar cuenta). Vacío = vuelven a la página desde la que se pidió el correo; si se pidió
+  // desde localhost, el enlace apunta a localhost y no abre en otro equipo. También hay que ponerla en Supabase > Authentication >
+  // URL Configuration (Site URL y Redirect URLs).
+  SITE_URL: '',
   // URL de la política de privacidad. Con valor, el registro exige aceptarla (RGPD/LOPDGDD) y guarda cuándo y qué versión.
   // Relativa al sitio ('privacidad.html') o una URL https completa.
   PRIVACY_URL: 'privacidad.html',

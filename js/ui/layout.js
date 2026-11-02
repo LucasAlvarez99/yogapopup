@@ -34,9 +34,9 @@ export function renderLayout(active) {
       'aria-controls': 'cartDrawer', 'aria-label': 'Abrir carrito', 'data-cart-toggle': true,
     }, icon('bag'), el('span', { class: 'cart-badge', 'data-cart-count': true, hidden: true }));
     const langSlot = el('span', { 'data-lang-slot': true });
-    const actions = el('div', { class: 'd-flex align-items-center gap-1 order-xl-3' }, menuButton, langSlot, accountLink, cartButton);
+    const actions = el('div', { class: 'nav-actions order-xl-3' }, menuButton, langSlot, accountLink, cartButton);
     const menu = el('div', { class: 'collapse navbar-collapse order-xl-2', id: 'mainMenu' },
-      el('ul', { class: 'navbar-nav mx-xl-auto gap-xl-1' }, ...NAV.map(navItem)));
+      el('ul', { class: 'navbar-nav gap-xl-1' }, ...NAV.map(navItem)));
 
     header.className = 'site-header sticky-top';
     header.replaceChildren(el('nav', { class: 'navbar navbar-expand-xl' },

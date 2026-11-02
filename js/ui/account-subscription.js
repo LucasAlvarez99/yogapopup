@@ -3,7 +3,7 @@ import { tierName } from '../lib/tiers.js';
 import { describeSubscription } from '../lib/account-view.js';
 import { paymentsEnabled } from '../lib/env.js';
 import { messageFor } from '../lib/errors.js';
-import { el, mount } from '../lib/dom.js';
+import { el, icon, mount } from '../lib/dom.js';
 import { toast } from './toast.js';
 import { subscriptionOffered, tierPicker } from './subscribe-box.js';
 
@@ -27,6 +27,13 @@ export function subscriptionCard() {
     catch (err) { return mount(body, el('p', { class: 'text-danger small', role: 'alert' }, messageFor(err))); }
     body.setAttribute('aria-busy', 'false');
     const v = describeSubscription(sub);
+    // Sin suscripción (nunca tuvo o ya terminó): en vez de apretar los tres planes en esta tarjeta, se explica y se lleva a verlos.
+    const emptyState = () => el('div', { class: 'acc-empty', 'data-state': v.state },
+      el('span', { class: 'acc-empty-icon', 'aria-hidden': 'true' }, icon('stars')),
+      el('div', {},
+        el('p', {}, el('strong', {}, v.headline)),
+        el('p', { class: 'small text-muted' }, 'Si querés una, mirá las suscripciones disponibles: elegí el nivel que más te guste.'),
+        el('a', { class: 'btn btn-brand btn-sm', href: 'index.html#suscripciones' }, 'Ver suscripciones disponibles', ' ', icon('arrow-right'))));
     const offer = () => (subscriptionOffered()
       ? tierPicker({ onActive: () => load() })
       : el('p', { class: 'small text-muted mb-0' }, paymentsEnabled ? 'Pronto vas a poder suscribirte.' : 'Las suscripciones llegan muy pronto.'));
@@ -43,6 +50,7 @@ export function subscriptionCard() {
         },
       }, 'Cancelar suscripción')
       : null;
+    if (v.state === 'none' || v.state === 'ended') return mount(body, emptyState());
     mount(body,
       el('p', { class: v.details.length ? 'mb-1' : 'text-muted', 'data-state': v.state }, el('strong', {}, v.headline)),
       v.canCancel || v.state === 'cancelled' ? tierLine(sub, tierRows) : null,

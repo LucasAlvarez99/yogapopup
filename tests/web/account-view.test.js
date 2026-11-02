@@ -87,7 +87,7 @@ Deno.test("compras: describeOrder resume renglones y solo ofrece 'ver clase' si 
     }],
   };
   const d = describeOrder(base);
-  assert.equal(d.kind, "Tienda");
+  assert.equal(d.kind, "Shop");
   assert.equal(d.summary, "2 × Mat (talle M), 1 × Bloque");
   assert.equal(d.status.label, "Pagado");
   assert.equal(d.classId, null);

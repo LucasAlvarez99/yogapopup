@@ -2,10 +2,12 @@ import { listMyOrders } from '../lib/api.js';
 import { describeOrder, partitionOrders } from '../lib/account-view.js';
 import { messageFor } from '../lib/errors.js';
 import { el, mount } from '../lib/dom.js';
+import { thumb } from './account-thumb.js';
 
 function row(order) {
   const d = describeOrder(order);
-  return el('li', { class: 'acc-row' },
+  return el('li', { class: 'acc-row acc-order' },
+    thumb(d.thumb),
     el('div', { class: 'acc-row-main' },
       el('div', { class: 'acc-row-title' }, el('span', { class: 'badge text-bg-light me-1' }, d.kind), d.summary),
       el('div', { class: 'acc-sub small text-muted' }, `${d.date} · ${d.total}`),
@@ -15,9 +17,10 @@ function row(order) {
       d.breakdown.length ? el('details', { class: 'acc-sub small mt-1 order-detail' }, el('summary', {}, 'Ver detalle'),
         el('ul', { class: 'list-unstyled mb-0 mt-1' }, ...d.breakdown.map((r) => el('li', { class: `d-flex justify-content-between gap-3${r.total ? ' fw-bold border-top mt-1 pt-1' : ''}` },
           el('span', { translate: 'no' }, r.label), el('span', {}, r.amount))))) : null),
-    el('div', { class: 'text-end' },
+    el('div', { class: 'text-end acc-row-side' },
       el('span', { class: `badge text-bg-${d.status.tone}` }, d.status.label),
-      d.classId ? el('div', {}, el('a', { class: 'small', href: `clase.html?id=${encodeURIComponent(d.classId)}` }, 'Ver clase')) : null));
+      d.classId ? el('div', {}, el('a', { class: 'small', href: `clase.html?id=${encodeURIComponent(d.classId)}` }, 'Ver clase')) : null,
+      d.reorderId ? el('div', {}, el('a', { class: 'small', href: `producto.html?id=${encodeURIComponent(d.reorderId)}` }, 'Volver a comprar')) : null));
 }
 
 /** "Mis compras" (Fase 24): pedidos de la tienda y clases sueltas con su estado. Los intentos sin completar quedan plegados y se muestran 7 días. */

@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js';
 import { AppError } from './errors.js';
-import { page } from './env.js';
+import { page, siteUrl } from './env.js';
 import { consentMetadata } from './legal.js';
 import { canUploadRole, isDeveloperRole, isStaffRole } from './roles.js';
 
@@ -102,7 +102,7 @@ export async function signUp(email, password, fullName, { privacyAccepted = fals
   const { data, error } = await need().auth.signUp({
     email, password,
     // `privacy_version` solo viaja si la persona marcó la casilla; la FECHA de aceptación la pone el servidor (trigger).
-    options: { data: { full_name: fullName || '', ...consentMetadata(privacyAccepted) }, emailRedirectTo: page('index.html') },
+    options: { data: { full_name: fullName || '', ...consentMetadata(privacyAccepted) }, emailRedirectTo: siteUrl('index.html') },
   });
   if (error) throw error;
   return { needsConfirmation: !data.session };
@@ -114,7 +114,7 @@ export async function signOut() {
 }
 
 export async function sendPasswordReset(email) {
-  const { error } = await need().auth.resetPasswordForEmail(email, { redirectTo: page('index.html') });
+  const { error } = await need().auth.resetPasswordForEmail(email, { redirectTo: siteUrl('index.html') });
   if (error) throw error;
 }
 
