@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light only">
+  <title>Confirma tu cuenta en Yoga Pop Up</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F3E5CC;">
+  <!-- Texto de vista previa (lo que se ve en la bandeja antes de abrir el correo) -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#F3E5CC;">
+    Un último paso para entrar a tu espacio de yoga.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3E5CC;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding:0 0 20px 0;">
+              <img src="https://yogapopuplife.com/assets/logo-claro.png" width="72" alt="Yoga Pop Up" style="display:block;border:0;height:auto;">
+            </td>
+          </tr>
+
+          <!-- Tarjeta -->
+          <tr>
+            <td style="background-color:#FFFDF7;border-radius:24px;padding:40px 36px;">
+
+              <p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#D05431;">
+                Bienvenida
+              </p>
+
+              <h1 style="margin:0 0 16px 0;font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1.25;font-weight:normal;color:#4A4036;">
+                Confirma tu cuenta
+              </h1>
+
+              <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#4A4036;">
+                Gracias por unirte a Yoga Pop Up. Toca el botón para confirmar tu correo y terminar de crear tu cuenta.
+              </p>
+
+              <!-- Botón -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px 0;">
+                <tr>
+                  <td align="center" style="border-radius:999px;background-color:#D05431;">
+                    <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 32px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-decoration:none;color:#FFFDF7;border-radius:999px;">
+                      Confirmar mi correo
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#8C7F70;">
+                Si el botón no funciona, copia y pega este enlace en tu navegador:
+              </p>
+              <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;word-break:break-all;">
+                <a href="{{ .ConfirmationURL }}" style="color:#D05431;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+              </p>
+
+              <hr style="border:0;border-top:1px solid #EEE4D9;margin:0 0 20px 0;">
+
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#8C7F70;">
+                Si no creaste una cuenta con {{ .Email }}, puedes ignorar este mensaje.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Pie -->
+          <tr>
+            <td align="center" style="padding:20px 16px 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-style:italic;color:#4A4036;">
+              Aparece · sucede · se goza · se mueve
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
