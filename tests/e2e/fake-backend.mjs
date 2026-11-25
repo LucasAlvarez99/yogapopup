@@ -32,7 +32,7 @@ const fakeJwt = (sub, ttl = 3600) => `${b64url('{"alg":"HS256","typ":"JWT"}')}.$
 
 function seed() {
   const now = new Date().toISOString();
-  const base = { description: null, thumbnail_url: null, level: 'principiante', category: null, access_level: 'free', sort_order: 0, is_published: true, published_at: now, video_status: 'ready', duration_seconds: 12, created_at: now, updated_at: now, r2_object_key: KEY_OF(IDS.free) };
+  const base = { kind: 'video', course_id: null, description: null, thumbnail_url: null, level: 'principiante', category: null, access_level: 'free', sort_order: 0, is_published: true, published_at: now, video_status: 'ready', duration_seconds: 12, created_at: now, updated_at: now, r2_object_key: KEY_OF(IDS.free) };
   const seeded = {
     users: new Map(), sessions: new Map(), recoveries: [], progress: new Map(), entitlements: new Set(),
     classes: [
@@ -47,7 +47,7 @@ function seed() {
       { id: '10000000-0000-4000-8000-000000000003', title: 'Remera Pop Up', description: 'Algodón orgánico.', image_url: null, price_cents: 1999, stock: 0, category: 'Ropa', sort_order: 2, is_active: true, created_at: now },
       { id: '10000000-0000-4000-8000-000000000004', title: 'Producto borrador', description: null, image_url: null, price_cents: 500, stock: null, category: 'Ropa', sort_order: 3, is_active: false, created_at: now },
     ],
-    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null, schemaBehind: false, payments: false },
+    behavior: { catalogLatencyMs: 0, catalogFail: false, playbackTtl: 120, playbackForce: null, confirmEmail: false, saveFail: false, uploadFail: false, privacy: false, storageReject: null, schemaBehind: false, coursesBehind: false, payments: false },
     // Profesores y agenda (migración 20261005120000): `teachers` y `liveSessions` (live_sessions) los siembra seedTeachers().
     teachers: [], liveSessions: [], bookings: [],
     testimonials: [], // comentarios de la comunidad (Fases 26-27): { id, user_id, author_name, body, rating, status, created_at }
@@ -254,6 +254,32 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       return send(res, 401, { code: '42501', message: `permission denied for table ${table}` });
     }
 
+    // Crear un curso: solo developer (create_course); nace sin publicar, sin video propio y con video_status 'ready'.
+    if (table === 'rpc/create_course' && req.method === 'POST') {
+      if (!user) return send(res, 401, { code: '42501', message: 'permission denied for function create_course' });
+      if (db.behavior.coursesBehind) return send(res, 404, { code: 'PGRST202', message: 'Could not find the function public.create_course in the schema cache' });
+      if (!isDeveloper(user)) return send(res, 403, { code: '42501', message: 'developer role required' });
+      const b = await readBody(req);
+      const title = typeof b.p_title === 'string' ? b.p_title.trim() : '';
+      if (!title || title.length > 150) return send(res, 400, { code: '23514', message: 'violates check constraint "classes_title_check"' });
+      const now = new Date().toISOString();
+      const row = {
+        id: randomUUID(), kind: 'course', course_id: null, title, description: (b.p_description || '').trim() || null, thumbnail_url: null,
+        level: b.p_level || 'todos', category: (b.p_category || '').trim() || null, access_level: b.p_access_level || 'free', min_tier: b.p_min_tier ?? 1,
+        sort_order: Number(b.p_sort_order) || 0, duration_seconds: null, is_published: false, published_at: null, video_status: 'ready',
+        r2_object_key: null, created_at: now, updated_at: now,
+      };
+      db.classes.push(row);
+      db.log.classes.push({ op: 'create_course', id: row.id });
+      return send(res, 200, JSON.stringify(row.id), { 'Content-Type': 'application/json' });
+    }
+    if (table === 'rpc/can_access_class' && req.method === 'POST') {
+      if (!user) return send(res, 401, { code: '42501', message: 'permission denied for function can_access_class' });
+      const { p_class_id: classId } = await readBody(req);
+      const c = db.classes.find((x) => x.id === classId);
+      return send(res, 200, JSON.stringify(Boolean(c) && canAccess(user, c)), { 'Content-Type': 'application/json' });
+    }
+
     if (table === 'rpc/save_progress' && req.method === 'POST') {
       if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT required' });
       if (db.behavior.saveFail) return send(res, 503, { message: 'unavailable' });
@@ -275,6 +301,8 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       if (select === '*' || PRIVATE_COLS.some((c) => select.includes(c))) return send(res, 401, { code: '42501', message: 'permission denied for table classes' });
       if (db.behavior.catalogLatencyMs) await new Promise((r) => setTimeout(r, db.behavior.catalogLatencyMs));
       if (db.behavior.catalogFail) return send(res, 503, { message: 'Service Unavailable' });
+      // coursesBehind: la base aún no tiene la migración de cursos (kind, course_id): pedir esas columnas da 42703, como en PostgREST.
+      if (db.behavior.coursesBehind && (/\b(kind|course_id)\b/.test(select) || p.has('course_id'))) return send(res, 400, { code: '42703', message: 'column classes.kind does not exist' });
       const cols = select.split(',');
       const visible = db.classes.filter((c) => c.is_published || isStaff(user)).map(classPublic); // RLS: público = publicadas; admin/developer = todas
       return reply(applyFilters(visible, p).map((r) => pick(r, cols)));
@@ -603,7 +631,12 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
   function canAccess(user, c) {
     if (user.role === 'admin' || user.role === 'developer') return true;
     if (!c.is_published || c.video_status !== 'ready') return false;
-    return c.access_level === 'free' || db.entitlements.has(`${user.id}|${c.id}`);
+    // Un video de un curso hereda el acceso del CURSO (publicado, gratis, comprado o cubierto por el nivel de la suscripción).
+    const parent = c.course_id ? db.classes.find((x) => x.id === c.course_id) : null;
+    if (c.course_id && !parent?.is_published) return false;
+    const target = parent ?? c;
+    const tierOk = (parent || c.kind === 'course') && (db.subTier?.[user.id] ?? 0) >= (target.min_tier ?? 1);
+    return target.access_level === 'free' || db.entitlements.has(`${user.id}|${target.id}`) || Boolean(tierOk);
   }
 
   // ------------------------------------------------------------------ Edge Function: contrato de `playback`
@@ -617,6 +650,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     if (force) return fail(force.status, force.code, force.code);
     const c = db.classes.find((x) => x.id === classId);
     if (!c || !canAccess(user, c)) return fail(403, 'no_access', "You don't have access to this class");
+    if (!c.r2_object_key) return fail(409, 'video_not_ready', 'The video is not ready yet'); // un curso no tiene video propio
     const ttl = db.behavior.firstTtl != null ? db.behavior.firstTtl : db.behavior.playbackTtl;
     db.behavior.firstTtl = null; // de un solo uso
     const expiresAt = Math.floor(Date.now() / 1000) + ttl;
@@ -713,7 +747,10 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
           category: body.category ?? null, access_level: body.access_level || 'free', sort_order: Number(body.sort_order) || 0, duration_seconds: null,
           is_published: false, published_at: null, video_status: 'pending', created_at: now, updated_at: now,
           r2_object_key: `classes/${randomUUID()}/${randomUUID()}.mp4`,
+          kind: 'video', course_id: body.course_id ?? null,
         };
+        // La base (trigger classes_check_course_parent) exige que course_id sea un curso.
+        if (row.course_id && !db.classes.some((c) => c.id === row.course_id && c.kind === 'course')) return fnFail(res, 500, 'internal_error', 'course_id must point to a course');
         db.classes.push(row);
       } else if (row.r2_object_key && (row.video_status === 'ready' || row.video_status === 'processing')) {
         return fnFail(res, 409, 'video_already_attached', 'This class already has a video');
@@ -763,6 +800,22 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
       if (url.pathname === '/__test/reset') { db = seed(); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/behavior') { Object.assign(db.behavior, await readBody(req)); return send(res, 200, db.behavior); }
       if (url.pathname === '/__test/state') return send(res, 200, { log: db.log, progress: [...db.progress.values()], recoveries: db.recoveries, users: [...db.users.values()].map((u) => ({ email: u.email, name: u.name, metadata: u.metadata, role: u.role ?? 'user', banned_until: u.banned_until ?? null })), teachers: db.teachers, products: db.products, testimonials: db.testimonials, variants: db.variants, classes: db.classes, r2objects: [...db.r2objects.keys()], storageKeys: [...db.storage.keys()] });
+      // Siembra un curso publicado con N videos publicados (y su orden). Devuelve { course, lessons }.
+      if (url.pathname === '/__test/course') {
+        const b = await readBody(req);
+        const now = new Date().toISOString();
+        const common = { description: null, thumbnail_url: null, level: 'todos', category: null, duration_seconds: 12, created_at: now, updated_at: now, is_published: true, published_at: now };
+        const course = { ...common, id: randomUUID(), kind: 'course', course_id: null, title: b.title ?? 'Curso de prueba', access_level: b.access_level ?? 'restricted', min_tier: b.min_tier ?? 2, price_cents: b.price_cents ?? 5000, tax_rate_bps: 2100, sort_order: 5, video_status: 'ready', r2_object_key: null, duration_seconds: null, category: 'Cursos', is_published: b.is_published ?? true };
+        db.classes.push(course);
+        const lessons = (b.lessons ?? ['Clase 1', 'Clase 2', 'Clase 3']).map((title, i) => {
+          const key = `classes/${randomUUID()}/video.mp4`;
+          const row = { ...common, id: randomUUID(), kind: 'video', course_id: course.id, title, access_level: 'free', sort_order: i + 1, video_status: 'ready', r2_object_key: key };
+          db.classes.push(row);
+          db.r2objects.set(key, 1);
+          return row;
+        });
+        return send(res, 200, { course, lessons });
+      }
       if (url.pathname === '/__test/subscribe') { const b = await readBody(req); const id = [...db.users.values()].find((u) => u.email === b.email)?.id; db.subTier = { ...db.subTier, [id]: b.tier }; return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/entitle') { const b = await readBody(req); db.entitlements.add(`${[...db.users.values()].find((u) => u.email === b.email)?.id}|${b.classId}`); return send(res, 200, { ok: true }); }
       if (url.pathname === '/__test/product') { const b = await readBody(req); const row = db.products.find((x) => x.id === b.id); if (row) Object.assign(row, b.patch); return send(res, 200, { ok: !!row }); }
@@ -882,6 +935,7 @@ export async function startBackend({ siteRoot, ports = { site: 4173, api: 4174, 
     setTestimonialStatus: (author_name, status) => control('testimonial-set', { author_name, status }),
     account: (email, data) => control('account', { email, ...data }),
     entitle: (email, classId) => control('entitle', { email, classId }),
+    addCourse: (b = {}) => control('course', b),
     subscribe: (email, tier) => control('subscribe', { email, tier }),
     promote: (email, role) => control('promote', { email, role }),
     makeTeacher: (email, extra = {}) => control('teacher', { email, ...extra }),

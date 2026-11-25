@@ -16,7 +16,7 @@ export const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'J
 export const WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
 export const SESSION_LEVELS = ['principiante', 'intermedio', 'avanzado', 'todos'];
 export const SESSION_MODES = ['live', 'virtual'];
-export const MODE_LABELS = { live: 'En vivo', virtual: 'Virtual' };
+export const MODE_LABELS = { live: 'Presencial', virtual: 'En vivo (virtual)' };
 
 const pad = (n) => String(n).padStart(2, '0');
 const toDate = (v) => (v instanceof Date ? v : new Date(v));

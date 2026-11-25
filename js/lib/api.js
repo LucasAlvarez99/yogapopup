@@ -15,6 +15,8 @@ export const CLASS_COLUMNS =
   'id,title,description,thumbnail_url,duration_seconds,level,category,access_level,sort_order,is_published,published_at,video_status,created_at,updated_at';
 /** Columnas para quien administra: suman los niveles de suscripción (solo las puede leer una persona con sesión). */
 const CLASS_ADMIN_COLUMNS = `${CLASS_COLUMNS},min_tier`;
+/** Cursos (serie de videos): `kind` = 'video' | 'course' y `course_id` = curso al que pertenece un video. Solo existen con la migración de cursos. */
+const COURSE_COLUMNS = 'kind,course_id';
 const CARD_COLUMNS = 'id,title,thumbnail_url,duration_seconds,level,category,access_level';
 
 function db() {
@@ -56,10 +58,15 @@ export async function getProduct(id) {
 
 // ---------------------------------------------------------------- catálogo (público) y progreso
 export async function listPublishedClasses({ limit } = {}) {
-  let q = db().from('classes').select(CLASS_COLUMNS).eq('is_published', true)
-    .order('sort_order', { ascending: true }).order('published_at', { ascending: false });
-  if (limit) q = q.limit(limit);
-  return unwrap(await q) ?? [];
+  // Los videos que pertenecen a un curso no se listan sueltos: se ven dentro de su curso. Sin la migración de cursos, se piden como antes.
+  const build = (courses) => {
+    let q = db().from('classes').select(courses ? `${CLASS_COLUMNS},${COURSE_COLUMNS}` : CLASS_COLUMNS).eq('is_published', true);
+    if (courses) q = q.is('course_id', null);
+    q = q.order('sort_order', { ascending: true }).order('published_at', { ascending: false });
+    return limit ? q.limit(limit) : q;
+  };
+  const first = await build(true);
+  return unwrap(isSchemaBehind(first.error) ? await build(false) : first) ?? [];
 }
 
 /** Columnas de una clase puesta a la venta: suman el precio y el IVA (públicos) y, con sesión, el nivel mínimo. */
@@ -71,9 +78,13 @@ const CLASS_SHOP_COLUMNS = `${CLASS_COLUMNS},price_cents,tax_rate_bps`;
  */
 export async function listShopClasses({ withTier = false } = {}) {
   const cols = withTier ? `${CLASS_SHOP_COLUMNS},min_tier` : CLASS_SHOP_COLUMNS;
-  const build = (columns) => db().from('classes').select(columns).eq('is_published', true)
-    .order('sort_order', { ascending: true }).order('published_at', { ascending: false });
-  let { data, error } = await build(cols);
+  const build = (columns, courses = false) => {
+    const q = db().from('classes').select(courses ? `${columns},${COURSE_COLUMNS}` : columns).eq('is_published', true);
+    return (courses ? q.is('course_id', null) : q) // los videos de un curso no se venden ni se listan sueltos: se ven dentro del curso
+      .order('sort_order', { ascending: true }).order('published_at', { ascending: false });
+  };
+  let { data, error } = await build(cols, true);
+  if (isSchemaBehind(error)) ({ data, error } = await build(cols)); // base sin la migración de cursos
   if (isSchemaBehind(error) && withTier) ({ data, error } = await build(CLASS_SHOP_COLUMNS));
   if (isSchemaBehind(error)) ({ data, error } = await build(CLASS_COLUMNS));
   if (error) throw new AppError('internal_error', error.message);
@@ -100,7 +111,22 @@ export async function listMyEntitlements() {
 }
 
 export async function getClass(id) {
+  const first = await db().from('classes').select(`${CLASS_COLUMNS},${COURSE_COLUMNS}`).eq('id', id).maybeSingle();
+  if (!isSchemaBehind(first.error)) return unwrap(first); // base sin la migración de cursos: sin `kind` ni `course_id`
   return unwrap(await db().from('classes').select(CLASS_COLUMNS).eq('id', id).maybeSingle());
+}
+
+/** Los videos publicados de un curso, en su orden. */
+export async function listCourseLessons(courseId) {
+  return unwrap(await db().from('classes').select(`${CLASS_COLUMNS},${COURSE_COLUMNS}`).eq('course_id', courseId).eq('is_published', true)
+    .order('sort_order', { ascending: true }).order('created_at', { ascending: true })) ?? [];
+}
+
+/** ¿La persona (con sesión) puede ver esta clase o curso? Lo decide la base con la misma regla que usa el servidor al reproducir. */
+export async function canAccessClass(classId) {
+  const { data, error } = await db().rpc('can_access_class', { p_class_id: classId });
+  if (error) throw new AppError('internal_error', error.message);
+  return data === true;
 }
 
 // ---------------------------------------------------------------- comentarios (Fases 26-27)
@@ -299,7 +325,9 @@ export const getPlayback = (classId) => callFunction('playback', { class_id: cla
 
 // ---------------------------------------------------------------- administración
 export async function adminListClasses() {
-  const first = await db().from('classes').select(CLASS_ADMIN_COLUMNS).order('created_at', { ascending: false });
+  const withCourses = await db().from('classes').select(`${CLASS_ADMIN_COLUMNS},${COURSE_COLUMNS}`).order('created_at', { ascending: false });
+  if (!isSchemaBehind(withCourses.error)) return unwrap(withCourses) ?? [];
+  const first = await db().from('classes').select(CLASS_ADMIN_COLUMNS).order('created_at', { ascending: false }); // sin la migración de cursos
   if (!isSchemaBehind(first.error)) return unwrap(first) ?? [];
   // La base aún no tiene min_tier (falta aplicar las migraciones): se listan las clases sin ese dato en vez de romper el panel.
   console.warn('[niveles] La base no tiene aún min_tier: aplica las migraciones (npm run sb:db-push).');
@@ -310,6 +338,23 @@ export const adminCreateUpload = (payload) => callFunction('admin-create-upload'
 export const adminSyncVideo = (classId, durationSeconds) =>
   callFunction('admin-sync-video', { class_id: classId, duration_seconds: durationSeconds ?? undefined });
 export const adminDeleteClass = (classId) => callFunction('admin-delete-class', { class_id: classId });
+
+/**
+ * Crea un curso (serie de videos) sin publicar y devuelve su id. Solo developer (la función de la base lo exige). Los videos se suman
+ * después con `adminCreateUpload({ ..., course_id })`, uno por uno y sin límite.
+ */
+export async function adminCreateCourse(meta) {
+  const { data, error } = await db().rpc('create_course', {
+    p_title: meta.title, p_description: meta.description ?? null, p_category: meta.category ?? null, p_level: meta.level ?? 'todos',
+    p_access_level: meta.access_level ?? 'free', p_min_tier: meta.min_tier ?? 1, p_sort_order: meta.sort_order ?? 0,
+  });
+  if (error) {
+    if (error.code === 'PGRST202') throw new AppError('courses_unavailable');
+    if (error.code === '42501') throw new AppError('developer_only');
+    throw new AppError(error.code === '23514' ? 'invalid_input' : 'internal_error', error.message);
+  }
+  return data;
+}
 
 const EDITABLE = ['title', 'description', 'thumbnail_url', 'level', 'category', 'access_level', 'sort_order', 'is_published', 'min_tier'];
 

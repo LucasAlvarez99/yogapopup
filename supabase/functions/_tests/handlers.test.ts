@@ -70,6 +70,30 @@ Deno.test("create-upload: validaciones de entrada (400) y nada llega a R2 ni a l
   assert.equal(repo.classes.size, 0);
 });
 
+Deno.test("create-upload: un video de un curso guarda course_id; uno suelto no lo manda; un course_id inválido es 400", async () => {
+  const COURSE = "7c0f6a52-3d1e-4b8a-9f40-2a6d9e1c5b33";
+  const { deps, r2, repo } = makeDeps();
+  const h = createUpload(deps);
+
+  const r = await h(post({ title: "Clase 1 del curso", course_id: COURSE, sort_order: 1 }, "developer"));
+  assert.equal(r.status, 200);
+  const inCourse = [...repo.classes.values()][0] as unknown as { course_id?: string; sort_order: number };
+  assert.equal(inCourse.course_id, COURSE);
+  assert.equal(inCourse.sort_order, 1);
+
+  assert.equal((await h(post({ title: "Video suelto" }, "developer"))).status, 200);
+  const loose = [...repo.classes.values()][1] as unknown as Record<string, unknown>;
+  assert.equal("course_id" in loose, false); // no se toca una columna que una base sin migrar no tiene
+
+  const before = r2.calls.length;
+  for (const bad of [{ title: "x", course_id: "no-es-uuid" }, { title: "x", course_id: 7 }]) {
+    const res = await h(post(bad, "developer"));
+    assert.equal(res.status, 400, JSON.stringify(bad));
+    assert.equal(await errCode(res), "invalid_input");
+  }
+  assert.equal(r2.calls.length, before);
+});
+
 Deno.test("create-upload: si falla la base, no se llega a pedir nada a R2", async () => {
   const { deps, r2, repo } = makeDeps();
   repo.failInsert = true;

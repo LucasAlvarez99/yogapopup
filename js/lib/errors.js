@@ -66,6 +66,7 @@ const MESSAGES = {
   subscription_invalid: 'Esa suscripción no corresponde al plan del sitio.',
   no_subscription: 'No tenés ninguna suscripción activa.',
   too_many_orders: 'Hiciste muchos intentos de compra seguidos. Esperá unos minutos.',
+  courses_unavailable: 'Falta aplicar la migración de cursos en la base (npm run sb:db-push). Avisá al equipo técnico.',
   internal_error: 'Ocurrió un error inesperado. Probá de nuevo.',
 };
 

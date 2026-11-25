@@ -1803,6 +1803,198 @@ await test('panel · Clases: crear con video real, publicar, editar, despublicar
   }
 });
 
+// ---------------------------------------------------------------------------------------------- cursos (serie de videos)
+const clickPanelButton = (page, label) => page.evaluate((l) => [...document.querySelectorAll('#panelContent button')].find((b) => b.textContent.trim() === l).click(), label);
+const panelHas = (page, re) => waitFor(page, (src) => new RegExp(src).test(document.getElementById('panelContent').textContent), re.source, 10000);
+
+await test('panel · Cursos: el developer crea un curso, le suma videos sin límite, los publica y los videos no aparecen sueltos', async (page) => {
+  const video = ensureMedia('e2e-upload');
+  await loginAsDeveloper(page);
+  await page.waitForSelector('#panelContent tbody tr');
+
+  // crear el curso: sin campo de video, nace sin publicar
+  await clickButtonText(page, 'Nuevo curso');
+  await classModalReady(page);
+  assert.equal(await count(page, '#classFormModal #cfVideo'), 0, 'un curso no tiene video propio');
+  await page.type('#cfTitle', 'Curso E2E');
+  await page.type('#cfCategory', 'Vinyasa');
+  await page.select('#cfAccess', 'restricted');
+  await page.select('#cfMinTier', '2');
+  await page.click('#classFormModal button[type=submit]');
+  await classModalClosed(page);
+  await toastHas(page, 'Curso creado');
+  await waitRow(page, 'Curso E2E', '0 videos');
+  const [course] = await classByTitle('Curso E2E');
+  assert.equal(course.kind, 'course');
+  assert.equal(course.is_published, false);
+  assert.equal(course.access_level, 'restricted');
+  assert.equal(course.min_tier, 2);
+  assert.equal(course.r2_object_key, null);
+
+  // sumar videos: el formulario solo pide título, descripción y orden (lo demás es del curso)
+  await clickRowButton(page, 'Curso E2E', 'Videos');
+  await panelHas(page, /Este curso todavía no tiene videos/);
+  for (const [i, title] of ['Clase uno', 'Clase dos', 'Clase tres'].entries()) {
+    await clickPanelButton(page, 'Agregar video');
+    await classModalReady(page);
+    assert.equal(await count(page, '#classFormModal #cfAccess'), 0, 'el acceso es el del curso');
+    assert.equal(await page.$eval('#cfSort', (e) => e.value), String(i + 1), 'el orden propone el siguiente número');
+    await page.type('#cfTitle', title);
+    await (await page.$('#cfVideo')).uploadFile(video);
+    await page.click('#classFormModal button[type=submit]');
+    await classModalClosed(page);
+    await toastHas(page, 'Video agregado al curso');
+    await waitRow(page, title, 'Lista');
+  }
+  const lessons = (await be.state()).classes.filter((c) => c.course_id === course.id).sort((a, b) => a.sort_order - b.sort_order);
+  assert.deepEqual(lessons.map((l) => l.title), ['Clase uno', 'Clase dos', 'Clase tres']);
+  assert.ok(lessons.every((l) => l.kind === 'video' && l.video_status === 'ready' && l.is_published === false));
+
+  // editar un video del curso: solo título, descripción y orden
+  await clickRowTitle(page, 'Clase tres', 'Editar datos de la clase');
+  await classModalReady(page);
+  assert.equal(await count(page, '#classFormModal #cfCategory'), 0);
+  await page.$eval('#cfSort', (i) => { i.value = '0'; });
+  await page.click('#classFormModal button[type=submit]');
+  await classModalClosed(page);
+  await toastHas(page, 'Cambios guardados');
+  assert.deepEqual((await panelRows(page)).map((r) => r.split(' ')[0] + ' ' + r.split(' ')[1]), ['Clase tres', 'Clase uno', 'Clase dos'].map((t) => t), 'el orden editado reordena la lista');
+
+  // volver: la lista general muestra el curso con "3 videos" y NO sus videos sueltos
+  await clickPanelButton(page, 'Volver a las clases');
+  await waitRow(page, 'Curso E2E', '3 videos');
+  const rows = await panelRows(page);
+  assert.ok(!rows.some((r) => r.includes('Clase uno')), 'los videos del curso no se listan sueltos');
+
+  // un curso con videos no se borra
+  await clickRowTitle(page, 'Curso E2E', 'Eliminar');
+  await toastHas(page, 'Eliminá primero sus videos');
+  assert.equal((await classByTitle('Curso E2E')).length, 1);
+
+  // publicar el curso (avisa que aún no tiene videos publicados) y sus videos
+  page.once('dialog', (d) => d.accept());
+  await clickRowButton(page, 'Curso E2E', 'Publicar');
+  await waitRow(page, 'Curso E2E', 'Publicada');
+  await clickRowButton(page, 'Curso E2E', 'Videos');
+  for (const t of ['Clase uno', 'Clase dos', 'Clase tres']) {
+    await clickRowButton(page, t, 'Publicar');
+    await waitRow(page, t, 'Publicada');
+  }
+
+  // el público: la videoteca muestra el curso (con su etiqueta), no los videos
+  const other = await page.ctx.newPage();
+  try {
+    await other.goto(`${S}/videoteca.html`);
+    await waitFor(other, () => document.querySelectorAll('.video-shop-card').length > 0);
+    const titles = await other.$$eval('.video-shop-card .shop-body h3', (n) => n.map((x) => x.textContent.trim()));
+    assert.ok(titles.includes('Curso E2E'), 'el curso se ve en la videoteca');
+    assert.ok(!titles.some((t) => t.startsWith('Clase ')), 'sus videos no aparecen sueltos');
+    assert.match(await other.$eval('.video-shop-card:has(h3)', () => document.body.innerText), /Curso/);
+  } finally {
+    await other.close();
+  }
+});
+
+await test('panel · Cursos: el admin no crea cursos ni sube videos (pero sí edita y publica)', async (page) => {
+  await be.addCourse({ title: 'Curso del equipo', is_published: false });
+  await loginAsAdmin(page);
+  await page.waitForSelector('#panelContent tbody tr');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#panelContent button')].some((b) => /Nuevo curso|Nueva clase/.test(b.textContent))), false, 'sin botones de alta');
+  await waitRow(page, 'Curso del equipo', '3 videos');
+  await clickRowButton(page, 'Curso del equipo', 'Videos');
+  await panelHas(page, /Subir videos nuevos lo hace el equipo técnico/);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#panelContent button')].some((b) => b.textContent.includes('Agregar video'))), false);
+  assert.equal((await panelRows(page)).length, 3, 'puede ver y gestionar los videos existentes');
+  // el servidor también lo rechaza: crear un curso por la API es solo developer
+  const code = await page.evaluate(async () => {
+    const { adminCreateCourse } = await import('/js/lib/api.js');
+    try { await adminCreateCourse({ title: 'Intruso' }); return 'ok'; } catch (e) { return e.code; }
+  });
+  assert.equal(code, 'developer_only');
+  assert.equal((await classByTitle('Intruso')).length, 0);
+});
+
+await test('cursos · público: la home y la videoteca muestran el curso (no sus videos) y su página lista los videos', async (page) => {
+  const { course, lessons } = await be.addCourse({ title: 'Curso de Vinyasa' });
+  await page.goto(`${S}/videoteca.html`);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 4);
+  const titles = await page.$$eval('#catalogGrid .video-shop-card .shop-body h3', (n) => n.map((x) => x.textContent.trim()));
+  assert.ok(titles.includes('Curso de Vinyasa'));
+  assert.ok(!titles.some((t) => /^Clase \d$/.test(t)), 'los videos del curso no se listan sueltos');
+  assert.match(await text(page, '#catalogGrid'), /Curso/);
+  assert.match(await text(page, '#catalogGrid'), /Ver curso|Agregar|50,00/, 'se vende como una clase suelta');
+
+  await page.goto(`${S}/clase.html?id=${course.id}`);
+  await waitFor(page, () => document.querySelectorAll('.course-lessons li').length === 3);
+  assert.equal(await text(page, 'h1'), 'Curso de Vinyasa');
+  assert.deepEqual(await page.$$eval('.course-lessons li a', (n) => n.map((x) => x.textContent)), lessons.map((l) => l.title));
+  assert.match(await text(page, '#info'), /Curso · 3 videos/);
+  // sin sesión: pide iniciar sesión, no reproduce
+  assert.match(await page.evaluate(() => document.body.innerText), /Inicia sesión para ver este curso/);
+});
+
+await test('cursos · acceso: sin acceso se ofrece el curso; con la compra o el nivel de suscripción se ven TODOS sus videos y se navega entre ellos', async (page) => {
+  await be.behavior({ payments: true });
+  const { course, lessons } = await be.addCourse({ title: 'Curso de Vinyasa', min_tier: 2 });
+  await signup('ana@test.dev');
+  await page.goto(`${S}/clase.html?id=${course.id}`);
+  await loginViaModal(page, 'ana@test.dev');
+  // sin acceso: se ofrece comprar EL CURSO (50 €), tanto en su página como en la de uno de sus videos
+  await waitFor(page, () => /Este curso no está incluido en tu acceso/.test(document.body.innerText));
+  assert.match(await page.evaluate(() => document.body.innerText), /Cómo acceder a este curso/);
+  await page.goto(`${S}/clase.html?id=${lessons[1].id}`);
+  await waitFor(page, () => /parte de un curso que no está incluido en tu acceso/.test(document.body.innerText));
+  assert.match(await page.evaluate(() => document.body.innerText), /Cómo acceder a este curso/);
+  assert.equal(await count(page, '.yp-bigplay'), 0, 'sin acceso no hay reproductor');
+
+  // con el curso comprado: se ven todos los videos
+  await be.entitle('ana@test.dev', course.id);
+  await page.goto(`${S}/clase.html?id=${course.id}`);
+  await waitFor(page, () => document.querySelectorAll('.course-lessons li').length === 3 && /Empezar el curso/.test(document.body.innerText));
+  await page.click('.gate a.btn, .clase-gate a.btn, a.btn[href*="clase.html?id="]');
+  await page.waitForSelector('.yp-bigplay', { visible: true, timeout: 15000 });
+  assert.match(page.url(), new RegExp(lessons[0].id));
+  assert.match(await text(page, 'h1'), /Clase 1/);
+  assert.match(await text(page, '#info'), /Curso de Vinyasa/, 'el video enlaza de vuelta a su curso');
+  // navegar a otro video del mismo curso (la lista lateral), también cubierto por la misma compra
+  await page.click(`.course-lessons a[href*="${lessons[2].id}"]`);
+  await page.waitForSelector('.yp-bigplay', { visible: true, timeout: 15000 });
+  assert.match(await text(page, 'h1'), /Clase 3/);
+  assert.equal((await be.state()).log.playbackCalls.filter((c) => c.classId === lessons[2].id).length >= 1, true);
+});
+
+await test('cursos · acceso: la suscripción con nivel suficiente da todo el curso; un nivel menor no', async (page) => {
+  const { course } = await be.addCourse({ title: 'Curso de Vinyasa', min_tier: 2 });
+  await signup('ana@test.dev');
+  await be.subscribe('ana@test.dev', 1);
+  await page.goto(`${S}/clase.html?id=${course.id}`);
+  await loginViaModal(page, 'ana@test.dev');
+  await waitFor(page, () => /Este curso no está incluido en tu acceso/.test(document.body.innerText));
+  await be.subscribe('ana@test.dev', 2);
+  await page.reload();
+  await waitFor(page, () => /Empezar el curso/.test(document.body.innerText));
+});
+
+await test('despliegue: si la web sale antes que la migración de cursos, home, videoteca, clase y panel siguen funcionando', async (page) => {
+  await be.behavior({ coursesBehind: true });
+  await page.goto(`${S}/videoteca.html`);
+  await waitFor(page, () => document.querySelectorAll('#catalogGrid .video-shop-card').length === 3);
+  assert.equal(await page.$('.yp-error, [role="alert"]'), null, 'sin pantalla de error');
+  await page.goto(S);
+  await waitFor(page, () => document.querySelectorAll('#homeVideos .video-card').length > 0);
+  await page.goto(`${S}/clase.html?id=${IDS.free}`);
+  await waitFor(page, () => document.querySelector('h1')?.textContent.includes('Yoga para principiantes'));
+  await loginAsDeveloper(page);
+  await page.waitForSelector('#panelContent tbody tr', { timeout: 10000 });
+  assert.equal((await page.$$('#panelContent tbody tr')).length, 4, 'el panel lista las 4 clases con las columnas anteriores');
+  // crear un curso sin la migración da un mensaje claro (no un error genérico)
+  await clickButtonText(page, 'Nuevo curso');
+  await classModalReady(page);
+  await page.type('#cfTitle', 'Curso temprano');
+  await page.click('#classFormModal button[type=submit]');
+  await waitFor(page, () => /Falta aplicar la migración de cursos/.test(document.querySelector('#classFormModal .yp-form-error')?.textContent ?? ''));
+});
+
 await test('panel · Clases: si la subida falla se avisa y el reintento reanuda la MISMA clase (no la duplica)', async (page) => {
   const video = ensureMedia('e2e-upload');
   await loginAsDeveloper(page);

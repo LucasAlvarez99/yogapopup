@@ -155,7 +155,7 @@ function priceRow(cls, cents) {
       save.disabled = false;
     }
   });
-  return el('tr', {}, el('td', { translate: 'no' }, cls.title),
+  return el('tr', {}, el('td', { translate: 'no' }, cls.title, cls.kind === 'course' ? el('span', { class: 'badge text-bg-light border ms-2' }, 'Curso') : null),
     el('td', {}, el('div', { class: 'd-flex gap-2 align-items-center' }, input, el('span', { class: 'small text-muted' }, '€ con IVA'))), el('td', { class: 'text-end' }, save));
 }
 
@@ -182,7 +182,7 @@ function shippingCard(cents) {
 }
 
 function pricesTable(classes, prices) {
-  const sellable = classes.filter((c) => c.access_level === 'restricted');
+  const sellable = classes.filter((c) => c.access_level === 'restricted' && !c.course_id); // los videos de un curso se cobran con el curso
   if (sellable.length === 0) {
     return el('p', { class: 'text-muted small' }, 'Solo las clases con acceso "restringido" se pueden vender sueltas. Cambiá el acceso de una clase para ofrecerla.');
   }

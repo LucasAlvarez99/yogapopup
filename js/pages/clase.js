@@ -1,6 +1,6 @@
 import * as session from '../lib/session.js';
 import { supabase } from '../lib/supabase.js';
-import { getClass, getClassOffer, getClassMinTier, getPlayback, listPublishedClasses, saveProgress, saveProgressOnUnload } from '../lib/api.js';
+import { canAccessClass, getClass, getClassOffer, getClassMinTier, getMyProgressMap, getPlayback, listCourseLessons, listPublishedClasses, saveProgress, saveProgressOnUnload } from '../lib/api.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { formatClock, formatMinutes, isUuid, levelLabel, percent } from '../lib/format.js';
 import { cfg, page, paymentsEnabled } from '../lib/env.js';
@@ -28,6 +28,13 @@ const classId = new URLSearchParams(location.search).get('id');
 let player = null;
 let reporter = null;
 let seekTimer = null;
+// Cursos: esta página es de un curso (kind 'course') o de un video que pertenece a uno. El acceso y la compra son SIEMPRE los del curso.
+let course = null; // fila del curso (null = video suelto)
+let lessons = []; // videos publicados del curso, en su orden
+let offerId = classId; // lo que se compra o se pide al elegir un nivel: el curso, si el video es parte de uno
+
+const hrefOf = (id) => `${page('clase.html')}?id=${encodeURIComponent(id)}`;
+const videosLabel = (n) => (n === 1 ? '1 video' : `${n} videos`);
 
 const $gate = ({ ico, title, text, action }) =>
   mount(stage, el('div', { class: 'clase-gate', role: 'status' }, icon(ico), el('h2', { class: 'h5 text-white m-0' }, title), text ? el('p', {}, text) : null, action));
@@ -42,19 +49,19 @@ async function offerAccess() {
   document.getElementById('accessOptions')?.remove();
   let offer = null;
   if (paymentsEnabled) {
-    try { offer = await getClassOffer(classId); } catch { /* sin precio disponible: solo queda el aviso */ }
+    try { offer = await getClassOffer(offerId); } catch { /* sin precio disponible: solo queda el aviso */ }
   }
   const boxes = [];
-  if (offer) boxes.push(buyClassBox({ classId, offer, onPurchased: () => { toast('¡Gracias! Ya podés ver la clase.', { type: 'success' }); start(); } }));
+  if (offer) boxes.push(buyClassBox({ classId: offerId, offer, onPurchased: () => { toast(course ? '¡Gracias! Ya podés ver el curso.' : '¡Gracias! Ya podés ver la clase.', { type: 'success' }); start(); } }));
   if (subscriptionOffered()) {
     // Solo se ofrecen los niveles que ven ESTA clase (si no se pudieron leer, se ofrecen todos).
-    const minTier = session.isLoggedIn() ? await getClassMinTier(classId) : null;
+    const minTier = session.isLoggedIn() ? await getClassMinTier(offerId) : null;
     const allowedTiers = minTier == null ? null : tiersFromMin(minTier);
     boxes.push(tierPicker({ allowedTiers, onActive: (r) => { if (r === 'active') start(); } }));
   }
   if (boxes.length === 0) return false;
   const card = el('section', { class: 'yp-card pp-options mt-3', id: 'accessOptions' },
-    el('h2', { class: 'yp-block-title' }, 'Cómo acceder a esta clase'),
+    el('h2', { class: 'yp-block-title' }, course ? 'Cómo acceder a este curso' : 'Cómo acceder a esta clase'),
     ...boxes.flatMap((b, i) => (i === 0 ? [b] : [el('p', { class: 'text-center text-muted small my-3' }, '— o —'), b])));
   info.append(card);
   return true;
@@ -75,7 +82,10 @@ function renderInfo(c, resume) {
     c.category ? el('span', { class: 'tag tag-mint', style: 'position:static' }, c.category) : null,
     c.duration_seconds ? el('span', { class: 'tag tag-light', style: 'position:static' }, formatMinutes(c.duration_seconds)) : null,
   ];
+  const isCourse = c.kind === 'course';
+  if (isCourse) tags.push(el('span', { class: 'tag tag-light', style: 'position:static' }, `Curso · ${videosLabel(lessons.length)}`));
   mount(info,
+    course && !isCourse ? el('a', { class: 'small d-inline-block mb-2', href: hrefOf(course.id), translate: 'no' }, icon('arrow-left'), ` ${course.title}`) : null,
     el('h1', { class: 'clase-title', translate: 'no' }, c.title),
     el('div', { class: 'clase-meta' }, ...tags),
     resume > 0 && c.duration_seconds
@@ -83,7 +93,36 @@ function renderInfo(c, resume) {
     c.description ? el('p', { class: 'clase-desc', translate: 'no' }, c.description) : null);
 }
 
+/** Lista numerada de los videos del curso (el actual resaltado, los terminados con tilde). */
+function lessonsList(progress = {}) {
+  return el('ol', { class: 'list-group list-group-flush course-lessons' }, ...lessons.map((l, i) => {
+    const current = l.id === classId;
+    return el('li', { class: 'list-group-item d-flex gap-2 align-items-center px-0' },
+      el('span', { class: 'text-muted small' }, String(i + 1)),
+      el('a', { class: `flex-grow-1 text-decoration-none${current ? ' fw-semibold' : ''}`, href: hrefOf(l.id), 'aria-current': current ? 'true' : null, translate: 'no' }, l.title),
+      l.duration_seconds ? el('small', { class: 'text-muted' }, formatMinutes(l.duration_seconds)) : null,
+      progress[l.id]?.completed ? icon('check2') : current ? icon('play-fill') : null);
+  }));
+}
+
+async function loadCourse(cls) {
+  course = null;
+  lessons = [];
+  offerId = classId;
+  if (cls.kind !== 'course' && !cls.course_id) return;
+  try {
+    course = cls.kind === 'course' ? cls : await getClass(cls.course_id);
+    if (!course) return;
+    offerId = course.id;
+    lessons = await listCourseLessons(course.id);
+  } catch { /* sin la lista del curso la página igual funciona: se ve el video o la ficha */ }
+}
+
 async function renderMore() {
+  if (course) {
+    const progress = session.isLoggedIn() ? await getMyProgressMap().catch(() => ({})) : {};
+    return mount(side, el('h2', { class: 'yp-block-title' }, 'Videos del curso'), lessonsList(progress));
+  }
   try {
     const others = (await listPublishedClasses({ limit: 4 })).filter((x) => x.id !== classId).slice(0, 3);
     if (others.length === 0) return;
@@ -121,6 +160,32 @@ function mountPlayer(cls, pb) {
   });
 }
 
+/** Página de un curso: la ficha, la lista de sus videos y (según el acceso) el botón para empezar o las opciones para acceder. */
+async function startCourse(cls) {
+  renderInfo(cls, 0);
+  const progress = session.isLoggedIn() ? await getMyProgressMap().catch(() => ({})) : {};
+  mount(side, el('h2', { class: 'yp-block-title' }, 'Videos del curso'), lessons.length ? lessonsList(progress) : el('p', { class: 'text-muted small' }, 'Todavía no hay videos.'));
+  if (lessons.length === 0) return $gate({ ico: 'hourglass-split', title: 'Este curso todavía no tiene videos', text: 'Vuelve pronto.', action: goVideoteca() });
+  if (!session.isLoggedIn()) {
+    return $gate({ ico: 'lock', title: 'Inicia sesión para ver este curso', text: 'Es gratis crear tu cuenta y retomar donde lo dejaste.',
+      action: el('button', { type: 'button', class: 'btn btn-brand btn-sm', onclick: () => openAuth({ message: 'Necesitas una cuenta para ver los cursos.' }) }, 'Iniciar sesión o crear cuenta') });
+  }
+  let allowed;
+  try { allowed = await canAccessClass(cls.id); } catch (err) {
+    return $gate({ ico: 'exclamation-triangle', title: 'No pudimos cargar el curso', text: messageFor(err),
+      action: el('button', { type: 'button', class: 'btn btn-brand btn-sm', onclick: start }, icon('arrow-repeat'), ' Reintentar') });
+  }
+  if (allowed) {
+    const started = lessons.some((l) => progress[l.id]);
+    const next = lessons.find((l) => !progress[l.id]?.completed) ?? lessons[0];
+    return $gate({ ico: 'collection-play', title: videosLabel(lessons.length), text: 'Elegí un video de la lista o empezá por el primero que te falte.',
+      action: el('a', { class: 'btn btn-brand btn-sm', href: hrefOf(next.id) }, icon('play-fill'), started ? ' Continuar el curso' : ' Empezar el curso') });
+  }
+  const hasOptions = await offerAccess();
+  return $gate({ ico: 'lock-fill', title: 'Este curso no está incluido en tu acceso',
+    text: hasOptions ? 'Es un contenido restringido. Abajo podés elegir cómo acceder.' : 'Es un contenido restringido. Explora las clases disponibles para ti.', action: goVideoteca() });
+}
+
 async function start() {
   stopPlayer();
   document.getElementById('accessOptions')?.remove();
@@ -137,6 +202,8 @@ async function start() {
       action: el('button', { type: 'button', class: 'btn btn-brand btn-sm', onclick: start }, icon('arrow-repeat'), ' Reintentar') });
   }
   if (!cls) return $gate({ ico: 'question-circle', title: 'No encontramos esta clase', text: 'Puede que ya no esté disponible.', action: goVideoteca() });
+  await loadCourse(cls);
+  if (cls.kind === 'course') return startCourse(cls);
   renderInfo(cls, 0);
   renderMore();
 
@@ -153,7 +220,7 @@ async function start() {
     const code = err instanceof AppError ? err.code : '';
     if (code === 'no_access') {
       const hasOptions = await offerAccess();
-      return $gate({ ico: 'lock-fill', title: 'Esta clase no está incluida en tu acceso',
+      return $gate({ ico: 'lock-fill', title: course ? 'Este video es parte de un curso que no está incluido en tu acceso' : 'Esta clase no está incluida en tu acceso',
         text: hasOptions ? 'Es un contenido restringido. Abajo podés elegir cómo acceder.' : 'Es un contenido restringido. Explora las clases disponibles para ti.', action: goVideoteca() });
     }
     if (code === 'video_not_ready') return $gate({ ico: 'hourglass-split', title: 'Estamos preparando este video', text: 'Vuelve en unos minutos.', action: el('button', { type: 'button', class: 'btn btn-brand btn-sm', onclick: start }, 'Comprobar de nuevo') });

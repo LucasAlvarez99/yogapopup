@@ -3,7 +3,7 @@ import { el, mount } from '../lib/dom.js';
 import { LEVEL_LABELS } from '../lib/format.js';
 import { AppError, messageFor } from '../lib/errors.js';
 import { assertVideoReady, sanitizeDuration, videoFileProblem } from '../lib/video-upload.js';
-import { adminCreateUpload, adminSyncVideo, adminUpdateClass, deleteThumbnailByUrl, readVideoDuration, resizeImage, uploadThumbnail, uploadVideoToR2 } from '../lib/api.js';
+import { adminCreateCourse, adminCreateUpload, adminSyncVideo, adminUpdateClass, deleteThumbnailByUrl, readVideoDuration, resizeImage, uploadThumbnail, uploadVideoToR2 } from '../lib/api.js';
 import { normalizeMinTier, TIERS } from '../lib/tiers.js';
 import { toast } from './toast.js';
 import * as session from '../lib/session.js';
@@ -86,11 +86,19 @@ function readMetaFromForm(form, { categories = [], previousCategory = null } = {
   };
 }
 
+/** Datos de un video que pertenece a un curso: solo título, descripción y orden (el nivel, el acceso y el precio son los del curso). */
+function readLessonMeta(form) {
+  const sort = parseSortOrder(form.cfSort.value);
+  if (sort.error) return { error: sort.error };
+  return { title: form.cfTitle.value.trim(), description: form.cfDescription.value.trim() || null, sort_order: sort.value };
+}
+
 /**
- * @param {{mode: 'create'|'retry'|'edit', row?: object}} opts row es obligatorio en modo 'retry'/'edit'.
+ * @param {{mode: 'create'|'retry'|'edit'|'course'|'lesson', row?: object, course?: {id: string, title: string, nextOrder?: number}}} opts
+ *   row es obligatorio en modo 'retry'/'edit'. 'course' crea un curso (sin video); 'lesson' suma un video a `course`.
  * @returns {Promise<boolean>} true si se guardó/subió/creó algo, aunque la subida del video haya fallado (conviene refrescar la lista).
  */
-export function openClassForm({ mode = 'create', row = null, categories = [] } = {}) {
+export function openClassForm({ mode = 'create', row = null, categories = [], course = null } = {}) {
   // Crear una clase o subir/reintentar su video es del developer. El panel ya no ofrece estas acciones al admin;
   // esta guarda evita abrir el formulario por un camino olvidado (el servidor y la base lo rechazan igual).
   if (mode !== 'edit' && !session.canUpload()) {
@@ -98,9 +106,12 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
     return Promise.resolve(false);
   }
   if (!modalEl) build();
-  titleEl.textContent = mode === 'edit' ? `Editar · ${row.title}` : mode === 'retry' ? `Subir video · ${row.title}` : 'Nueva clase';
+  const lessonLike = mode === 'lesson' || (mode !== 'course' && Boolean(row?.course_id)); // un video de un curso hereda lo del curso
+  const creating = mode === 'create' || mode === 'lesson'; // clase o video nuevo: se crea la fila y se sube el video
+  titleEl.textContent = mode === 'edit' ? `Editar · ${row.title}` : mode === 'retry' ? `Subir video · ${row.title}`
+    : mode === 'course' ? 'Nuevo curso' : mode === 'lesson' ? `Nuevo video · ${course.title}` : 'Nueva clase';
 
-  const showVideo = mode !== 'edit'; // en 'edit' se cambian los datos, nunca el video (eso es 'retry')
+  const showVideo = mode !== 'edit' && mode !== 'course'; // en 'edit' se cambian los datos, nunca el video (eso es 'retry'); un curso no tiene video propio
 
   const progressWrap = el('div', { class: 'mb-3 d-none' },
     el('div', { class: 'progress', role: 'progressbar', 'aria-label': 'Progreso de la subida' },
@@ -108,9 +119,17 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
     el('p', { class: 'form-text mb-0' }));
   const [progressBox, barBox, progressText] = [progressWrap, progressWrap.querySelector('.progress-bar'), progressWrap.querySelector('.form-text')];
 
+  const lessonFields = () => [
+    field('cfTitle', 'Título', el('input', { class: 'form-control', id: 'cfTitle', required: true, maxlength: 150, value: row?.title ?? '' })),
+    field('cfDescription', 'Descripción', el('textarea', { class: 'form-control', id: 'cfDescription', rows: 3, maxlength: 5000 }, row?.description ?? '')),
+    field('cfSort', 'Orden en el curso',
+      el('input', { class: 'form-control', id: 'cfSort', type: 'number', inputmode: 'numeric', value: String(row?.sort_order ?? course?.nextOrder ?? 0), step: '1' }),
+      'Número entero: el menor aparece primero dentro del curso. Se puede cambiar cuando quieras. El nivel, el acceso y el precio son los del curso.'),
+  ];
+
   const metaFields = mode === 'retry'
     ? [el('p', { class: 'text-muted small' }, 'El título y los demás datos de la clase no cambian acá; solo se sube el video.')]
-    : [
+    : lessonLike ? lessonFields() : [
       field('cfTitle', 'Título', el('input', { class: 'form-control', id: 'cfTitle', required: true, maxlength: 150, value: row?.title ?? '' })),
       field('cfDescription', 'Descripción', el('textarea', { class: 'form-control', id: 'cfDescription', rows: 3, maxlength: 5000 }, row?.description ?? '')),
       el('div', { class: 'row' },
@@ -136,7 +155,8 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
     showVideo ? field('cfVideo', 'Video', el('input', { class: 'form-control', id: 'cfVideo', type: 'file', accept: 'video/*', required: true })) : null,
     showVideo ? progressBox : null,
     el('div', { class: 'd-flex gap-2' },
-      el('button', { type: 'submit', class: 'btn btn-brand flex-grow-1' }, mode === 'edit' ? 'Guardar cambios' : mode === 'retry' ? 'Subir video' : 'Crear y subir'),
+      el('button', { type: 'submit', class: 'btn btn-brand flex-grow-1' }, mode === 'edit' ? 'Guardar cambios' : mode === 'retry' ? 'Subir video'
+        : mode === 'course' ? 'Crear curso' : mode === 'lesson' ? 'Agregar y subir' : 'Crear y subir'),
       showVideo ? el('button', { type: 'button', class: 'btn btn-outline-secondary d-none', id: 'cfCancel' }) : null));
   if (showVideo) form.querySelector('#cfCancel').textContent = 'Cancelar subida';
 
@@ -152,12 +172,12 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
     const submitBtn = form.querySelector('button[type=submit]');
 
     if (mode === 'edit') {
-      const patch = readMetaFromForm(form, { categories, previousCategory: row.category });
+      const patch = lessonLike ? readLessonMeta(form) : readMetaFromForm(form, { categories, previousCategory: row.category });
       if (patch.error) return showError(form, patch.error);
       if (!patch.title) return showError(form, 'El título es obligatorio.');
       submitBtn.disabled = true;
       try {
-        const thumbFile = form.cfThumb.files[0];
+        const thumbFile = form.cfThumb?.files[0];
         const previousThumb = row.thumbnail_url;
         if (thumbFile) {
           const blob = await resizeImage(thumbFile);
@@ -176,13 +196,41 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
       return;
     }
 
+    if (mode === 'course') {
+      // Un curso no sube video: se crea la fila (sin publicar) y después se le suman los videos uno por uno.
+      const meta = readMetaFromForm(form, { categories });
+      if (meta.error) return showError(form, meta.error);
+      if (!meta.title) return showError(form, 'El título es obligatorio.');
+      submitBtn.disabled = true;
+      try {
+        const id = await adminCreateCourse(meta);
+        created = { id };
+        const thumbFile = form.cfThumb.files[0];
+        if (thumbFile) {
+          try {
+            const blob = await resizeImage(thumbFile);
+            await adminUpdateClass(id, { thumbnail_url: await uploadThumbnail(id, blob) });
+          } catch (err) {
+            toast(`El curso se creó, pero la miniatura falló: ${messageFor(err)}`, { type: 'error', ms: 6000 });
+          }
+        }
+        closeModal();
+        toast('Curso creado. Sumale videos desde el botón "Videos" y publicalo cuando esté listo.', { type: 'success', ms: 6000 });
+        resolveOpen(true);
+      } catch (err) {
+        submitBtn.disabled = false;
+        showError(form, messageFor(err));
+      }
+      return;
+    }
+
     const videoFile = form.cfVideo.files[0];
     const fileProblem = videoFileProblem(videoFile);
     if (fileProblem) return showError(form, fileProblem);
     const title = mode === 'retry' ? row.title : form.cfTitle.value.trim();
     if (mode !== 'retry' && !title) return showError(form, 'El título es obligatorio.');
     // Categoría y Orden se validan ANTES de crear nada (un error aquí no debe dejar una clase a medias).
-    const meta = mode === 'retry' ? null : readMetaFromForm(form, { categories });
+    const meta = mode === 'retry' ? null : lessonLike ? readLessonMeta(form) : readMetaFromForm(form, { categories });
     if (meta?.error) return showError(form, meta.error);
 
     submitBtn.disabled = true;
@@ -190,19 +238,19 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
     try {
       const payload = mode === 'retry'
         ? { class_id: row.id, title: row.title, description: row.description, category: row.category, level: row.level, access_level: row.access_level, sort_order: row.sort_order }
-        : { ...(created ? { class_id: created.id } : {}), title, ...withoutTiers(meta) };
-      progressText.textContent = mode === 'retry' ? 'Preparando la subida…' : 'Creando la clase…';
+        : { ...(created ? { class_id: created.id } : {}), title, ...withoutTiers(meta), ...(mode === 'lesson' ? { course_id: course.id } : {}) };
+      progressText.textContent = mode === 'retry' ? 'Preparando la subida…' : mode === 'lesson' ? 'Agregando el video…' : 'Creando la clase…';
       progressBox.classList.remove('d-none');
-      const firstAttempt = mode === 'create' && !created;
+      const firstAttempt = creating && !created;
       const { class: cls, upload } = await adminCreateUpload(payload);
-      if (mode === 'create') created = cls;
+      if (creating) created = cls;
       // El nivel no viaja por la función de subida (solo prepara el video): se guarda en la clase ya creada.
-      if (firstAttempt && meta && meta.min_tier !== 1) {
+      if (firstAttempt && meta && meta.min_tier != null && meta.min_tier !== 1) {
         try { await adminUpdateClass(cls.id, { min_tier: meta.min_tier }); }
         catch (err) { toast(`La clase se creó, pero el nivel no se guardó: ${messageFor(err)}. Editá la clase para elegirlo.`, { type: 'error', ms: 7000 }); }
       }
 
-      const thumbFile = firstAttempt ? form.cfThumb.files[0] : null; // la miniatura se sube una sola vez
+      const thumbFile = firstAttempt ? form.cfThumb?.files[0] : null; // la miniatura se sube una sola vez (un video de curso no lleva: usa la del curso)
       if (thumbFile) {
         try {
           const blob = await resizeImage(thumbFile);
@@ -234,7 +282,7 @@ export function openClassForm({ mode = 'create', row = null, categories = [] } =
       assertVideoReady(synced); // 'failed' o sin confirmar = error visible (el modal sigue abierto para reintentar)
 
       closeModal();
-      toast(mode === 'retry' ? 'Video subido.' : 'Clase creada y video subido.', { type: 'success' });
+      toast(mode === 'retry' ? 'Video subido.' : mode === 'lesson' ? 'Video agregado al curso.' : 'Clase creada y video subido.', { type: 'success' });
       resolveOpen(true);
     } catch (err) {
       progressBox.classList.add('d-none');

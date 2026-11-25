@@ -37,6 +37,13 @@ const root = el('div', { id: 'panelContent' });
 let activeTab = null; // 'classes' | 'products' | 'payments' | 'testimonials' | 'teachers' | 'agenda' | 'profile'
 let classes = [];
 let statusFilter = 'all'; // 'all' | 'published' | 'draft' | 'failed'
+let openCourseId = null; // id del curso cuyos videos se están gestionando (null = lista general de clases)
+
+const isCourse = (c) => c.kind === 'course';
+/** Videos de un curso, en su orden (sort_order y, a igual orden, el más viejo primero). */
+const lessonsOf = (courseId) => classes.filter((c) => c.course_id === courseId)
+  .sort((a, b) => a.sort_order - b.sort_order || String(a.created_at).localeCompare(String(b.created_at)));
+const videosLabel = (n) => (n === 1 ? '1 video' : `${n} videos`);
 
 const VIDEO_STATUS_LABELS = {
   pending: 'Pendiente', uploading: 'Subiendo', processing: 'Procesando', ready: 'Lista', failed: 'Con error',
@@ -53,11 +60,13 @@ function statusBadge(status) {
 
 async function togglePublish(row, btn) {
   const next = !row.is_published;
+  if (next && isCourse(row) && !lessonsOf(row.id).some((l) => l.is_published)
+    && !confirm('Este curso todavía no tiene videos publicados. ¿Publicarlo igual?')) return;
   btn.disabled = true;
   try {
     const updated = await adminUpdateClass(row.id, { is_published: next });
     Object.assign(row, updated);
-    toast(next ? 'Clase publicada.' : 'Clase despublicada.', { type: 'success' });
+    toast(next ? (isCourse(row) ? 'Curso publicado.' : 'Clase publicada.') : (isCourse(row) ? 'Curso despublicado.' : 'Clase despublicada.'), { type: 'success' });
     renderTable();
   } catch (err) {
     toast(messageFor(err), { type: 'error' });
@@ -78,11 +87,16 @@ async function refreshStatus(row, btn) {
 }
 
 async function removeClass(row) {
-  if (!confirm(`¿Eliminar "${row.title}"? Esto borra la clase y su video, y no se puede deshacer.`)) return;
+  if (isCourse(row)) {
+    // Un curso con videos no se borra de un golpe (cada video tiene su archivo en R2): primero se eliminan sus videos.
+    const n = lessonsOf(row.id).length;
+    if (n > 0) return toast(`El curso tiene ${videosLabel(n)}. Eliminá primero sus videos (botón "Videos").`, { type: 'error', ms: 6000 });
+    if (!confirm(`¿Eliminar el curso "${row.title}"? No se puede deshacer.`)) return;
+  } else if (!confirm(`¿Eliminar "${row.title}"? Esto borra la clase y su video, y no se puede deshacer.`)) return;
   try {
     await adminDeleteClass(row.id);
     classes = classes.filter((c) => c.id !== row.id);
-    toast('Clase eliminada.', { type: 'success' });
+    toast(isCourse(row) ? 'Curso eliminado.' : 'Clase eliminada.', { type: 'success' });
     renderTable();
   } catch (err) {
     toast(messageFor(err), { type: 'error' });
@@ -97,9 +111,18 @@ async function retryUpload(row) {
   if (await openClassForm({ mode: 'retry', row })) loadClasses();
 }
 
+function openCourseView(id) {
+  openCourseId = id;
+  renderTable();
+}
+
 function classRow(row) {
   const canPublish = row.is_published || row.video_status === 'ready';
-  const actions = [
+  const actions = isCourse(row) ? [el('button', {
+    type: 'button', class: 'btn btn-sm btn-outline-brand', title: 'Ver y agregar los videos del curso',
+    onclick: () => openCourseView(row.id),
+  }, icon('collection-play'), ' Videos')] : [];
+  actions.push(...[
     el('button', {
       type: 'button', class: 'btn btn-sm btn-outline-secondary', title: 'Editar datos de la clase',
       onclick: () => editClass(row),
@@ -111,7 +134,7 @@ function classRow(row) {
       title: canPublish ? '' : 'El video todavía no está listo.',
       onclick: (e) => togglePublish(row, e.currentTarget),
     }, row.is_published ? 'Despublicar' : 'Publicar'),
-  ];
+  ]);
   if (NEEDS_VIDEO.has(row.video_status)) {
     actions.push(session.canUpload()
       ? el('button', {
@@ -132,9 +155,11 @@ function classRow(row) {
   }, icon('trash')));
 
   return el('tr', {},
-    el('td', {}, el('strong', {}, row.title), row.category ? el('div', { class: 'text-muted small' }, row.category) : null),
-    el('td', {}, levelLabel(row.level)),
-    el('td', {}, statusBadge(row.video_status)),
+    el('td', {}, el('strong', {}, row.title), isCourse(row) ? el('span', { class: 'badge text-bg-light border ms-2' }, 'Curso') : null,
+      row.category ? el('div', { class: 'text-muted small' }, row.category) : null,
+      row.course_id ? el('div', { class: 'text-muted small' }, `Orden ${row.sort_order}`) : null),
+    el('td', {}, row.course_id ? '—' : levelLabel(row.level)),
+    el('td', {}, isCourse(row) ? el('span', { class: 'small' }, videosLabel(lessonsOf(row.id).length)) : statusBadge(row.video_status)),
     el('td', {}, el('span', { class: `badge ${row.is_published ? 'text-bg-success' : 'text-bg-secondary'}` }, row.is_published ? 'Publicada' : 'Sin publicar')),
     el('td', { class: 'text-muted small' }, formatDate(row.updated_at)),
     el('td', { class: 'text-end' }, el('div', { class: 'd-flex gap-1 justify-content-end flex-wrap' }, ...actions)));
@@ -146,10 +171,45 @@ function newClassButton() {
     return el('p', { class: 'text-muted small mb-3' }, icon('info-circle'),
       ' Podés editar, publicar, despublicar y eliminar clases. Subir videos nuevos lo hace el equipo técnico.');
   }
-  return el('button', {
-    type: 'button', class: 'btn btn-brand mb-3',
-    onclick: async () => { if (await openClassForm({ mode: 'create', categories: knownCategories(classes) })) loadClasses(); },
-  }, icon('plus-lg'), ' Nueva clase');
+  return el('div', { class: 'd-flex gap-2 flex-wrap mb-3' },
+    el('button', {
+      type: 'button', class: 'btn btn-brand',
+      onclick: async () => { if (await openClassForm({ mode: 'create', categories: knownCategories(classes) })) loadClasses(); },
+    }, icon('plus-lg'), ' Nueva clase'),
+    el('button', {
+      type: 'button', class: 'btn btn-outline-brand',
+      onclick: async () => { if (await openClassForm({ mode: 'course', categories: knownCategories(classes) })) loadClasses(); },
+    }, icon('collection-play'), ' Nuevo curso'));
+}
+
+/** Vista de un curso: sus videos (sin límite, en su orden) y el botón para sumar más cuando haga falta. */
+function renderCourse(course) {
+  const lessons = lessonsOf(course.id);
+  const back = el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary mb-3', onclick: () => { openCourseId = null; renderTable(); } },
+    icon('arrow-left'), ' Volver a las clases');
+  const head = el('div', { class: 'mb-3' },
+    el('h2', { class: 'h5 m-0' }, course.title, ' ', el('span', { class: 'badge text-bg-light border' }, 'Curso'), ' ',
+      el('span', { class: `badge ${course.is_published ? 'text-bg-success' : 'text-bg-secondary'}` }, course.is_published ? 'Publicado' : 'Sin publicar')),
+    el('p', { class: 'small text-muted mb-0' }, `${videosLabel(lessons.length)}. El nivel, el acceso y el precio son los del curso; se editan con el lápiz de la lista de clases. Podés sumar más videos cuando quieras.`));
+  const add = session.canUpload()
+    ? el('button', {
+      type: 'button', class: 'btn btn-brand mb-3',
+      onclick: async () => {
+        const nextOrder = lessons.reduce((m, l) => Math.max(m, l.sort_order), 0) + 1;
+        if (await openClassForm({ mode: 'lesson', course: { id: course.id, title: course.title, nextOrder } })) loadClasses();
+      },
+    }, icon('plus-lg'), ' Agregar video')
+    : el('p', { class: 'text-muted small mb-3' }, icon('info-circle'), ' Podés editar, publicar, despublicar y eliminar los videos. Subir videos nuevos lo hace el equipo técnico.');
+  if (lessons.length === 0) {
+    return mount(root, back, head, add, emptyState('Este curso todavía no tiene videos',
+      session.canUpload() ? 'Agregá el primero con el botón de arriba.' : 'Cuando el equipo técnico suba el primero, lo vas a ver acá.'));
+  }
+  mount(root, back, head, add, el('div', { class: 'table-responsive' },
+    el('table', { class: 'table align-middle' },
+      el('thead', {}, el('tr', {},
+        el('th', {}, 'Video'), el('th', {}, ''), el('th', {}, 'Archivo'), el('th', {}, 'Estado'),
+        el('th', {}, 'Actualizado'), el('th', { class: 'text-end' }, ''))),
+      el('tbody', {}, ...lessons.map(classRow)))));
 }
 
 const FILTERS = [
@@ -171,8 +231,13 @@ function filterBar() {
 
 function renderTable() {
   if (activeTab !== 'classes') return; // el usuario ya cambió de pestaña: no pisar lo que está viendo
-  const visible = classes.filter(FILTERS.find(([key]) => key === statusFilter)[2]);
-  if (classes.length === 0) {
+  const course = openCourseId && classes.find((c) => c.id === openCourseId);
+  if (course) return renderCourse(course);
+  openCourseId = null; // el curso ya no existe (se borró o la lista cambió)
+  // Los videos de un curso se gestionan dentro del curso, no en la lista general.
+  const standalone = classes.filter((c) => !c.course_id);
+  const visible = standalone.filter(FILTERS.find(([key]) => key === statusFilter)[2]);
+  if (standalone.length === 0) {
     return mount(root, newClassButton(), emptyState('Todavía no hay clases',
       session.canUpload() ? 'Creá la primera con el botón de arriba.' : 'Cuando el equipo técnico suba la primera, la vas a ver acá.'));
   }

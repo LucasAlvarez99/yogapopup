@@ -24,6 +24,8 @@ function optionalString(value: unknown, field: string, max: number): string | nu
 
 export interface CreateClassInput {
   classId: string | null;
+  /** Curso al que se suma el video (solo al crear un video nuevo; null = video suelto). */
+  courseId: string | null;
   title: string;
   description: string | null;
   category: string | null;
@@ -52,6 +54,7 @@ export function parseCreateClassInput(body: Record<string, unknown>): CreateClas
 
   return {
     classId: body.class_id === undefined || body.class_id === null ? null : parseUuid(body.class_id, "class_id"),
+    courseId: body.course_id === undefined || body.course_id === null ? null : parseUuid(body.course_id, "course_id"),
     title,
     description: optionalString(body.description, "description", 5000),
     category: optionalString(body.category, "category", 60),
