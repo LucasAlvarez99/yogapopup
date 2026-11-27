@@ -20,8 +20,9 @@ cursos, suscripciones y tienda física.
 progreso (`save_progress`), firmas R2 (SigV4 vía `aws4fetch`), confirmación de subida sin webhooks (HEAD directo
 al bucket en `admin-sync-video`) y pruebas.
 
-**Vocabulario:** un **curso** es un video subido a Cloudflare R2 y registrado como fila de `classes` (en el código y la base
-se sigue llamando `class`/`classes`). Aparece en la home (sección `#cursos`) y en `videoteca.html`. No confundir con las
+**Vocabulario:** una **clase** (o video) es un video subido a Cloudflare R2 y registrado como fila de `classes` (en el código y la base
+se sigue llamando `class`/`classes`; la home la muestra en la sección `#cursos`). Un **curso** (`classes.kind = 'course'`) es una serie de videos
+(filas con `course_id`): ver "Cursos" en el README. Ambos aparecen en la home (sección `#cursos`) y en `videoteca.html`. No confundir con las
 **clases en vivo** (`#clases`, agenda de profesores). No hay cursos de ejemplo: todo sale de la base.
 
 **Pagos (Fases 17-22):** todo se cobra con **PayPal** en EUR (guía: `docs/PAYPAL.md`). Reglas: el navegador solo manda *qué* compra

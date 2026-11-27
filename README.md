@@ -873,6 +873,24 @@ Se agregó entre las Fases 30 y 31 (15/10/2026). Todo se cobra con PayPal en EUR
 
 **Falta:** probar suscripciones, pedidos con videos y el cupón contra el sandbox real de PayPal (ver `docs/PAYPAL.md`).
 
+### Cursos (serie de videos)
+
+Un **curso** es una serie de videos con cantidad **ilimitada**, que se puede ampliar cuando haga falta. Se vende por **suscripción** (según su nivel mínimo) o **suelto**
+por el carrito como una clase normal (30 días de acceso). Lo que ya existía no cambia: los videos sueltos siguen igual.
+
+- **Datos:** un curso es una fila de `classes` con `kind = 'course'` (sin video propio: queda `video_status = 'ready'` y sin key de R2, así precio, carrito, nivel y accesos
+  funcionan sin tocar los pagos). Sus videos son filas normales con `course_id` apuntando al curso; el orden es `sort_order` (el menor primero).
+- **Acceso (una sola regla, `can_access_class`):** un video de un curso se ve si se tiene acceso al **curso**: gratis, nivel de suscripción suficiente (`min_tier` del curso)
+  o compra del curso suelto. Los videos que se agreguen después quedan cubiertos sin volver a pagar. El nivel, acceso y precio de un video de curso no se usan.
+- **Panel (Clases):** **Nuevo curso** (solo developer, como subir videos) crea el curso sin publicar; el botón **Videos** de su fila abre sus videos y **Agregar video**
+  (developer) suma uno nuevo. Editar, publicar, despublicar y eliminar videos lo puede hacer el admin. Un curso con videos no se borra: primero se eliminan sus videos.
+  Los videos de un curso no se listan sueltos (ni en el panel, ni en la home, ni en la videoteca): se ven dentro del curso (`clase.html?id=<curso>`).
+- **Migración:** `20261021120000_courses` (aplicar con `npm run sb:db-push` **antes de publicar la web**; si la web sale antes, home, videoteca, clase y panel siguen
+  funcionando como hasta ahora y "Nuevo curso" avisa que falta la migración). `admin-create-upload` acepta `course_id` (re-desplegar la función: `npm run sb:deploy`).
+- **Dónde está:** `js/ui/class-form-modal.js` (modos `course` y `lesson`), `js/pages/panel.js` (vista de un curso), `js/pages/clase.js` (página del curso y navegación entre videos),
+  `js/lib/api.js` (`adminCreateCourse`, `listCourseLessons`, `canAccessClass`).
+- Pruebas: `supabase/tests/courses.test.sql`, `supabase/functions/_tests/handlers.test.ts` (course_id) y los E2E "Cursos".
+
 ### Fase 31 · Notificaciones — aviso de clase en vivo el mismo día
 
 - [x] Edge Function `live-reminders` + funciones SQL `live_reminders_claim/release` (cada reserva se avisa una sola vez; los fallos se

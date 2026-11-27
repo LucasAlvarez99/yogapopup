@@ -33,6 +33,7 @@ done
 "${PSQL[@]}" -f tests/cart_videos.test.sql
 "${PSQL[@]}" -f tests/free_class_coupons.test.sql
 "${PSQL[@]}" -f tests/testimonials.test.sql
+"${PSQL[@]}" -f tests/courses.test.sql
 "${PSQL[@]}" -f tests/security_invariants.test.sql
 
 # Limpieza de clases con GUID de Bunny (migración 20260930120000): necesita datos "de antes" sembrados

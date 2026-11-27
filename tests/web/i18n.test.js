@@ -134,3 +134,14 @@ Deno.test("el selector de idioma está en la home y en el encabezado común", ()
   assert.match(read("js/ui/boot.js"), /initLanguage\(\)/);
   assert.match(read("js/pages/home.js"), /initLanguage\(\)/);
 });
+
+Deno.test("i18n: los textos de cursos (singular y plural) se traducen bien", () => {
+  assert.equal(translateWith("Curso", en), "Course");
+  assert.equal(translateWith("Videos del curso", en), "Course videos");
+  assert.equal(translateWith("1 video", en), "1 video");
+  assert.equal(translateWith("12 videos", en), "12 videos");
+  assert.equal(translateWith("Curso · 1 video", en), "Course · 1 video");
+  assert.equal(translateWith("Curso · 6 videos", en), "Course · 6 videos");
+  assert.equal(translateWith("Presencial", en), "In person");
+  assert.equal(translateWith("En vivo (virtual)", en), "Live (virtual)");
+});

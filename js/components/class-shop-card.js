@@ -18,6 +18,7 @@ const hrefOf = (c) => `${page('clase.html')}?id=${encodeURIComponent(c.id)}`;
 export function classShopCard(c, { access = null, inCart = false, onAdd = null, col = 'col-md-6 col-lg-4', progress = null } = {}) {
   const pct = progress ? percent(progress.progress_seconds, c.duration_seconds) : 0;
   const offer = classOffer(c, access);
+  const isCourse = c.kind === 'course'; // una serie de videos: se ve y se compra igual, pero lleva su propia etiqueta
   const media = c.thumbnail_url
     ? el('img', { src: c.thumbnail_url, alt: '', loading: 'lazy', 'data-hide-on-error': true })
     : el('i', { class: 'bi bi-flower1', 'aria-hidden': 'true' });
@@ -37,7 +38,7 @@ export function classShopCard(c, { access = null, inCart = false, onAdd = null, 
     action = el('a', { class: cls, href }, icon('lock'), ' Ver cómo acceder');
     note = el('small', { class: 'shop-stock' }, 'Incluido con suscripción');
   } else {
-    action = el('a', { class: cls, href }, icon('play-fill'), ' Ver video');
+    action = el('a', { class: cls, href }, icon('play-fill'), isCourse ? ' Ver curso' : ' Ver video');
     if (offer === 'owned') note = el('small', { class: 'shop-stock' }, daysLeftLabel(daysLeft(access.classes.get(c.id))) || 'Es tuyo');
     else if (offer === 'included') note = el('small', { class: 'shop-stock' }, 'Incluido en tu suscripción');
     else note = el('small', { class: 'shop-stock' }, 'Gratis');
@@ -49,7 +50,8 @@ export function classShopCard(c, { access = null, inCart = false, onAdd = null, 
         el('div', { class: 'shop-media bg-mint' },
           media,
           el('span', { class: 'video-play', 'aria-hidden': 'true' }, icon('play-fill')),
-          c.duration_seconds ? el('span', { class: 'tag tag-light shop-flag' }, formatMinutes(c.duration_seconds)) : null,
+          isCourse ? el('span', { class: 'tag tag-light shop-flag' }, 'Curso')
+            : c.duration_seconds ? el('span', { class: 'tag tag-light shop-flag' }, formatMinutes(c.duration_seconds)) : null,
           progress?.completed ? el('span', { class: 'tag tag-light video-seen' }, icon('check2'), ' Vista') : null,
           pct > 0 && !progress?.completed
             ? el('span', { class: 'video-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': `${pct}% visto` },

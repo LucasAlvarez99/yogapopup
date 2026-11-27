@@ -4,11 +4,11 @@ import { enforceRateLimit, LIMITS } from "../_shared/rate-limit.ts";
 import { type ClassRow, type HandlerDeps, toPublicClass } from "../_shared/ports.ts";
 
 /**
- * POST { title, description?, category?, level?, access_level?, sort_order?, class_id? }
+ * POST { title, description?, category?, level?, access_level?, sort_order?, class_id?, course_id? }
  *
  * Solo admin. Deja todo listo para que el NAVEGADOR suba el archivo directo a R2 (PUT
  * prefirmado):
- *  - Sin class_id: reserva una key en R2 + crea una clase nueva.
+ *  - Sin class_id: reserva una key en R2 + crea una clase nueva (con course_id, un video de ese curso).
  *  - Con class_id, según el estado del video de esa clase:
  *      · sin video          -> reserva una key nueva y la asocia
  *      · pending/uploading  -> REANUDA: misma key, URL prefirmada nueva (aún no se subió nada,
@@ -59,6 +59,8 @@ export function createHandler(deps: HandlerDeps) {
           sort_order: input.sortOrder,
           created_by: admin.id,
           r2_object_key: r2.newObjectKey(crypto.randomUUID()),
+          // Un video de un curso: la base comprueba que course_id sea de verdad un curso (trigger classes_check_course_parent).
+          ...(input.courseId ? { course_id: input.courseId } : {}),
         });
       }
 

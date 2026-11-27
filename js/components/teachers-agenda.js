@@ -1,6 +1,6 @@
 import { el, icon, mount } from '../lib/dom.js';
 import {
-  arDay, arTime, groupByDay, isFull, localTimeIfDifferent, MODE_LABELS, monthGrid, monthLabel, monthRange, seatsLeft, shiftMonth,
+  arDay, arTime, groupByDay, isFull, localTimeIfDifferent, monthGrid, monthLabel, monthRange, seatsLeft, shiftMonth,
   WEEKDAYS,
 } from '../lib/agenda.js';
 import { levelLabel } from '../lib/format.js';
@@ -175,7 +175,7 @@ export function mountTeachersAgenda(root, { api, auth, notify = () => {}, now = 
       slots(),
       s ? el('div', { class: 'ag-info' },
         icon(s.mode === 'virtual' ? 'camera-video' : 'broadcast'),
-        el('div', {}, el('strong', {}, MODE_LABELS[s.mode] === 'Virtual' ? 'Clase virtual' : 'Clase en vivo'), el('small', {}, `Duración: ${s.duration_minutes} minutos`))) : null,
+        el('div', {}, el('strong', {}, s.mode === 'virtual' ? 'Clase virtual' : 'Clase en vivo'), el('small', {}, `Duración: ${s.duration_minutes} minutos`))) : null,
       el('button', {
         type: 'button', class: `btn ${s?.mine ? 'btn-outline-brand' : 'btn-brand'} w-100 ag-reserve`, disabled: !s || full || st.busy, onclick: reserve,
       }, icon(s?.mine ? 'x-circle' : 'calendar-check'), ` ${label}`));

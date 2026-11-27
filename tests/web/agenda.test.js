@@ -11,10 +11,12 @@ import {
   isFull,
   isoToArFields,
   localTimeIfDifferent,
+  MODE_LABELS,
   monthGrid,
   monthRange,
   parseSpecialties,
   seatsLeft,
+  SESSION_MODES,
   shiftMonth,
 } from "../../js/lib/agenda.js";
 import { agendaError, AppError, messageFor } from "../../js/lib/errors.js";
@@ -211,4 +213,10 @@ Deno.test("agenda: errores de la base se traducen a mensajes claros", () => {
   assert.equal(agendaError({ code: "XX000", message: "boom" }).code, "internal_error");
   assert.match(messageFor(agendaError({ code: "23514" })), /no tiene lugares/);
   assert.match(messageFor(agendaError({ code: "P0002", message: "user not found" })), /registrado/);
+});
+
+Deno.test("agenda: la modalidad se muestra como Presencial y En vivo (virtual); el valor guardado no cambia", () => {
+  assert.equal(MODE_LABELS.live, "Presencial");
+  assert.equal(MODE_LABELS.virtual, "En vivo (virtual)");
+  assert.deepEqual(SESSION_MODES, ["live", "virtual"]);
 });

@@ -43,6 +43,8 @@ export interface NewClass {
   sort_order: number;
   created_by: string;
   r2_object_key: string;
+  /** Curso al que pertenece el video. Se omite en un video suelto (así no se toca una columna que una base sin migrar no tiene). */
+  course_id?: string;
 }
 
 export interface VideoStatePatch {
